@@ -1397,6 +1397,40 @@ http.createServer(async (req, res) => {
   // ---- MCP: point an agent at this URL and it can query the floor ----
   if (p === '/mcp') {
     if (req.method !== 'POST') {
+      // A human clicking the announce link lands here with a browser; show them how to plug it in
+      // instead of a bare JSON-RPC error. MCP clients never send Accept: text/html — they POST, or GET
+      // asking for text/event-stream (a server-push stream this stateless server doesn't offer -> 405).
+      const wantsHtml = /text\/html/i.test(req.headers.accept || '') && !/text\/event-stream/i.test(req.headers.accept || '');
+      if (req.method === 'GET' && wantsHtml) {
+        const base = 'https://' + (req.headers.host || 'thefloor-dashboard-production.up.railway.app');
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=3600' });
+        res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Floor · MCP for agents</title></head>
+<body style="margin:0;background:#0d0a06;color:#f2e8d5;font-family:ui-monospace,Menlo,Consolas,monospace;line-height:1.6">
+<div style="max-width:720px;margin:0 auto;padding:48px 20px">
+<h1 style="color:#d4af5a;font-size:22px;letter-spacing:1px">▸ THE FLOOR · MCP</h1>
+<p>This URL is a <b>Model Context Protocol</b> endpoint — it's for your AI agent, not your browser.
+Add it to Claude, Claude Code, or Cursor and ask the floor questions in plain language:
+live desks and alpha, who's reinvesting vs dumping, operator math — and it can even <b>play</b>
+(unsigned transactions only; your wallet signs, this server never touches keys).</p>
+<h2 style="color:#d4af5a;font-size:15px;margin-top:28px">Add it</h2>
+<pre style="background:#12100c;border:1px solid #37301f;border-radius:8px;padding:14px;overflow-x:auto;font-size:12.5px"># Claude Code
+claude mcp add --transport http the-floor ${base}/mcp
+
+# claude.ai → Settings → Connectors → Add custom connector
+${base}/mcp
+
+# Cursor (mcp.json)
+{ "mcpServers": { "the-floor": { "url": "${base}/mcp" } } }</pre>
+<h2 style="color:#d4af5a;font-size:15px;margin-top:28px">18 tools</h2>
+<p style="font-size:13px;color:#b3a88f">${MCP_TOOLS.map(t => t.name).join(' · ')}</p>
+<p style="margin-top:28px;font-size:13px"><a href="/llms.txt" style="color:#d4af5a">llms.txt</a> ·
+<a href="/api" style="color:#d4af5a">API index</a> · <a href="/" style="color:#d4af5a">dashboard</a></p>
+<p style="font-size:11.5px;color:#6f6249">Unofficial fan-built companion to thefloor.sh. Read tools are cached public data;
+write tools return unsigned calldata for your own signer. Never send a private key to this or any API.</p>
+</div></body></html>`);
+        return;
+      }
       // No server-initiated stream: this server is stateless, every answer rides its POST response.
       res.writeHead(405, { 'content-type': 'application/json', allow: 'POST, OPTIONS' });
       res.end(JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32000, message: 'MCP streamable HTTP: POST JSON-RPC to /mcp' } }));
