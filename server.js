@@ -1118,6 +1118,16 @@ const MCP_TOOLS = [
   { name: 'prepare_wrap_eth', description: 'Build the UNSIGNED transaction to wrap native ETH into WETH (step 1 of buying FLOOR — the router swaps WETH, not raw ETH). Returns a WETH.deposit() call carrying your ETH as value.', inputSchema: obj({ amountEth: { type: 'number', description: 'How much ETH to wrap (whole ETH, e.g. 0.05).' } }, ['amountEth']) },
   { name: 'prepare_swap_eth_for_floor', description: 'Build the UNSIGNED Uniswap V3 swap that buys FLOOR with WETH (exactInputSingle). Full buy flow is 3 signed steps: (1) prepare_wrap_eth, (2) approve WETH to the router [included as approveWeth when `from` is given and allowance is short], (3) this swap. amountOutMinimum is computed from the LIVE pool price minus your slippage, so you are protected from a bad fill — but VERIFY the numbers before signing; this spends real money and the pool is thin. Selling FLOOR for ETH is the reverse and not built here.', inputSchema: obj({ amountEth: { type: 'number', description: 'WETH to spend (whole ETH). You must already hold this much WETH — see prepare_wrap_eth.' }, recipient: { type: 'string', description: 'Address to receive the FLOOR (the signing wallet).' }, slippagePct: { type: 'number', description: 'Max slippage tolerance in percent (default 2). amountOutMinimum = live quote × (1 − this).' }, from: { type: 'string', description: 'Signing wallet, used to check WETH allowance and include an approve if needed.' } }, ['amountEth', 'recipient']) },
 ];
+// Client hints (MCP ToolAnnotations). readOnlyHint = safe to call without a confirmation prompt. The
+// get_*/list_* tools only read, and this server never writes anything regardless — so they're read-only.
+// prepare_* are marked readOnlyHint:false ON PURPOSE: the server mutates nothing (it just returns
+// calldata), but that calldata is a real fund-moving transaction, and we want clients to PROMPT before an
+// agent fires one. openWorldHint:true everywhere — every result reflects live on-chain/market state.
+MCP_TOOLS.forEach(t => {
+  const write = t.name.startsWith('prepare_');
+  t.annotations = { title: t.name.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase()), readOnlyHint: !write, openWorldHint: true };
+  if (write) t.annotations.destructiveHint = false;     // buying/creating isn't destructive, but still confirm
+});
 // Verified against 10 real DeskCreated transactions spanning blocks 3.89M-11.46M: selector and price are
 // constant across the token's whole life. Read off-chain rather than from an ABI because both explorers
 // were 503 — the chain is the authority anyway, and a wrong selector here would burn someone's funds.
@@ -1593,7 +1603,7 @@ ${base}/mcp
 
 # Cursor (mcp.json)
 { "mcpServers": { "the-floor": { "url": "${base}/mcp" } } }</pre>
-<h2 style="color:#d4af5a;font-size:15px;margin-top:28px">18 tools</h2>
+<h2 style="color:#d4af5a;font-size:15px;margin-top:28px">${MCP_TOOLS.length} tools</h2>
 <p style="font-size:13px;color:#b3a88f">${MCP_TOOLS.map(t => t.name).join(' · ')}</p>
 <p style="margin-top:28px;font-size:13px"><a href="/llms.txt" style="color:#d4af5a">llms.txt</a> ·
 <a href="/api" style="color:#d4af5a">API index</a> · <a href="/" style="color:#d4af5a">dashboard</a></p>
