@@ -1545,7 +1545,7 @@ write tools return unsigned calldata for your own signer. Never send a private k
     if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) { res.writeHead(400, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'bad address' })); return; }
     const A = addr.toLowerCase();
     const cached = playerCache.get(A);
-    if (cached && Date.now() - cached.ts < PLAYER_TTL) {
+    if (cached && Date.now() - cached.ts < (cached.ttl || PLAYER_TTL)) {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=60' });
       res.end(JSON.stringify(Object.assign({ ok: true, cached: true }, cached.data))); return;
     }
@@ -1554,7 +1554,11 @@ write tools return unsigned calldata for your own signer. Never send a private k
       pr = (async () => {
         const withTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(null), ms))]);
         const [scan, state] = await Promise.all([
-          withTimeout(fetchPlayer(addr).catch(() => null), 3500),  // Blockscout scan — tight bound; exact state comes from the fast RPC regardless
+          // The 3.5s bound dated from when this scan was a Blockscout nice-to-have. It is now the RPC
+          // log scan and the ONLY source of lifetime flow — and under Railway's throttled egress its
+          // retries legitimately take up to ~25s. Cutting it off early nulled the whole scan in prod
+          // while the exact same code passed locally. Agents wait; wrong-vs-slow is not a close call.
+          withTimeout(fetchPlayer(addr).catch(() => null), 26000),
           rpcState(addr).catch(() => null),                        // chain RPC: exact current state + earnings (fast)
         ]);
         // The Blockscout scan supplies lifetime flow (minted/sold/spend/purchases); the RPC supplies exact
@@ -1583,7 +1587,9 @@ write tools return unsigned calldata for your own signer. Never send a private k
       const data = await pr;
       const valid = data && (data.stateOk || data.count > 0 || data.bal > 0);
       if (valid) {
-        playerCache.set(A, { data, ts: Date.now() });
+        // A partial result (scan nulled by throttling) is served but only pinned briefly — caching it
+        // for the full TTL froze "sold: null" for 4 minutes at a time. Complete results keep the long TTL.
+        playerCache.set(A, { data, ts: Date.now(), ttl: data.partial ? 30000 : PLAYER_TTL });
         if (playerCache.size > 800) { const k = playerCache.keys().next().value; playerCache.delete(k); }
       }
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': valid ? 'public, max-age=60' : 'no-store' });
