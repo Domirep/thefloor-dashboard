@@ -1,0 +1,13 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "io.github.domirep/the-floor",
+  "description": "Agent-readable and agent-playable data for The Floor ($FLOOR), an on-chain Wall Street strategy game on Robinhood Chain. Read live desks, alpha, emissions, reinvest-vs-dump behavior, and per-wallet strategy math; prepare (unsigned) transactions to join, recruit, upgrade, collect, and swap ETH for FLOOR. Unofficial fan-built companion to thefloor.sh.",
+  "version": "1.0.0",
+  "websiteUrl": "https://thefloor-dashboard-production.up.railway.app",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://thefloor-dashboard-production.up.railway.app/mcp"
+    }
+  ]
+}
