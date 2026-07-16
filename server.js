@@ -1067,6 +1067,10 @@ const MCP_INSTRUCTIONS = [
   'CRITICAL: do not equate "FLOOR sent to the pool" with selling — liquidity provision goes there too, and',
   'most swap volume arrives via routers/bots that cannot be attributed to a person. get_behavior already',
   'separates player / trader / routed / liquidity; use its buckets rather than deriving your own.',
+  'To decide moves, call get_strategy(address) — it computes FLOOR/day, pending PnL, seat/bandwidth room,',
+  'next-upgrade cost, per-operator payback days, and the halving countdown. To buy FLOOR, get_swap_info +',
+  'prepare_wrap_eth then prepare_swap_eth_for_floor (Uniswap V3, thin pool, minOut quoted live). All',
+  'prepare_* tools return UNSIGNED calldata for your own signer — this server never holds or asks for keys.',
 ].join(' ');
 const obj = (props, required) => ({ type: 'object', properties: props || {}, required: required || [], additionalProperties: false });
 const MCP_TOOLS = [
@@ -1088,6 +1092,10 @@ const MCP_TOOLS = [
   { name: 'prepare_seat_operator', description: 'Build the UNSIGNED transaction to seat an operator you own (by its FLOOROP NFT token id) at your desk, so it starts earning alpha. Seats and bandwidth are limited by your desk tier.', inputSchema: obj({ tokenId: { type: 'integer', description: 'The FLOOROP operator NFT token id to seat' }, from: { type: 'string', description: 'The wallet that will sign (optional).' } }, ['tokenId']) },
   { name: 'prepare_unseat_operator', description: 'Build the UNSIGNED transaction to unseat an operator (frees its seat and bandwidth).', inputSchema: obj({ tokenId: { type: 'integer', description: 'The FLOOROP operator NFT token id to unseat' }, from: { type: 'string', description: 'The wallet that will sign (optional).' } }, ['tokenId']) },
   { name: 'prepare_approve_floor', description: 'Build the UNSIGNED ERC20 approve letting the game contract spend your FLOOR. Needed before recruiting or upgrading. Approves an exact amount by default rather than unlimited — pass `amount` in whole FLOOR.', inputSchema: obj({ amount: { type: 'number', description: 'How much FLOOR to approve (whole tokens, not wei).' }, from: { type: 'string', description: 'The wallet that will sign (optional; used to report current allowance).' } }, ['amount']) },
+  { name: 'get_strategy', description: 'The decision-relevant math for one wallet, so an agent can reason about its next move: current alpha/share, FLOOR earned per day (and USD), pending PnL waiting to be collected, seat + bandwidth headroom, the next desk upgrade (cost and what it unlocks), each operator\'s payback in days at the current emission rate, and the halving countdown (emissions ~halve after it). These are FACTS and paybacks, not instructions — the agent decides. Ignores halving decay in payback (best case). Needs the wallet to have a desk.', inputSchema: obj({ address: { type: 'string', description: '0x wallet to analyze' } }, ['address']) },
+  { name: 'get_swap_info', description: 'Everything needed to swap ETH↔FLOOR on Robinhood Chain: the Uniswap V3 router, WETH address, the FLOOR/WETH pool and its 1% fee tier, and the LIVE spot price (FLOOR per ETH) read from the pool. Note the pool is thin (~tens of $k liquidity) so large buys move the price hard — size accordingly. Read this before prepare_swap_eth_for_floor, or to construct/verify a swap yourself.', inputSchema: obj() },
+  { name: 'prepare_wrap_eth', description: 'Build the UNSIGNED transaction to wrap native ETH into WETH (step 1 of buying FLOOR — the router swaps WETH, not raw ETH). Returns a WETH.deposit() call carrying your ETH as value.', inputSchema: obj({ amountEth: { type: 'number', description: 'How much ETH to wrap (whole ETH, e.g. 0.05).' } }, ['amountEth']) },
+  { name: 'prepare_swap_eth_for_floor', description: 'Build the UNSIGNED Uniswap V3 swap that buys FLOOR with WETH (exactInputSingle). Full buy flow is 3 signed steps: (1) prepare_wrap_eth, (2) approve WETH to the router [included as approveWeth when `from` is given and allowance is short], (3) this swap. amountOutMinimum is computed from the LIVE pool price minus your slippage, so you are protected from a bad fill — but VERIFY the numbers before signing; this spends real money and the pool is thin. Selling FLOOR for ETH is the reverse and not built here.', inputSchema: obj({ amountEth: { type: 'number', description: 'WETH to spend (whole ETH). You must already hold this much WETH — see prepare_wrap_eth.' }, recipient: { type: 'string', description: 'Address to receive the FLOOR (the signing wallet).' }, slippagePct: { type: 'number', description: 'Max slippage tolerance in percent (default 2). amountOutMinimum = live quote × (1 − this).' }, from: { type: 'string', description: 'Signing wallet, used to check WETH allowance and include an approve if needed.' } }, ['amountEth', 'recipient']) },
 ];
 // Verified against 10 real DeskCreated transactions spanning blocks 3.89M-11.46M: selector and price are
 // constant across the token's whole life. Read off-chain rather than from an ABI because both explorers
@@ -1114,7 +1122,42 @@ const OPS_LIST = [['Retail Analyst', 25], ['Junior Broker', 60], ['Chart Intern'
   ['Activist Whale', 10000], ['Terminal Wizard', 15000], ['The Closer', 25000]];
 const w256 = v => BigInt(v).toString(16).padStart(64, '0');
 const wAddr = a => a.toLowerCase().replace(/^0x/, '').padStart(64, '0');
-const toWei = n => BigInt(Math.round(n)) * (10n ** 18n);
+// Fraction-safe: earlier this did BigInt(Math.round(n))*1e18, which was fine for whole FLOOR amounts but
+// zeroed sub-1 values — 0.05 ETH rounded to 0 wei and would have built a swap-zero (reverting) tx.
+const toWei = n => { const s = Number(n).toFixed(18); const [i, f] = s.split('.'); return BigInt(i) * (10n ** 18n) + BigInt((f || '').padEnd(18, '0').slice(0, 18)); };
+// Desk tiers. cost[N] = the FLOOR upgradeDesk() charges to REACH level N (verified 6/6 against real
+// DeskUpgraded events — the UI's "cumulative" label is loose; each step to N costs exactly this).
+const DESK_TIERS = [
+  { lvl: 0, name: 'Kitchen Table', seats: 2, bw: 20, prestige: 0, cost: 0 },
+  { lvl: 1, name: 'One Laptop Desk', seats: 3, bw: 45, prestige: 0.025, cost: 100 },
+  { lvl: 2, name: 'Retail Desk', seats: 4, bw: 80, prestige: 0.05, cost: 250 },
+  { lvl: 3, name: 'Boiler Room', seats: 6, bw: 150, prestige: 0.10, cost: 600 },
+  { lvl: 4, name: 'Broker Desk', seats: 8, bw: 260, prestige: 0.15, cost: 1200 },
+  { lvl: 5, name: 'Options Desk', seats: 10, bw: 420, prestige: 0.20, cost: 2500 },
+  { lvl: 6, name: 'Prop Desk', seats: 12, bw: 650, prestige: 0.275, cost: 5000 },
+  { lvl: 7, name: 'Quant Floor', seats: 15, bw: 1000, prestige: 0.35, cost: 9000 },
+  { lvl: 8, name: 'Prime Brokerage', seats: 18, bw: 1500, prestige: 0.45, cost: 16000 },
+  { lvl: 9, name: 'Exchange Floor', seats: 22, bw: 2200, prestige: 0.60, cost: 30000 },
+  { lvl: 10, name: 'Bell Room', seats: 26, bw: 3200, prestige: 0.80, cost: 60000 },
+];
+// Swap path — decoded byte-for-byte from a real ETH→FLOOR buy on this chain (not an ABI; both explorers
+// were 503). Uniswap V3 SwapRouter02.exactInputSingle, WETH→FLOOR, 1% fee tier. Native ETH is wrapped to
+// WETH first (deposit), then approved to the router, then swapped — the exact 3-step flow the game's own
+// frontend uses. Router pulls WETH via transferFrom, so the approve is mandatory.
+const SWAP_ROUTER = '0xcaf681a66d020601342297493863e78c959e5cb2';
+const WETH_ADDR = '0x0bd7d308f8e1639fab988df18a8011f41eacad73';
+const POOL_FEE = 10000;                              // 1% — the only FLOOR/WETH tier
+const SEL_EXACT_IN_SINGLE = '0x04e45aaf';            // exactInputSingle((tokenIn,tokenOut,fee,recipient,amountIn,amountOutMinimum,sqrtPriceLimitX96))
+const SEL_WETH_DEPOSIT = '0xd0e30db0';               // WETH.deposit() — payable, no args
+const SEL_SLOT0 = '0x3850c7bd';                      // pool.slot0() -> sqrtPriceX96 in first word
+// Live spot price straight from the pool, so amountOutMinimum is a real quote and not a guess an agent
+// could get sandwiched on. token0=WETH, token1=FLOOR → (sqrtPriceX96^2 / 2^192) = FLOOR per WETH.
+async function floorPerWeth() {
+  const res = await ethCall(FLOOR_POOL, SEL_SLOT0);
+  if (!res) return null;
+  try { const sqrt = BigInt('0x' + res.slice(2, 66)); return Number(sqrt * sqrt) / (2 ** 192); }
+  catch (_) { return null; }
+}
 // Shared shape for every prepare_* tool: unsigned, self-describing, and loud about the fact that the
 // caller signs. Nothing here ever touches a key or broadcasts.
 const unsignedTx = (to, data, extra) => Object.assign({
@@ -1291,6 +1334,96 @@ async function mcpCall(name, args) {
         note: 'Exact-amount approval by design. An unlimited approval is more convenient and is also how wallets get drained — approve what you intend to spend.',
       });
     }
+    case 'get_strategy': {
+      const a = String(args.address || '').trim();
+      if (!/^0x[0-9a-fA-F]{40}$/.test(a)) return { error: 'address must be a 0x-prefixed 40-hex wallet address' };
+      const [pl, ts] = await Promise.all([selfGet('/api/player?addr=' + a), (async () => { if (!tokenStats) { try { await refreshTokenStats(); } catch (_) {} } return tokenStats; })()]);
+      // Degrade, don't fail: the operator paybacks + market + halving only need tokenStats, so they're
+      // still returned even when the per-wallet RPC read is down. Personalized parts go null with a note —
+      // an agent gets the reusable math and can retry for its own desk specifics.
+      const liveOk = !!(pl && pl.stateOk);
+      const price = ts ? ts.price : null;                       // USD per FLOOR
+      const perAlphaDay = ts ? ts.perAlphaDay : null;           // FLOOR/day per 1 alpha
+      const usd = f => (price != null && f != null) ? +(f * price).toFixed(2) : null;
+      const lvl = pl.deskLevelChain != null ? pl.deskLevelChain : pl.deskLevel;
+      const nextTier = (lvl != null && lvl < DESK_TIERS.length - 1) ? DESK_TIERS[lvl + 1] : null;
+      const cur = (lvl != null) ? DESK_TIERS[lvl] : null;
+      const seatsFree = (pl.deskSeats != null && pl.seatsUsed != null) ? pl.deskSeats - pl.seatsUsed : null;
+      const bwFree = (pl.deskBandwidth != null && pl.bwUsed != null) ? pl.deskBandwidth - pl.bwUsed : null;
+      // operator payback = cost / (alpha it adds × FLOOR-per-alpha-per-day)
+      const operators = OPS_LIST.map(([nm, cost], id) => {
+        const alpha = OPS_STAT[id] ? OPS_STAT[id][1] : null, bw = OPS_STAT[id] ? OPS_STAT[id][2] : null;
+        const perDay = (alpha != null && perAlphaDay != null) ? alpha * perAlphaDay : null;
+        return { id, name: nm, costFloor: cost, alpha, bandwidth: bw,
+          floorPerDay: perDay != null ? +perDay.toFixed(2) : null,
+          paybackDays: (perDay && perDay > 0) ? +(cost / perDay).toFixed(1) : null,
+          fitsFreeBandwidth: (bwFree != null && bw != null) ? bw <= bwFree : null };
+      });
+      const halveMs = ts && ts.halveAt ? ts.halveAt - Date.now() : null;
+      const signals = [];
+      if (liveOk && pl.pendingPnL != null) signals.push(pl.pendingPnL > 0 ? `${pl.pendingPnL.toFixed(2)} FLOOR of PnL is uncollected${usd(pl.pendingPnL) != null ? ' (~$' + usd(pl.pendingPnL) + ')' : ''} — prepare_collect to realize it.` : 'No pending PnL to collect right now.');
+      if (liveOk && seatsFree != null) signals.push(seatsFree > 0 ? `${seatsFree} free seat(s) and ${bwFree} spare bandwidth — room to seat more operators.` : 'All seats full — recruiting more needs a desk upgrade first.');
+      if (liveOk && nextTier && cur) signals.push(`Next upgrade → ${nextTier.name}: ${nextTier.cost} FLOOR for +${nextTier.seats - cur.seats} seats, +${nextTier.bw - cur.bw} bandwidth, +${Math.round((nextTier.prestige - cur.prestige) * 100)}% prestige.`);
+      if (halveMs != null) signals.push(`Halving in ${(halveMs / 86400000).toFixed(1)} days — the emission rate roughly halves after, so FLOOR/day falls. Earlier reinvestment compounds at the richer rate.`);
+      if (!liveOk) signals.push('Live desk state for this wallet was unavailable (no desk yet, or the RPC is throttled). The operator paybacks and market numbers below are still valid; retry get_strategy or get_player for your desk specifics.');
+      return {
+        address: a,
+        liveStateAvailable: liveOk,
+        earning: liveOk ? { alpha: pl.userAlpha, share: pl.share, floorPerDay: pl.perDay, usdPerDay: usd(pl.perDay), pendingPnL: pl.pendingPnL, pendingPnLUsd: usd(pl.pendingPnL) } : null,
+        desk: (liveOk && cur) ? { level: lvl, name: cur.name, seatsUsed: pl.seatsUsed, seats: pl.deskSeats, bandwidthUsed: pl.bwUsed, bandwidth: pl.deskBandwidth, seatsFree, bwFree, prestigeBps: pl.prestigeBps } : null,
+        nextUpgrade: (liveOk && nextTier) ? { toLevel: nextTier.lvl, name: nextTier.name, costFloor: nextTier.cost, addsSeats: nextTier.seats - cur.seats, addsBandwidth: nextTier.bw - cur.bw, addsPrestigePct: Math.round((nextTier.prestige - cur.prestige) * 100) } : (liveOk ? 'Already at the top tier (Bell Room).' : null),
+        deskTiers: DESK_TIERS.map(d => ({ level: d.lvl, name: d.name, seats: d.seats, bandwidth: d.bw, prestigePct: Math.round(d.prestige * 100), upgradeCostFloor: d.cost })),
+        operators,
+        market: { floorPriceUsd: price, floorPerAlphaPerDay: perAlphaDay, halvingInDays: halveMs != null ? +(halveMs / 86400000).toFixed(1) : null, ageMs: ts ? ageOf(tokenStatsAt) : null },
+        signals,
+        note: 'Paybacks assume the current emission rate and ignore halving decay (best case). These are facts, not advice — the agent chooses.',
+      };
+    }
+    case 'get_swap_info': {
+      const spot = await floorPerWeth();
+      return {
+        chain: 'Robinhood Chain', chainId: CHAIN_ID,
+        router: SWAP_ROUTER, routerType: 'Uniswap V3 SwapRouter02',
+        weth: WETH_ADDR, floor: FLOOR_ADDR, pool: FLOOR_POOL, feeTier: POOL_FEE, feePct: 1,
+        liveSpot: spot != null ? { floorPerEth: +spot.toFixed(2), ethPerFloor: +(1 / spot).toExponential(4) } : null,
+        method: 'exactInputSingle((tokenIn=WETH, tokenOut=FLOOR, fee=10000, recipient, amountIn, amountOutMinimum, sqrtPriceLimitX96=0))',
+        howToBuy: ['1. Wrap ETH → WETH (prepare_wrap_eth).', '2. Approve WETH to the router (prepare_swap_eth_for_floor includes this as approveWeth when needed).', '3. Swap via exactInputSingle (prepare_swap_eth_for_floor).'],
+        warnings: ['The pool is THIN — a large buy moves the price a lot; keep sizes small or split.', 'Always set amountOutMinimum from a fresh quote; never 0.', 'Selling FLOOR→ETH is the reverse path and is not built as a tool here.'],
+      };
+    }
+    case 'prepare_wrap_eth': {
+      const amt = Number(args.amountEth);
+      if (!(amt > 0)) return { error: 'amountEth must be a positive number of ETH' };
+      return unsignedTx(WETH_ADDR, SEL_WETH_DEPOSIT, {
+        value: '0x' + toWei(amt).toString(16), valueEth: String(amt),
+        what: 'Wrap ' + amt + ' ETH into WETH', note: 'Step 1 of buying FLOOR. WETH is 1:1 with ETH and unwrappable anytime (withdraw).',
+      });
+    }
+    case 'prepare_swap_eth_for_floor': {
+      const amt = Number(args.amountEth);
+      const recip = String(args.recipient || '').trim();
+      if (!(amt > 0)) return { error: 'amountEth must be a positive number' };
+      if (!/^0x[0-9a-fA-F]{40}$/.test(recip)) return { error: 'recipient must be a 0x-prefixed 40-hex address' };
+      const slip = Number(args.slippagePct) >= 0 && Number(args.slippagePct) < 50 ? Number(args.slippagePct) : 2;
+      const spot = await floorPerWeth();
+      if (spot == null) return { error: 'could not read a live pool quote right now (RPC unavailable) — do not swap without a fresh amountOutMinimum; retry shortly.' };
+      const expectedFloor = amt * spot * (1 - POOL_FEE / 1e6);          // fee is taken from the input
+      const minOut = expectedFloor * (1 - slip / 100);
+      const amountInWei = toWei(amt), minOutWei = toWei(minOut);
+      const data = SEL_EXACT_IN_SINGLE + wAddr(WETH_ADDR) + wAddr(FLOOR_ADDR) + w256(POOL_FEE) + wAddr(recip) + w256(amountInWei) + w256(minOutWei) + w256(0);
+      const out = unsignedTx(SWAP_ROUTER, data, {
+        what: 'Swap ' + amt + ' WETH → FLOOR', quote: { floorPerEth: +spot.toFixed(2), expectedFloor: Math.round(expectedFloor), amountOutMinimum: Math.round(minOut), slippagePct: slip },
+        priceImpactNote: 'Quote is spot price; the pool is thin so a large buy will fill worse than this. If expectedFloor looks off vs get_swap_info, stop.',
+        warnings: ['You must already hold ' + amt + ' WETH and have approved it to the router (see approveWeth / prepare_wrap_eth).', 'This spends real money. Verify amountOutMinimum before signing.'],
+      });
+      const from = String(args.from || '').trim();
+      if (/^0x[0-9a-fA-F]{40}$/.test(from)) {
+        const res = await ethCall(WETH_ADDR, SEL_ALLOWANCE + wAddr(from) + wAddr(SWAP_ROUTER));
+        let allowed = 0n; if (res) { try { allowed = BigInt(res); } catch (_) {} }
+        if (allowed < amountInWei) out.approveWeth = unsignedTx(WETH_ADDR, SEL_APPROVE + wAddr(SWAP_ROUTER) + w256(amountInWei), { what: 'Approve ' + amt + ' WETH to the router (sign before the swap)' });
+      } else out.warnings.push('No `from` given — could not check WETH allowance. The router needs WETH approved or the swap reverts.');
+      return out;
+    }
     default: return { error: 'unknown tool: ' + name };
   }
 }
@@ -1338,6 +1471,23 @@ const LLMS_TXT = () => `# The Floor — companion dashboard for $FLOOR (Robinhoo
 ## Agent endpoint
 - MCP (streamable HTTP): ${'`'}/mcp${'`'} — add as an MCP server; tools are self-describing via tools/list.
 - Discovery (JSON): ${'`'}/api${'`'}
+
+## Deciding what to do (the MCP won't decide for you)
+- These tools give an agent the ABILITY to read state and prepare transactions — they don't make the
+  moves. To play well, read the numbers and reason. ${'`'}get_strategy(address)${'`'} does the game math for you:
+  FLOOR/day, uncollected PnL, seat/bandwidth headroom, next-upgrade cost + what it unlocks, per-operator
+  payback in days at the current emission rate, and the halving countdown. It returns facts + paybacks,
+  not "buy now" — the choice is the agent's.
+- Rough loop most players run: open desk → recruit a starter → collectPnL when PnL is worth the gas →
+  reinvest into the operator with the lowest payback that fits your free bandwidth → upgrade the desk when
+  you're seat/bandwidth-capped → repeat. Emissions halve every 30 days, so earlier reinvestment compounds.
+
+## Buying FLOOR (you need it to recruit/upgrade)
+- Swap on Robinhood Chain's Uniswap V3: router ${SWAP_ROUTER} (SwapRouter02), WETH ${WETH_ADDR},
+  FLOOR/WETH pool ${FLOOR_POOL} at the 1% fee tier. ${'`'}get_swap_info${'`'} returns the live price.
+- Flow: ${'`'}prepare_wrap_eth${'`'} (ETH→WETH) → approve WETH to the router (${'`'}prepare_swap_eth_for_floor${'`'}
+  includes it) → ${'`'}prepare_swap_eth_for_floor${'`'} (exactInputSingle). amountOutMinimum is quoted live from
+  the pool minus your slippage. The pool is thin — big buys fill badly; keep them small.
 
 ## Playing the game from an agent
 - ${'`'}prepare_create_desk${'`'} builds the UNSIGNED transaction to open a desk. It returns {to, value, data};
