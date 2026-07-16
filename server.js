@@ -1025,6 +1025,27 @@ function track(e) {
   console.log('EVT ' + JSON.stringify(e));   // -> Railway logs for live monitoring
 }
 
+// ---- MCP adoption telemetry ----
+// Its own store, NOT the page-telemetry events buffer: a popular MCP could churn 8000 events fast and
+// evict pageviews/errors. Honest about what it can and can't know — there's no auth, so `connects` counts
+// SESSIONS (an agent initializes once per connect) and `clients` are SELF-REPORTED names, not verified
+// unique agents. byTool shows what agents actually do (read vs prepare_* = play).
+const MCP_STATS_FILE = path.join(DATA_DIR, 'mcpstats.json');
+let mcpStats = { connects: 0, calls: 0, byTool: {}, byClient: {}, recent: [], firstAt: 0, lastAt: 0 };
+try { const m = JSON.parse(fs.readFileSync(MCP_STATS_FILE, 'utf8')); if (m && typeof m === 'object') mcpStats = Object.assign(mcpStats, m); console.log('LOADED mcp stats (' + mcpStats.connects + ' connects, ' + mcpStats.calls + ' calls)'); } catch (_) {}
+let mcpDirty = false;
+setInterval(() => { if (!mcpDirty) return; mcpDirty = false; try { fs.writeFile(MCP_STATS_FILE, JSON.stringify(mcpStats), () => {}); } catch (_) {} }, 15000);
+const cleanLabel = s => String(s || '').replace(/[^\w./@ +-]/g, '').slice(0, 48) || 'unknown';
+function mcpTrack(kind, detail) {
+  const now = Date.now();
+  if (!mcpStats.firstAt) mcpStats.firstAt = now;
+  mcpStats.lastAt = now;
+  if (kind === 'connect') { mcpStats.connects++; const c = cleanLabel(detail && detail.client); mcpStats.byClient[c] = (mcpStats.byClient[c] || 0) + 1; mcpStats.recent.unshift({ ts: now, kind, client: c }); }
+  else if (kind === 'call') { mcpStats.calls++; const t = cleanLabel(detail && detail.tool); mcpStats.byTool[t] = (mcpStats.byTool[t] || 0) + 1; mcpStats.recent.unshift({ ts: now, kind, tool: t }); }
+  if (mcpStats.recent.length > 40) mcpStats.recent.length = 40;
+  mcpDirty = true;
+}
+
 // One call that answers "what is the state of the floor" — assembled from the same caches the site uses,
 // so an agent doesn't need 8 round-trips to get context. Anything not yet warmed is null + named in
 // unknownFields; it is never zero-filled, because "0" and "we don't know" are different claims and an
@@ -1599,6 +1620,7 @@ write tools return unsigned calldata for your own signer. Never send a private k
         try {
           switch (m && m.method) {
             case 'initialize':
+              mcpTrack('connect', { client: (m.params && m.params.clientInfo) ? (m.params.clientInfo.name + '/' + m.params.clientInfo.version) : 'unknown' });
               return { jsonrpc: '2.0', id, result: {
                 // Echo the client's version when it sends one — this server is version-agnostic (plain
                 // JSON-RPC + tools), so refusing a newer client would be gatekeeping for no reason.
@@ -1611,6 +1633,7 @@ write tools return unsigned calldata for your own signer. Never send a private k
             case 'tools/list': return { jsonrpc: '2.0', id, result: { tools: MCP_TOOLS } };
             case 'tools/call': {
               const nm = m.params && m.params.name;
+              mcpTrack('call', { tool: nm });
               const out = await mcpCall(nm, (m.params && m.params.arguments) || {});
               return { jsonrpc: '2.0', id, result: {
                 content: [{ type: 'text', text: JSON.stringify(out, null, 1) }],
@@ -1684,6 +1707,18 @@ write tools return unsigned calldata for your own signer. Never send a private k
       recentErrors: errs,
       // invite-link performance: clicks are local telemetry, conversions/earnings come from the chain
       referral: refStats ? Object.assign({}, refStats, { clicks: { play: counts.play_click || 0, deals: counts.deals_click || 0 } }) : null,
+      // MCP adoption: sessions (not verified-unique agents), tool calls, and read-vs-play split
+      mcp: (() => {
+        const byTool = Object.entries(mcpStats.byTool).sort((a, b) => b[1] - a[1]);
+        const writes = byTool.filter(([t]) => t.startsWith('prepare_')).reduce((s, [, n]) => s + n, 0);
+        return {
+          connects: mcpStats.connects, calls: mcpStats.calls,
+          reads: mcpStats.calls - writes, writes,
+          distinctClients: Object.keys(mcpStats.byClient).length,
+          byTool, byClient: Object.entries(mcpStats.byClient).sort((a, b) => b[1] - a[1]),
+          firstAt: mcpStats.firstAt, lastAt: mcpStats.lastAt, recent: mcpStats.recent.slice(0, 12),
+        };
+      })(),
       bootAt: BOOT
     }));
     return;

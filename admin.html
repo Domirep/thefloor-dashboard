@@ -77,6 +77,8 @@ td:last-child{text-align:right;color:var(--amber);font-variant-numeric:tabular-n
       <div class="card"><h2>Top looked-up wallets</h2><table id="wallets"></table></div>
     </div>
     <div style="height:12px"></div>
+    <div class="card"><h2>Agents on the MCP <span id="mcpState" class="muted"></span></h2><div id="mcp"></div></div>
+    <div style="height:12px"></div>
     <div class="card"><h2>Your invite link <span id="refState" class="muted"></span></h2><div id="referral"></div></div>
     <div style="height:12px"></div>
     <div class="card"><h2>Recent errors <span id="errCount" class="muted"></span></h2><table id="errors"></table></div>
@@ -118,6 +120,30 @@ function renderReferral(d){
        :`<span class="muted">${clicks?`${clicks} click${clicks>1?'s':''}, no desks opened yet — the link resolves and the format matches thefloor.sh docs, so this is a conversion gap, not a broken link.`:'No clicks yet.'}</span>`}`;
 }
 
+// "connects" = MCP sessions (an agent initializes once per connect), NOT verified-unique agents — there's
+// no auth. Client names are self-reported by the agent's MCP library. writes = prepare_* calls = agents
+// actually trying to PLAY, the number that matters most for "is this catching on".
+function renderMcp(d){
+  const el=$('#mcp'), st=$('#mcpState'); if(!el)return;
+  const m=d.mcp;
+  if(!m||!m.connects&&!m.calls){ st.textContent=''; el.innerHTML='<span class="muted">No agent has connected yet. Share the MCP URL — usage shows up here in real time.</span>'; return; }
+  const ago=t=>{ if(!t)return '—'; const s=(Date.now()-t)/1000; return s<90?Math.round(s)+'s ago':s<5400?Math.round(s/60)+'m ago':s<172800?Math.round(s/3600)+'h ago':Math.round(s/86400)+'d ago'; };
+  st.textContent='· last activity '+ago(m.lastAt);
+  const trow=([k,v])=>`<tr><td class="mono">${k}</td><td>${fmt(v)}</td></tr>`;
+  el.innerHTML=`
+    <div class="grid tiles" style="margin-bottom:12px">
+      <div class="card tile"><div class="label">Sessions</div><div class="n">${fmt(m.connects)} <small>connects</small></div></div>
+      <div class="card tile"><div class="label">Tool calls</div><div class="n">${fmt(m.calls)}</div></div>
+      <div class="card tile"><div class="label">Playing</div><div class="n" style="color:${m.writes?'var(--amber,#e0a800)':'inherit'}">${fmt(m.writes)} <small>prepare_* (vs ${fmt(m.reads)} reads)</small></div></div>
+      <div class="card tile"><div class="label">Client types</div><div class="n">${fmt(m.distinctClients)}</div></div>
+    </div>
+    <div class="grid two">
+      <div><div class="muted" style="font-size:11px;margin-bottom:4px">Tools used</div><table>${(m.byTool||[]).slice(0,10).map(trow).join('')||'<tr><td class="muted">none</td><td></td></tr>'}</table></div>
+      <div><div class="muted" style="font-size:11px;margin-bottom:4px">Agent clients (self-reported)</div><table>${(m.byClient||[]).slice(0,10).map(trow).join('')||'<tr><td class="muted">none</td><td></td></tr>'}</table></div>
+    </div>
+    <div class="muted" style="font-size:10.5px;margin-top:10px">Sessions ≈ connects, not unique agents (no auth). Writes = agents preparing real transactions.</div>`;
+}
+
 async function load(){
   if(!KEY){ $('#gate').style.display='block'; $('#dash').style.display='none'; return; }
   let d;
@@ -153,6 +179,7 @@ async function load(){
   rows($('#wallets'),(d.topWallets||[]).map(([a,c])=>[a.slice(0,6)+'…'+a.slice(-4),c]));
   rows($('#counts'),Object.entries(d.counts||{}).sort((a,b)=>b[1]-a[1]));
 
+  renderMcp(d);
   renderReferral(d);
 
   const errs=d.recentErrors||[]; $('#errCount').textContent=errs.length?'('+errs.length+')':'(none 🎉)';
