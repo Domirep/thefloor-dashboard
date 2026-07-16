@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>The Closing Bell · concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{--ink:#1a150e;--paper:#f0e6d2;--amber:#c9a227;--brass-dark:#8a6d16;--brass-light:#e6c96b;--muted-cream:#b3a88f;--muted:#6f6249;--navy-950:#0d0b08;--navy-900:#13100c;--navy-800:#26201a;--green:#2fbf71;--red:#d9534f;--epic:#a06cf0;--font-display:'DM Serif Display',serif;--font-mono:'IBM Plex Mono',monospace}
+  *{box-sizing:border-box;min-width:0}
+  html,body{margin:0;padding:0;overflow-x:clip}
+  body{background:radial-gradient(1100px 560px at 50% -8%,#241b10,#0d0b08 62%);color:var(--paper);font-family:var(--font-mono);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 20px}
+  header{border-bottom:2px solid var(--brass-dark);padding:20px 0;background:rgba(13,11,8,.7);position:sticky;top:0;z-index:5;backdrop-filter:blur(6px)}
+  header .wrap{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .logo{font-family:var(--font-display);font-size:24px;color:var(--paper)}
+  .logo .bell{color:var(--amber)}
+  .badge{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:2px;font-size:10px;color:#0c0906;background:var(--amber);padding:3px 8px;border-radius:3px}
+  .badge.dim{background:var(--brass-dark);color:var(--paper)}
+  .hero{text-align:center;padding:44px 0 30px}
+  .hero h1{font-family:var(--font-display);font-size:clamp(40px,8vw,72px);margin:0;letter-spacing:1px;line-height:1}
+  .hero h1 .b{color:var(--amber)}
+  .hero p{color:var(--muted-cream);font-size:15px;margin:14px 0 0;letter-spacing:.5px}
+  .card{background:var(--navy-900);border:1px solid #37301f;box-shadow:0 12px 34px rgba(0,0,0,.4);padding:20px;margin-bottom:16px}
+  .grid{display:grid;gap:16px}.grid>*{min-width:0}
+  .g2{grid-template-columns:1.05fr .95fr}
+  @media(max-width:760px){.g2{grid-template-columns:1fr}}
+  .label{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:2px;font-size:11px;color:var(--muted-cream)}
+  /* live session */
+  .bell-wrap{text-align:center;padding:8px 0 4px}
+  .bell-emoji{font-size:44px;filter:drop-shadow(0 0 14px rgba(201,162,39,.5));animation:swing 2.4s ease-in-out infinite}
+  @keyframes swing{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
+  .clock{font-family:var(--font-display);font-size:clamp(46px,11vw,84px);color:var(--amber);letter-spacing:2px;font-variant-numeric:tabular-nums;line-height:1;margin:6px 0}
+  .clock.soon{color:var(--red);animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.55}}
+  .holding{font-size:13px;color:var(--muted-cream);margin-top:4px}
+  .holding b{color:var(--paper)}
+  .seatbar{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:1px dashed #37301f}
+  .btn{display:inline-block;background:#12100c;color:var(--brass-light);border:2px solid var(--amber);padding:12px 22px;border-radius:5px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1.5px;font-size:13px;font-weight:600;cursor:pointer}
+  .btn:hover{background:#1c1710}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  /* prize */
+  .prize{position:relative;overflow:hidden}
+  .prize::before{content:"";position:absolute;inset:-40%;background:radial-gradient(circle at 70% 20%,rgba(160,108,240,.16),transparent 55%);pointer-events:none}
+  .op{display:flex;align-items:center;gap:16px;margin-top:10px}
+  .op-art{width:92px;height:92px;flex:none;border:2px solid var(--epic);border-radius:8px;background:linear-gradient(160deg,#221a2e,#0f0b16);display:flex;align-items:center;justify-content:center;font-size:40px;box-shadow:0 0 22px rgba(160,108,240,.35)}
+  .op-name{font-family:var(--font-display);font-size:30px;color:var(--paper);line-height:1.05}
+  .op-meta{margin-top:5px;font-size:12px;color:var(--muted-cream)}
+  .rarity{display:inline-block;border:1px solid var(--epic);color:#c9a6f5;border-radius:3px;padding:1px 7px;font-size:10px;letter-spacing:1px;text-transform:uppercase}
+  .stack{margin-left:auto;text-align:right;font-family:var(--font-display);font-size:34px;color:var(--amber)}
+  .laddernote{margin-top:14px;font-size:12px;color:var(--muted)}
+  .laddernote b{color:var(--brass-light)}
+  /* burn engine */
+  .burnbig{font-family:var(--font-display);font-size:clamp(34px,7vw,52px);color:var(--amber)}
+  .out{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:7px 0;border-bottom:1px dashed #2a2419;font-size:13px}
+  .out:last-child{border-bottom:none}
+  .out .k{color:var(--muted-cream)}
+  .out .v{font-family:var(--font-mono);color:var(--paper);font-weight:600}
+  .out .v.burn{color:var(--amber)}
+  /* steps */
+  .steps{counter-reset:s}
+  .step{display:flex;gap:14px;padding:11px 0;border-bottom:1px dashed #2a2419}
+  .step:last-child{border-bottom:none}
+  .step .n{counter-increment:s;flex:none;width:26px;height:26px;border:1px solid var(--amber);border-radius:50%;color:var(--amber);display:flex;align-items:center;justify-content:center;font-size:13px}
+  .step .n::before{content:counter(s)}
+  .step .t{color:var(--muted-cream);font-size:13px}
+  .step .t b{color:var(--paper)}
+  /* history */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px dashed #2a2419}
+  th{color:var(--brass-light);font-size:11px;letter-spacing:1px;text-transform:uppercase;font-weight:600}
+  td.op-cell{color:var(--paper)}
+  .win{color:var(--amber)}
+  h2.sec{font-family:var(--font-display);font-size:26px;margin:30px 0 6px}
+  .sub{color:var(--muted-cream);font-size:12px;margin:0 0 14px}
+  .note{font-size:11px;color:var(--muted);line-height:1.6}
+  .foot{color:var(--muted);font-size:11px;text-align:center;padding:28px 0 44px}
+  a{color:var(--amber)}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <span class="logo">🔔 THE <span class="bell">CLOSING BELL</span></span>
+  <span class="badge">concept</span>
+  <span class="badge dim">runs on $FLOOR</span>
+  <span class="sub" style="margin-left:auto;color:var(--muted-cream)">a mock — not live yet</span>
+</div></header>
+
+<div class="wrap">
+  <div class="hero">
+    <h1>HOLD THE <span class="b">FLOOR</span></h1>
+    <p>buy a seat. every buy resets the bell. last one holding the floor when it rings wins operators — and torches $FLOOR doing it.</p>
+  </div>
+
+  <div class="grid g2">
+    <!-- LIVE SESSION -->
+    <div class="card">
+      <div class="label">Session #47 · live</div>
+      <div class="bell-wrap">
+        <div class="bell-emoji">🔔</div>
+        <div class="clock" id="clock">04:58</div>
+        <div class="holding">holding the floor: <b id="holder">0x531d…d22d</b></div>
+      </div>
+      <div class="seatbar">
+        <div><div class="label">next seat</div><div style="font-family:var(--font-display);font-size:26px;color:var(--paper)" id="seat">96 $FLOOR</div></div>
+        <button class="btn" id="claim">Claim a seat</button>
+      </div>
+      <p class="note" style="margin-top:12px">Buy in the final 2 minutes and the bell pushes back 2 minutes — the round really ends when the last buyer stops. Seats get pricier as they fill (10 $FLOOR + 2 each), so early seats are cheap and earn commissions from every later buyer.</p>
+    </div>
+
+    <!-- THE PRIZE -->
+    <div class="card prize">
+      <div class="label">this session, everyone's playing for</div>
+      <div class="op">
+        <div class="op-art">🧌</div>
+        <div>
+          <div class="op-name" id="prizeName">Quant Goblin</div>
+          <div class="op-meta"><span class="rarity" id="prizeRarity">Epic</span> &nbsp; <span id="prizeAlpha">1,100 α</span> operator</div>
+        </div>
+        <div class="stack" id="stack"></div>
+      </div>
+      <p class="laddernote">The prize climbs the operator ladder as the pot grows — and past the top tier it <b>stacks</b> (The Closer ×2, ×3…). You never see the pot, just the operator on the line. <b id="nextTier">Chart Intern → Market Maker → … → The Closer.</b></p>
+    </div>
+  </div>
+
+  <!-- BURN ENGINE (the dev pitch) -->
+  <h2 class="sec">The burn engine</h2>
+  <p class="sub">every session destroys $FLOOR four different ways, upgrades a live player, and raises a firm's boost.</p>
+  <div class="grid g2">
+    <div class="card">
+      <div class="label">burned this session (est.)</div>
+      <div class="burnbig" id="burnBig">3,180 $FLOOR</div>
+      <p class="note" style="margin-top:2px">and the winner walks away with a real operator, seated on their desk.</p>
+      <div style="margin-top:12px">
+        <div class="out"><span class="k">🔥 5% of every seat bought</span><span class="v burn">burns</span></div>
+        <div class="out"><span class="k">🔥 10% of the pot when the bell rings</span><span class="v burn">burns</span></div>
+        <div class="out"><span class="k">🔥 the operator prize is recruited</span><span class="v burn">75% burns</span></div>
+        <div class="out"><span class="k">🔥 leftover contributed to a firm</span><span class="v burn">100% burns</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-family:var(--font-display);font-size:22px;margin:0 0 8px">Where the pot goes</h3>
+      <div class="out"><span class="k">→ winner's operator(s)</span><span class="v">55%</span></div>
+      <div class="out"><span class="k">→ commissions to seat holders</span><span class="v">25%</span></div>
+      <div class="out"><span class="k">→ burned outright</span><span class="v burn">10%</span></div>
+      <div class="out"><span class="k">→ seeds the next bell</span><span class="v">10%</span></div>
+      <p class="note" style="margin-top:12px">The 55% winner-share buys the operator (75% of that burns on recruit) and the leftover is contributed to a firm (100% burns, and the firm's office tier climbs). Net: well over half of every pot is destroyed, a player is upgraded, a firm gets stronger.</p>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <h2 class="sec">How it works</h2>
+  <div class="card steps">
+    <div class="step"><div class="n"></div><div class="t"><b>Buy a seat with $FLOOR.</b> Cheap early, pricier as the session fills. Every seat you hold earns commissions from every seat bought after you.</div></div>
+    <div class="step"><div class="n"></div><div class="t"><b>Each buy resets the bell</b> and makes you the one holding the floor.</div></div>
+    <div class="step"><div class="n"></div><div class="t"><b>When the bell rings, the last buyer wins.</b> Anti-snipe: a buy in the final 2 minutes pushes the bell back.</div></div>
+    <div class="step"><div class="n"></div><div class="t"><b>The prize is operators, not tokens.</b> The pot buys the highest operator(s) it can afford and sends the NFT(s) to the winner. Leftover burns into a firm.</div></div>
+  </div>
+
+  <!-- HISTORY -->
+  <h2 class="sec">Recent sessions</h2>
+  <div class="card" style="padding:8px 20px">
+    <table>
+      <thead><tr><th>#</th><th>Winner</th><th>Won</th><th>Seats</th></tr></thead>
+      <tbody>
+        <tr><td>46</td><td class="win">0xae48…c59d</td><td class="op-cell">Dark Pool Dealer</td><td>63</td></tr>
+        <tr><td>45</td><td class="win">0x780e…0236</td><td class="op-cell">The Closer ×2</td><td>118</td></tr>
+        <tr><td>44</td><td class="win">0x3272…02c7</td><td class="op-cell">Sell-Side Analyst</td><td>29</td></tr>
+        <tr><td>43</td><td class="win">0x955f…35c0</td><td class="op-cell">Quant Goblin</td><td>41</td></tr>
+        <tr><td>42</td><td class="win">0xfd4c…8435</td><td class="op-cell">Market Maker</td><td>18</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="note" style="margin-top:16px">Concept mock for The Closing Bell — an independent $FLOOR game built on the operator + firm systems. The contract is a themed fork of a live FOMO3D contract (winner-share redirected so the prize is an operator NFT). Not live yet; numbers here are illustrative. $FLOOR is an experimental token; play with what you can afford to lose.</p>
+  <div class="foot">The Closing Bell · concept · built on The Floor</div>
+</div>
+
+<script>
+  // live-feeling mock: bell ticks down, occasionally a "buy" resets it, prize climbs
+  const $=s=>document.querySelector(s);
+  let t=298; // seconds
+  const holders=['0x531d…d22d','0xae48…c59d','0x780e…0236','0x3272…02c7','0xf414…e788'];
+  const ladder=[['Chart Intern','Common','#8a9099','40 α','🧑‍💻',120],['Market Maker','Uncommon','#2fbf71','200 α','📊',900],['Sell-Side Analyst','Rare','#5b8def','500 α','📈',2100],['Quant Goblin','Epic','#a06cf0','1,100 α','🧌',3180],['Dark Pool Dealer','Epic','#a06cf0','1,600 α','🕶️',4600],['Terminal Wizard','Legendary','#c9a227','5,200 α','🧙',12500],['The Closer','Legendary','#c9a227','8,000 α','🤝',21000]];
+  let li=3, seat=96, burn=3180, stackN=1;
+  function paintPrize(){
+    const [nm,rar,col,al,art,bn]=ladder[li];
+    $('#prizeName').textContent=nm; $('#prizeRarity').textContent=rar; $('#prizeRarity').style.borderColor=col; $('#prizeRarity').style.color=col;
+    $('#prizeAlpha').textContent=al; $('.op-art').textContent=art; $('.op-art').style.borderColor=col; $('.op-art').style.boxShadow='0 0 22px '+col+'55';
+    $('#burnBig').textContent=(bn*stackN).toLocaleString()+' $FLOOR';
+    $('#stack').textContent=stackN>1?('×'+stackN):'';
+  }
+  paintPrize();
+  function fmt(s){const m=Math.floor(s/60),ss=s%60;return String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0');}
+  setInterval(()=>{
+    t--;
+    if(t<=0){ // bell "rings", next session seeds
+      li=3; seat=96; stackN=1; t=300; paintPrize();
+    }
+    // simulate a late buy every so often: reset toward 2 min, bump seat + climb prize
+    if(Math.floor(Date.now()/1000)%7===0 && t<250){
+      t=Math.min(300,t+18); seat+=2; $('#seat').textContent=seat+' $FLOOR';
+      $('#holder').textContent=holders[seat%holders.length];
+      if(seat%14===0 && li<ladder.length-1){ li++; paintPrize(); }
+      else if(li===ladder.length-1 && seat%10===0){ stackN++; paintPrize(); }
+    }
+    const c=$('#clock'); c.textContent=fmt(t); c.classList.toggle('soon',t<=120);
+  },1000);
+  $('#claim').addEventListener('click',()=>{ $('#claim').textContent='coming soon'; setTimeout(()=>$('#claim').textContent='Claim a seat',1400); });
+</script>
+</body>
+</html>

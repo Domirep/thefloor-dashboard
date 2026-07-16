@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>The Floor · Firms & Recruiting (preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{--ink:#1a150e;--paper:#f0e6d2;--amber:#c9a227;--brass-dark:#8a6d16;--brass-light:#e6c96b;--muted-cream:#b3a88f;--muted:#6f6249;--navy-950:#0d0b08;--navy-900:#13100c;--navy-800:#26201a;--green:#2fbf71;--red:#d9534f;--font-display:'DM Serif Display',serif;--font-mono:'IBM Plex Mono',monospace}
+  *{box-sizing:border-box;min-width:0}
+  html,body{margin:0;padding:0;overflow-x:clip}
+  body{background:radial-gradient(1200px 600px at 50% -10%,#1c1710,#0d0b08 60%);color:var(--paper);font-family:var(--font-mono);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+  header{border-bottom:2px solid var(--brass-dark);padding:22px 0;margin-bottom:26px;background:rgba(13,11,8,.6)}
+  header .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  h1{font-family:var(--font-display);font-size:30px;margin:0;color:var(--paper)}
+  h1 .b{color:var(--amber)}
+  .tag{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:2px;font-size:10px;color:#0c0906;background:var(--amber);padding:3px 8px;border-radius:3px}
+  .sub{color:var(--muted-cream);font-size:12px}
+  .label{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:2px;font-size:11px;color:var(--muted-cream)}
+  .card{background:var(--navy-900);border:1px solid #37301f;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:16px;margin-bottom:14px}
+  .card h3{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;font-size:13px;color:var(--brass-light);margin:0 0 10px}
+  .grid{display:grid;gap:14px}
+  .grid>*{min-width:0}
+  .g2{grid-template-columns:1fr 1fr}
+  @media(max-width:820px){.g2{grid-template-columns:1fr}}
+  .out{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:6px 0;border-bottom:1px dashed #2a2419}
+  .out:last-child{border-bottom:none}
+  .out .k{color:var(--muted-cream);font-size:13px}
+  .out .v{font-family:var(--font-display);font-size:18px;color:var(--paper)}
+  .note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6}
+  .big{padding:16px;border:1px solid #4a3d22}
+  a{color:var(--amber)}
+  .btn{display:inline-block;background:#12100c;color:var(--brass-light);border:2px solid var(--amber);padding:11px 18px;border-radius:4px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1.5px;font-size:12px;text-decoration:none;font-weight:600;white-space:nowrap}
+  .btn:hover{background:#1c1710}
+  .btn.alt{border-color:var(--brass-dark);color:var(--muted-cream)}
+  .foot{color:var(--muted);font-size:11px;text-align:center;padding:26px 0 40px}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>THE <span class="b">FLOOR</span></h1>
+  <span class="tag">Firms &amp; Recruiting</span>
+  <span class="tag" style="background:var(--brass-dark);color:var(--paper)">preview</span>
+  <span class="sub" style="margin-left:auto">unlisted draft · live on-chain data</span>
+</div></header>
+
+<div class="wrap">
+  <div class="card big"><p id="head" class="label" style="margin:0;color:var(--muted);font-size:13px;letter-spacing:1px">reading the firm contract…</p></div>
+
+  <div class="card" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+    <a class="btn" href="https://thefloor.sh/firms" target="_blank" rel="noopener">Contribute to your firm ↗</a>
+    <a class="btn alt" href="https://thefloor.sh/firms" target="_blank" rel="noopener">Found firm #4 · 2,500 $FLOOR ↗</a>
+    <span class="note" style="margin:0;flex:1;min-width:220px">Contributing happens in-game on the Firms page. You can only fund your <b>own</b> firm, so there's no way to back one you're not in. Not in a firm yet? Found a new one or wait for a slot to open.</span>
+  </div>
+
+  <div class="grid g2">
+    <div class="card"><h3>Firms</h3><div id="firmsList"><p style="color:var(--muted)">—</p></div></div>
+    <div class="card"><h3>Contributor leaderboard</h3><div id="contributors"><p style="color:var(--muted)">—</p></div>
+      <p class="note">Top players by total $FLOOR contributed to their firm (75% of every contribution burns). The people carrying each office.</p></div>
+  </div>
+
+  <div class="card"><h3>Free agents · active players not in a firm</h3><div id="freeAgents"><p style="color:var(--muted)">—</p></div>
+    <p class="note">Desk owners with no firm, ranked by alpha (their earning power = their value to a firm). Prime recruits, or the founders of the next firm. You can only contribute to your <b>own</b> firm, so there's no way to fund one you're not in. The way in is an open slot or a new firm (founding costs 2,500 $FLOOR).</p></div>
+
+  <p class="note">Everything above is read live from the firm contract <span style="color:var(--muted-cream)">0x26c615…5b36</span> (rosters, contributions, join requests) and refreshes hourly. This is an unlisted preview, not linked from the main dashboard.</p>
+  <div class="foot">The Floor · community dashboard · <a href="/">back to main</a></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const fmt=(n,d=0)=>Number(n).toLocaleString('en-US',{maximumFractionDigits:d});
+const M=n=>{const a=Math.abs(n);return a>=1e6?(a/1e6).toFixed(1)+'M':a>=1e3?Math.round(a/1e3)+'K':Math.round(a);};
+const shrt=a=>a.slice(0,6)+'…'+a.slice(-4);
+function render(f){
+  $('#head').innerHTML = f.allFull
+    ? `<b style="color:var(--paper)">every firm is full.</b> <b style="color:var(--amber)">${f.pendingTotal} players</b> are waiting to get in, and there are <b>0</b> open slots. the next move is founding firm #${f.firmCount+1} (2,500 $FLOOR).`
+    : `<b style="color:var(--green)">${f.openSlots} open slots</b> across ${f.firmCount} firms · ${f.pendingTotal} waiting to join`;
+  $('#firmsList').innerHTML = (f.firms||[]).slice().sort((a,b)=>b.totalContributed-a.totalContributed).map(fm=>`
+    <div style="padding:9px 0;border-bottom:1px dashed #2a2419">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+        <span style="color:var(--paper);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${fm.name}</span>
+        <span style="color:var(--amber);font-size:12px;white-space:nowrap">+${fm.boostPct}% · tier ${fm.officeTier}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted-cream);margin-top:3px">
+        <span>${fm.members}/${fm.cap} members · ${M(fm.totalContributed)} contributed</span>
+        <span style="color:${fm.pending>0?'var(--red)':'var(--muted)'}">${fm.pending} waiting</span>
+      </div>
+    </div>`).join('');
+  const c=f.contributors||[];
+  $('#contributors').innerHTML = c.length ? c.map((x,i)=>`
+    <div class="out"><span class="k">${i+1}. ${shrt(x.addr)} <small style="color:var(--muted)">${x.firm||''}</small></span><span class="v" style="font-size:15px">${M(x.total)} <small style="color:var(--muted);font-weight:400">$FLOOR</small></span></div>`).join('') : '<p style="color:var(--muted)">—</p>';
+  const a=f.freeAgents||[];
+  $('#freeAgents').innerHTML = a.length ? a.map((x,i)=>`
+    <div class="out"><span class="k">${i+1}. ${shrt(x.addr)}</span><span class="v" style="font-size:15px">${fmt(x.alpha)} <small style="color:var(--muted);font-weight:400">α</small></span></div>`).join('') : '<p style="color:var(--muted)">none right now</p>';
+}
+async function load(){
+  try{ const j=await (await fetch('/api/firms',{cache:'no-store'})).json();
+    if(j.ok && j.firms) render(j.firms);
+    else $('#head').textContent='building firm data… (first load ~1 min) — refresh shortly';
+  }catch(e){ $('#head').textContent='could not load firm data'; }
+}
+load(); setInterval(load, 300000);
+</script>
+</body>
+</html>

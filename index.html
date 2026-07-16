@@ -1,0 +1,2570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Floor · Dashboard & Calculator</title>
+<meta name="description" content="Unofficial live dashboard & yield calculator for The Floor — $FLOOR tokenomics, burns, desk-upgrade & staking calculators, top holders, and a paste-your-wallet PnL breakdown with a strategy readout." />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="The Floor · Dashboard & Yield Calculator" />
+<meta property="og:description" content="Live $FLOOR stats & burns, staking + upgrade calculators, top holders, and a wallet PnL breakdown with strategy." />
+<meta property="og:url" content="https://thefloor-dashboard-production.up.railway.app" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="The Floor · Dashboard & Calculator" />
+<meta name="twitter:description" content="Live $FLOOR stats, burns, calculators, top holders, and wallet PnL + strategy." />
+<link rel="icon" href="assets/favicon.ico" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --ink:#1a150e; --navy-950:#0d0b08; --navy-900:#13100c; --navy-850:#1d1914; --navy-800:#26201a;
+  --brass-dark:#8a6d16; --brass-light:#e6c96b; --amber:#c9a227; --bronze:#cd7f32;
+  --paper:#f0e6d2; --paper-2:#e8dcc3; --muted-cream:#b3a88f; --muted:#6f6249; --navy-600:#6b5a33;
+  --green:#2fbf71; --green-dim:#1e5c43; --red:#d9534f; --blue:#46698a; --oxblood:#7c2d12;
+  --purple:#a066cc;
+  --font-display:"DM Serif Display",Georgia,"Times New Roman",serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --card:#141019; --shadow:3px 4px 0 rgba(0,0,0,.45); --shadow-lg:4px 5px 0 rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;overflow-x:clip}  /* clip (not hidden) — no scroll container, so the sticky header still works */
+body{
+  background:
+    radial-gradient(1200px 500px at 50% -8%, rgba(201,162,39,.10), transparent 60%),
+    linear-gradient(180deg,#120e08 0%, var(--ink) 22%, #171108 100%);
+  color:var(--paper); font-family:var(--font-mono); font-size:14px; line-height:1.5;
+  min-height:100vh; letter-spacing:.2px;
+}
+a{color:var(--amber);text-decoration:none}
+a:hover{color:var(--brass-light)}
+h1,h2,h3{font-family:var(--font-display);font-weight:400;letter-spacing:.5px;margin:0}
+.label{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:2px;font-size:11px;color:var(--muted-cream)}
+.mono{font-family:var(--font-mono)}
+.amber{color:var(--amber)} .green{color:var(--green)} .red{color:var(--red)} .muted{color:var(--muted-cream)}
+
+/* layout */
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+#page{display:flex;flex-direction:column}
+#page>.hero{order:-2}
+#page>#player{order:-1}   /* Player Report & Strategy sits right under the hero */
+section{padding:34px 0;border-top:1px dashed #3a2f1a;scroll-margin-top:66px}  /* land anchors below the sticky header */
+.section-head{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.section-head img{width:26px;height:26px;filter:drop-shadow(0 1px 0 #000)}
+.section-head h2{font-size:26px;color:var(--paper)}
+.section-head .sub{margin-left:auto;font-size:11px}
+
+/* top bar */
+header.top{position:sticky;top:0;z-index:40;background:rgba(13,11,8,.92);backdrop-filter:blur(8px);border-bottom:2px solid var(--brass-dark)}
+.top .wrap{display:flex;align-items:center;gap:18px;height:60px}
+.top .brand{display:flex;align-items:center;gap:10px}
+.top .brand img{height:26px}
+.top nav{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+.top nav a{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1.5px;font-size:11px;color:var(--muted-cream);padding:8px 11px;border:1px solid transparent;border-radius:3px}
+.top nav a:hover{color:var(--paper);border-color:#3a2f1a;background:var(--navy-900)}
+.top nav .tabx{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1.5px;font-size:11.5px;color:var(--muted-cream);padding:8px 13px;border:1px solid transparent;border-radius:4px;background:none;cursor:pointer;transition:color .15s,border-color .15s,background .15s}
+.top nav .tabx:hover{color:var(--paper);border-color:#3a2f1a;background:var(--navy-900)}
+.top nav .tabx.on{color:#0c0906;background:var(--amber);border-color:var(--amber);font-weight:700}
+#tabpanels{display:flex;flex-direction:column}
+#tabpanels>section{scroll-margin-top:80px}
+#player{order:-2}#calc{order:-1}#leaders{order:-1}   /* intra-tab priority ordering */
+.tabhint{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin:2px 0 16px}
+.desk-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(22px);z-index:9999;display:flex;align-items:center;gap:12px;background:linear-gradient(150deg,#1d1710,#0c0a07);border:1px solid var(--brass-dark);border-radius:11px;padding:11px 12px 11px 13px;box-shadow:0 14px 40px rgba(0,0,0,.6);font-family:var(--font-mono);color:var(--paper);cursor:pointer;opacity:0;transition:opacity .3s ease,transform .3s ease;max-width:94vw}
+.desk-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.desk-toast .dt-av{width:34px;height:34px;border-radius:8px;background:#0f0b16 center/78% no-repeat;border:1.5px solid var(--brass-dark);image-rendering:pixelated;flex:none}
+.desk-toast .dt-txt{font-size:12px;line-height:1.35}
+.desk-toast .dt-txt b{color:var(--brass-light)}
+.desk-toast .dt-cta{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#0c0906;background:var(--amber);border-radius:6px;padding:6px 11px;font-weight:700;white-space:nowrap}
+.desk-toast .dt-x{color:var(--muted);font-size:16px;line-height:1;padding:2px 4px;flex:none;align-self:flex-start}
+.desk-toast .dt-x:hover{color:var(--paper)}
+@media(max-width:520px){.desk-toast .dt-txt{font-size:11px}}
+
+/* ticker bar (halving countdown + deals) */
+.ticker{background:#0c0906;border-bottom:1px solid #3a2f1a;position:relative;z-index:30}
+.ticker .tk{display:flex;align-items:center;justify-content:space-between;min-height:38px;gap:12px}
+.tk-lab{font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted-cream)}
+.tk-val{font-family:var(--font-mono);font-size:13px;color:var(--amber);font-variant-numeric:tabular-nums;letter-spacing:.5px}
+.tk-deals{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;text-decoration:none;padding:5px 12px;border:1px solid #3a2f1a;border-radius:3px;color:var(--muted-cream);transition:color .2s,border-color .2s,background .2s}
+.tk-deals.off .bell{filter:grayscale(1) opacity(.7)}
+.tk-deals.off:hover{color:var(--paper);border-color:var(--brass-dark)}
+.tk-deals.live{color:#0c0906;background:var(--amber);border-color:var(--amber);font-weight:600;animation:dealpulse 1.6s infinite}
+.tk-deals.live .bell{display:inline-block;transform-origin:50% 0;animation:bellwiggle 1.6s infinite}
+@keyframes dealpulse{0%{box-shadow:0 0 0 0 rgba(201,162,39,.55)}70%{box-shadow:0 0 0 11px rgba(201,162,39,0)}100%{box-shadow:0 0 0 0 rgba(201,162,39,0)}}
+@keyframes bellwiggle{0%,50%,100%{transform:rotate(0)}10%{transform:rotate(-18deg)}20%{transform:rotate(15deg)}30%{transform:rotate(-11deg)}40%{transform:rotate(7deg)}}
+
+/* trading floor scene — The Floor's own hosted room art as the backdrop, operators in front */
+#deskScene{position:relative;min-height:240px;background:#0c0a06 center/cover no-repeat;overflow:hidden;image-rendering:pixelated}
+#deskScene::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,6,3,.28),rgba(8,6,3,.06) 34%,rgba(8,6,3,.82));pointer-events:none;z-index:1}
+.floor-tier{position:absolute;top:10px;left:12px;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--brass-light);background:rgba(12,9,6,.85);border:1px solid var(--brass-dark);padding:3px 8px;z-index:3}
+.floor-total{position:absolute;top:8px;right:12px;text-align:right;font-family:var(--font-display);font-size:19px;color:var(--amber);line-height:1.05;z-index:3;text-shadow:0 1px 3px #000}
+.floor-total small{font-family:var(--font-mono);font-size:9px;color:var(--paper-2);display:block;letter-spacing:1px}
+.floor-row{position:relative;z-index:2;display:flex;flex-wrap:wrap;gap:10px 4px;justify-content:center;align-items:flex-end;padding:46px 8px 12px;min-height:240px}
+.op-station{width:60px;display:flex;flex-direction:column;align-items:center;position:relative}
+.op-sprite{width:44px;height:44px;image-rendering:pixelated;filter:drop-shadow(1px 2px 0 rgba(0,0,0,.55));animation:opbob 1.3s ease-in-out infinite}
+@keyframes opbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+.op-name{font-family:var(--font-mono);font-size:7.5px;color:var(--paper-2);margin-top:2px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60px;text-shadow:0 1px 2px #000}
+.op-rar{height:3px;width:28px;border-radius:2px;margin-top:2px}
+.prod{position:absolute;top:-2px;font-family:var(--font-mono);font-size:8.5px;color:#0c0906;background:var(--amber);border-radius:3px;padding:1px 4px;white-space:nowrap;box-shadow:1px 1px 0 rgba(0,0,0,.5);animation:prodfloat 2.6s ease-in infinite;z-index:4}
+@keyframes prodfloat{0%{transform:translateY(5px);opacity:0}22%{opacity:1}100%{transform:translateY(-11px);opacity:0}}
+.empty-seat{width:38px;height:38px;border:1px dashed rgba(230,201,107,.4);border-radius:4px}
+.floor-more{align-self:center;font-family:var(--font-mono);font-size:10px;color:var(--paper-2);padding:0 6px}
+.floor-empty{position:relative;z-index:2;min-height:200px;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px 16px}
+.floor-empty-in{font-family:var(--font-mono);font-size:12px;letter-spacing:1px;color:var(--brass-light);text-shadow:0 1px 4px #000;line-height:1.7;animation:emptypulse 2.2s ease-in-out infinite}
+.floor-empty-in span{display:block;font-size:10px;color:var(--paper-2);letter-spacing:.5px;margin-top:4px;text-transform:none;animation:none}
+@keyframes emptypulse{0%,100%{opacity:.7}50%{opacity:1}}
+
+/* hero */
+.hero{padding:40px 0 30px;text-align:center}
+.sign{display:inline-block;max-width:720px;width:100%;background:#0c0906;border:3px solid var(--amber);
+  box-shadow:0 0 0 3px #000, var(--shadow-lg); padding:26px 30px;position:relative}
+.sign:before,.sign:after{content:"";position:absolute;left:24px;right:24px;height:3px;background:var(--amber)}
+.sign:before{top:12px}.sign:after{bottom:12px}
+.sign h1{font-size:46px;letter-spacing:6px;color:var(--paper);margin:6px 0 4px}
+.sign h1 .b{color:var(--amber)}
+.sign p{margin:6px 0 0;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--muted-cream)}
+.hero .disc{margin-top:14px;font-size:11px;color:var(--muted)}
+.playwrap{margin-top:24px}
+.playbtn{display:inline-flex;flex-direction:column;align-items:center;gap:3px;background:#12100c;
+  border:2px solid var(--amber);box-shadow:4px 5px 0 rgba(0,0,0,.5);padding:13px 44px;text-decoration:none;
+  transition:transform .1s ease, box-shadow .1s ease}
+.playbtn:hover{transform:translate(-1px,-1px);box-shadow:5px 6px 0 rgba(0,0,0,.55);background:#1a1510}
+.playbtn .pn{font-family:var(--font-display);font-size:25px;letter-spacing:3px;color:var(--brass-light);line-height:1}
+.playbtn .os{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted-cream)}
+
+/* chips */
+.chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:22px}
+.chip{background:var(--navy-900);border:1px solid #3a2f1a;border-left:3px solid var(--amber);padding:9px 13px;box-shadow:var(--shadow);min-width:120px;text-align:left}
+.chip .k{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted-cream)}
+.chip .v{font-family:var(--font-display);font-size:20px;color:var(--paper);line-height:1.1;margin-top:2px}
+.chip .v small{font-size:11px;color:var(--amber);font-family:var(--font-mono)}
+
+/* cards grid */
+.grid{display:grid;gap:14px}
+.grid>*{min-width:0}   /* 1fr tracks otherwise refuse to shrink below a child table's min-width, stretching the page on mobile */
+.g4{grid-template-columns:repeat(4,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+.card{background:var(--navy-900);border:1px solid #37301f;box-shadow:var(--shadow);padding:16px}
+.card h3{font-size:15px;color:var(--paper);margin-bottom:6px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px}
+.stat{font-family:var(--font-display);font-size:30px;color:var(--amber);line-height:1}
+.card p{margin:8px 0 0;font-size:12px;color:var(--muted-cream)}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;border:1px solid #37301f;box-shadow:var(--shadow);background:var(--navy-950)}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:560px}
+th,td{padding:10px 12px;text-align:right;border-bottom:1px solid #241d12;white-space:nowrap}
+th{background:linear-gradient(180deg,#241c10,#191308);color:var(--brass-light);font-family:var(--font-mono);
+  text-transform:uppercase;letter-spacing:1.2px;font-size:10.5px;position:sticky;top:0}
+th:first-child,td:first-child{text-align:left}
+tbody tr:hover{background:#191308}
+td.name{color:var(--paper);font-weight:500}
+tr.tier td{border-bottom:1px solid #241d12}
+.badge{display:inline-block;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:2px;border:1px solid currentColor}
+.num{font-variant-numeric:tabular-nums}
+.pos{color:var(--green)} .neg{color:var(--red)}
+
+/* calculator */
+.calc-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px;align-items:start}
+.calc-grid>*,.report-grid>*{min-width:0}   /* same shrink fix as .grid>* */
+.panel{background:var(--navy-900);border:1px solid #37301f;box-shadow:var(--shadow);padding:16px}
+.panel h3{font-size:13px;text-transform:uppercase;letter-spacing:1.5px;color:var(--brass-light);font-family:var(--font-mono);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.panel h3 img{width:18px;height:18px}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field label{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted-cream)}
+select,input[type=number],input[type=text]{
+  background:var(--navy-950);border:1px solid #4a3d22;color:var(--paper);font-family:var(--font-mono);
+  font-size:14px;padding:9px 10px;border-radius:3px;width:100%}
+select:focus,input:focus{outline:2px solid var(--amber);border-color:var(--amber)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+
+/* operator picker */
+.op-table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:0}
+.op-table th,.op-table td{padding:6px 6px;border-bottom:1px solid #241d12;white-space:nowrap}
+.op-table td.opn{text-align:left;color:var(--paper)}
+.stepper{display:inline-flex;align-items:center;border:1px solid #4a3d22;border-radius:3px;overflow:hidden}
+.stepper button{background:var(--navy-800);color:var(--amber);border:none;width:26px;height:26px;font-size:16px;cursor:pointer;font-family:var(--font-mono)}
+.stepper button:hover{background:#33291a}
+.stepper input{width:42px;border:none;text-align:center;background:transparent;padding:4px 0;font-size:13px;color:var(--paper)}
+.stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+
+/* meters + outputs */
+.meter{margin:4px 0 12px}
+.meter .top{display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px}
+.bar{height:9px;background:var(--navy-950);border:1px solid #4a3d22;border-radius:5px;overflow:hidden}
+.bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--green-dim),var(--green));transition:width .18s}
+.bar.over > i{background:linear-gradient(90deg,var(--oxblood),var(--red))}
+.out{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:1px dashed #33291a}
+.out:last-child{border-bottom:none}
+.out .k{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted-cream)}
+.out .v{font-family:var(--font-display);font-size:22px;color:var(--paper)}
+.out .v.big{font-size:30px;color:var(--amber)}
+.hl{background:linear-gradient(180deg,#1c1710,#141009);border:1px solid var(--brass-dark);box-shadow:var(--shadow);padding:14px 16px;margin-top:6px}
+.pill{font-size:10px;text-transform:uppercase;letter-spacing:1px;padding:2px 7px;border-radius:2px;background:#241c10;color:var(--brass-light);border:1px solid #4a3d22}
+.note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
+/* FAQ / wiki accordions */
+.faq-cat{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:2px;font-size:11px;color:var(--brass-light);margin:22px 0 8px}
+.faq-cat:first-of-type{margin-top:0}
+details.faq{background:var(--navy-900);border:1px solid #37301f;box-shadow:var(--shadow);margin-bottom:8px}
+details.faq summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:12px 14px;font-family:var(--font-mono);font-size:13px;color:var(--paper);user-select:none}
+details.faq summary::-webkit-details-marker{display:none}
+details.faq summary::before{content:'+';color:var(--amber);font-size:16px;width:14px;flex:none;text-align:center}
+details.faq[open] summary::before{content:'–'}
+details.faq[open] summary{color:var(--amber);border-bottom:1px dashed #37301f}
+details.faq .a{padding:12px 14px 14px 38px;font-size:13.5px;line-height:1.65;color:var(--muted-cream)}
+details.faq .a b{color:var(--paper)}
+details.faq .a a{color:var(--amber)}
+.warn{color:var(--red);font-size:11.5px;margin-top:6px;display:none}
+.warn.show{display:block}
+
+footer{padding:34px 0 60px;border-top:1px solid #37301f;color:var(--muted);font-size:11.5px;text-align:center}
+footer a{color:var(--muted-cream)}
+.split-bars{display:flex;height:12px;border-radius:3px;overflow:hidden;border:1px solid #4a3d22;margin-top:6px}
+.split-bars i{display:block;height:100%}
+
+/* shareable flex card */
+.flexcard{position:relative;overflow:hidden;background:linear-gradient(150deg,#1c1710,#0d0b08);border:2px solid var(--brass-dark);border-radius:10px;padding:20px;margin-bottom:16px;box-shadow:0 14px 40px rgba(0,0,0,.5)}
+.flexcard::before{content:"";position:absolute;inset:-40%;background:radial-gradient(circle at 82% 12%,var(--fc-glow,rgba(201,162,39,.16)),transparent 52%);pointer-events:none;z-index:1}
+.fc-bg{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.flexcard>.fc-top,.flexcard>.fc-stats,.flexcard>.fc-foot{position:relative;z-index:2}
+.fc-top{display:flex;align-items:center;gap:16px;position:relative}
+.fc-av{width:84px;height:84px;flex:none;border:2px solid var(--fc-col,var(--amber));border-radius:10px;background:#0f0b16 center/70% no-repeat;box-shadow:0 0 20px var(--fc-glow,rgba(201,162,39,.35));image-rendering:pixelated}
+.fc-id{flex:1;min-width:0}
+.fc-addr{font-family:var(--font-display);font-size:26px;color:var(--paper);line-height:1.05}
+.fc-op{font-size:12px;color:var(--muted-cream);margin-top:3px}
+.fc-x{display:inline-flex;align-items:center;gap:5px;margin-top:4px;font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--brass-light);text-decoration:none}
+.fc-x:hover{color:var(--paper)}
+.fc-x img{width:16px;height:16px;border-radius:50%;object-fit:cover}
+.fc-x .xm{color:#e6c96b;font-weight:800}
+.fc-rank{display:inline-block;background:var(--amber);color:#0c0906;font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:1px;padding:3px 9px;border-radius:4px;margin-top:8px}
+.fc-hero{text-align:right;flex:none}
+.fc-hero .big{font-family:var(--font-display);font-size:34px;color:var(--amber);line-height:1}
+.fc-hero .lab{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted-cream)}
+.fc-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px;position:relative}
+.fc-stat{background:rgba(13,11,8,.5);border:1px solid #37301f;border-radius:6px;padding:9px 10px}
+.fc-stat .k{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted-cream)}
+.fc-stat .v{font-family:var(--font-mono);font-size:15px;color:var(--paper);font-weight:600;margin-top:2px}
+.fc-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;position:relative;flex-wrap:wrap}
+.fc-brand{font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--brass-light)}
+.fc-share{background:#12100c;color:var(--brass-light);border:1px solid var(--amber);padding:7px 13px;border-radius:5px;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
+.fc-share:hover{background:#1c1710}
+@media(max-width:560px){.fc-stats{grid-template-columns:1fr 1fr}.fc-top{flex-wrap:wrap}.fc-hero{text-align:left}}
+/* trends */
+.trend-tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+.trend-tab{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted-cream);background:#0e0b08;border:1px solid #37301f;border-radius:4px;padding:6px 11px;cursor:pointer;transition:color .15s,border-color .15s,background .15s}
+.trend-tab:hover{color:var(--brass-light);border-color:var(--brass-dark)}
+.trend-tab.on{color:#0c0906;background:var(--amber);border-color:var(--amber);font-weight:700}
+.trend-chart{position:relative}
+.trend-chart svg{display:block;width:100%;height:auto}
+.trend-chart .tc-hint{position:absolute;top:8px;right:10px;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.trend-meta{display:flex;flex-wrap:wrap;gap:20px;margin-top:12px}
+.trend-meta .tm{min-width:90px}
+.trend-meta .tm .k{font-family:var(--font-mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--muted-cream)}
+.trend-meta .tm .v{font-family:var(--font-mono);font-size:16px;color:var(--paper);font-weight:600;margin-top:2px}
+.trend-meta .tm .v small{font-size:11px;font-weight:400}
+/* the office */
+.office{background:linear-gradient(180deg,#12100c,#0b0906);border:2px solid #2a2318;border-radius:12px;padding:14px;position:relative;overflow:hidden}
+.office::before{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.03) 1px,transparent 1px);background-size:28px 28px;pointer-events:none}
+.office-legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:12px;font-family:var(--font-mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--muted-cream)}
+.office-legend .dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:5px}
+.pods{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;position:relative}
+.pod{background:rgba(20,16,10,.55);border:1px solid #2f2718;border-radius:10px;padding:12px 12px 14px}
+.pod.free{border-style:dashed;border-color:#3a3120;grid-column:1/-1}
+.pod-h{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.pod-h .nm{font-family:var(--font-display);font-size:18px;color:var(--paper);line-height:1}
+.pod-h .tier{font-family:var(--font-mono);font-size:8.5px;letter-spacing:1px;text-transform:uppercase;color:#0c0906;background:var(--brass-light);padding:2px 6px;border-radius:3px}
+.pod-h .mc{font-family:var(--font-mono);font-size:10px;color:var(--muted-cream);margin-left:auto}
+.desks{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.op{position:relative;cursor:pointer;text-align:center;width:var(--sz,54px)}
+.op .fig{width:var(--sz,54px);height:var(--sz,54px);border-radius:9px;background:#0f0b16 center/80% no-repeat;border:2px solid var(--gc,#5a4a2a);box-shadow:0 0 var(--gb,8px) var(--gc,#5a4a2a),inset 0 0 12px rgba(0,0,0,.4);image-rendering:pixelated;animation:opbob var(--bd,3s) ease-in-out infinite;animation-delay:var(--del,0s);transition:transform .15s,border-color .15s}
+.op:hover .fig{border-color:var(--brass-light);transform:scale(1.1) translateY(-2px)}
+.op .plate{font-family:var(--font-mono);font-size:8.5px;letter-spacing:.2px;color:var(--muted-cream);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op:hover .plate{color:var(--brass-light)}
+.op .rk{position:absolute;top:-7px;right:-7px;background:#0c0906;border:1px solid var(--gc,#5a4a2a);color:var(--brass-light);font-family:var(--font-mono);font-size:8px;line-height:1;padding:2px 4px;border-radius:6px}
+.op .pop{position:absolute;left:50%;top:-4px;transform:translateX(-50%);font-family:var(--font-mono);font-size:14px;font-weight:700;opacity:0;pointer-events:none}
+.op.busy .pop{animation:oppop 1.4s ease-out}
+.op.busy .fig{animation:opbob var(--bd,3s) ease-in-out infinite,opwork .55s ease-in-out}
+@keyframes opbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes opwork{0%,100%{filter:brightness(1)}45%{filter:brightness(1.6) saturate(1.3)}}
+@keyframes oppop{0%{opacity:0;transform:translateX(-50%) translateY(2px) scale(.7)}25%{opacity:1;transform:translateX(-50%) translateY(-6px) scale(1)}100%{opacity:0;transform:translateX(-50%) translateY(-30px) scale(1)}}
+/* scoped to :not(.motion-live) so the floor's own Motion switch wins over the OS hint — otherwise
+   "Motion on" would move the operators while their sprites stayed frozen */
+@media(prefers-reduced-motion:reduce){html:not(.motion-live) .op .fig,html:not(.motion-live) .op.busy .fig{animation:none}html:not(.motion-live) .op.busy .pop{animation:none}}
+/* ---- the office scene (living diorama) ---- */
+.scene-wrap{position:relative;width:100%;aspect-ratio:1150/430;overflow:hidden;border:2px solid var(--brass-dark);border-radius:12px;background:#0e0a06;box-shadow:var(--shadow-lg)}
+.pip-btn{margin-left:auto;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted-cream);background:#0e0b08;border:1px solid #2a2318;border-radius:5px;padding:6px 10px;cursor:pointer;white-space:nowrap}
+.pip-btn:hover{color:var(--brass-light);border-color:var(--brass-dark)}
+.pipdock{position:fixed;right:16px;bottom:16px;z-index:9998;width:min(360px,88vw);background:#0d0b08;border:1px solid var(--brass-dark);border-radius:11px;box-shadow:0 18px 48px rgba(0,0,0,.65);overflow:hidden;touch-action:none}
+.pip-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 6px 6px 11px;cursor:grab;background:linear-gradient(180deg,#1a140b,#0d0b08);border-bottom:1px solid #2a2318;user-select:none}
+.pip-bar:active{cursor:grabbing}
+.pip-t{font-family:var(--font-mono);font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--brass-light)}
+.pip-hint{font-family:var(--font-mono);font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted-cream);opacity:.62}
+.pip-ctl button{background:none;border:none;color:var(--muted-cream);font-size:14px;cursor:pointer;padding:3px 8px;border-radius:5px}
+.pip-ctl button:hover{color:var(--paper);background:#241c12}
+.pip-body{position:relative}.pip-body .scene-wrap{margin:0;border-radius:0;border:none}
+.pip-ph{display:flex;flex-direction:column;align-items:center;gap:10px;border:1px dashed var(--brass-dark);border-radius:12px;padding:26px 18px;text-align:center;color:var(--muted-cream);font-family:var(--font-mono);font-size:12px;background:#0e0a06}
+.pip-ph .pd{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#0c0906;background:var(--amber);border:none;border-radius:5px;padding:8px 14px;cursor:pointer}
+.scene-root{position:absolute;left:0;top:0;width:1150px;height:430px;transform-origin:0 0}
+.scene-root.zoomable{transition:transform 1.15s cubic-bezier(.4,0,.2,1)}
+#sceneTint{position:absolute;inset:0;pointer-events:none;z-index:540;background:transparent;transition:background 1.5s ease}
+.scene-root.daymode #sceneTint{background:linear-gradient(180deg,rgba(150,192,232,.30),rgba(160,198,235,.12) 45%,rgba(255,240,200,.06))}
+.mkt-badge{position:absolute;left:214px;top:54px;z-index:6;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:var(--muted-cream);background:rgba(9,6,3,.82);border:1px solid #3a2f1a;border-radius:3px;padding:3px 8px}
+.mkt-badge b{color:var(--muted);font-size:11px}
+.mkt-badge.open{color:#bfe8cf} .mkt-badge.open b{color:#2fbf71}
+#sceneBg,#sceneFgSvg{position:absolute;inset:0;width:100%;height:100%;shape-rendering:geometricPrecision}
+#sceneFgSvg{z-index:500;pointer-events:none}
+#sceneFx{position:absolute;inset:0;z-index:600;pointer-events:none}
+#sceneDesks{position:absolute;inset:0;z-index:520;pointer-events:none}
+#crtScreen{transition:filter .25s}
+#crtScreen.flash{filter:brightness(2.1) drop-shadow(0 0 12px #2fbf71)}
+#incinDoor.flare{animation:doorflare .9s ease-out}
+#incinGlow{transform-box:fill-box;transform-origin:center}
+#incinGlow.flare{animation:glowflare .9s ease-out}
+.scene-board{position:absolute;left:214px;top:12px;width:722px;height:36px;background:#070503;border:3px solid #8a6d16;border-radius:5px;overflow:hidden;box-shadow:inset 0 0 14px rgba(0,0,0,.9),0 2px 0 rgba(0,0,0,.5)}
+.board-tape{display:inline-block;white-space:nowrap;font-family:var(--font-mono);font-size:15px;line-height:31px;color:var(--amber);text-shadow:0 0 6px rgba(201,162,39,.55);padding-left:730px;animation:tape 36s linear infinite}
+@keyframes tape{to{transform:translateX(-100%)}}
+.scene-elevator{position:absolute;left:41px;top:118px;width:94px;height:214px;z-index:450;overflow:hidden;pointer-events:none}
+.ele-door{position:absolute;top:0;bottom:0;width:46px;background:linear-gradient(90deg,#7d6220 0%,#584518 34%,#6b5426 52%,#493a14 100%);box-shadow:inset 0 0 0 2px rgba(0,0,0,.35),inset 0 26px 0 -24px #e6c96b;transition:transform 1s ease-in-out}
+.ele-door.l{left:0;border-right:2px solid #0d0a05}.ele-door.r{right:0;border-left:2px solid #0d0a05}
+.scene-elevator.open .ele-door.l{transform:translateX(-45px)}.scene-elevator.open .ele-door.r{transform:translateX(45px)}
+.ele-lamp{position:absolute;left:50%;top:4px;transform:translateX(-50%);width:9px;height:9px;border-radius:50%;background:#42350f;transition:background .3s,box-shadow .3s;z-index:2}
+.scene-elevator.open .ele-lamp{background:var(--amber);box-shadow:0 0 12px var(--amber)}
+.desk{position:absolute}
+.desk .plate{position:absolute;left:0;top:0;transform:translateX(-50%);font-family:var(--font-mono);font-size:8.5px;letter-spacing:.5px;color:var(--brass-light);background:#0c0906;border:1px solid #3a2f1a;border-radius:3px;padding:1px 5px;white-space:nowrap}
+@keyframes doorflare{0%{filter:brightness(1)}25%{filter:brightness(2.2) drop-shadow(0 0 26px rgba(255,140,30,.95))}100%{filter:brightness(1)}}
+@keyframes glowflare{25%{transform:scale(1.5);opacity:1}}
+.actor{position:absolute;left:0;top:0;width:50px;height:58px;transform-origin:25px 58px;cursor:pointer;transition:opacity .6s}
+.actor .flip{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center}
+.actor .body{width:48px;height:48px;image-rendering:pixelated;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+.actor .shadow{position:absolute;left:50%;bottom:-3px;transform:translateX(-50%);width:30px;height:7px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.5),transparent 70%)}
+.actor .tag{position:absolute;left:50%;top:-15px;transform:translateX(-50%);font-family:var(--font-mono);font-size:8.5px;white-space:nowrap;color:var(--brass-light);background:rgba(10,7,4,.85);border:1px solid #3a2f1a;border-radius:3px;padding:1px 5px;opacity:0;transition:opacity .2s;pointer-events:none}
+.actor:hover .tag{opacity:1}
+.actor .nameplate{position:absolute;left:50%;top:-16px;transform:translateX(-50%);display:none;align-items:center;gap:3px;font-family:var(--font-mono);font-size:8.5px;font-weight:600;white-space:nowrap;color:#f0e6d2;background:rgba(9,6,3,.92);border:1px solid #6b5426;border-radius:3px;padding:1px 5px;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.55)}
+.actor.named .nameplate{display:inline-flex}
+.actor.named .tag{display:none}
+.actor .nameplate .xa{width:11px;height:11px;border-radius:50%;object-fit:cover;flex:none}
+.actor .nameplate .xm{color:#e6c96b;font-weight:800}
+.actor.walking .body{animation:toddle .34s linear infinite alternate}
+@keyframes toddle{0%{transform:translateY(0) rotate(-3deg)}100%{transform:translateY(-2.5px) rotate(3deg)}}
+.actor .bag{position:absolute;right:-4px;bottom:10px;font-size:13px;display:none;filter:drop-shadow(0 1px 1px #000)}
+.actor.carry .bag{display:block}
+.actor.fadeout{opacity:0}
+.mini-op{position:absolute;width:28px;height:28px;image-rendering:pixelated;animation:minipop .5s ease-out;transition:opacity .8s;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
+@keyframes minipop{0%{transform:scale(0) translateY(8px)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
+.fx-label{position:absolute;transform:translateX(-50%);font-family:var(--font-mono);font-weight:700;font-size:15px;white-space:nowrap;text-shadow:0 1px 0 #000,0 0 8px rgba(0,0,0,.7);animation:fxrise 2s ease-out forwards;pointer-events:none}
+.fx-label.live{font-size:17px}
+@keyframes fxrise{0%{opacity:0;transform:translate(-50%,8px) scale(.8)}14%{opacity:1;transform:translate(-50%,0) scale(1)}100%{opacity:0;transform:translate(-50%,-52px) scale(1.04)}}
+.fx-coin{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffe9a8,#c9a227 60%,#8a6d16);box-shadow:0 0 4px rgba(201,162,39,.7);animation:fxcoin .95s ease-out forwards;pointer-events:none}
+@keyframes fxcoin{to{transform:translate(var(--dx),var(--dy));opacity:0}}
+.fx-ember{position:absolute;width:5px;height:5px;border-radius:50%;background:#ff8a1f;box-shadow:0 0 7px #ff7a1a;animation:fxember 1.15s ease-out forwards;pointer-events:none}
+@keyframes fxember{to{transform:translate(var(--dx),var(--dy)) scale(.4);opacity:0}}
+.office-roster{margin-top:14px}
+.office-roster summary{cursor:pointer;font-family:var(--font-mono);font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted-cream);padding:10px 14px;background:#0e0b08;border:1px solid #2a2318;border-radius:6px}
+.office-roster summary:hover{color:var(--brass-light);border-color:var(--brass-dark)}
+.office-roster[open] summary{margin-bottom:12px}
+@media(prefers-reduced-motion:reduce){html:not(.motion-live) .board-tape{animation:none}html:not(.motion-live) .actor.walking .body{animation:none}}
+.office-ticker{display:flex;gap:18px;overflow:hidden;white-space:nowrap;background:#0c0906;border:1px solid #2a2318;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-family:var(--font-mono);font-size:11px;color:var(--muted-cream)}
+.office-ticker .ti{flex:none}
+.office-ticker .ti b{color:var(--brass-light);font-weight:600}
+.office-ticker .ti .amt{color:var(--amber)}
+.office-ticker .ti.burn .amt{color:var(--red)}
+/* player report — in-game "PnL Terminal" cream style */
+.report-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:16px;align-items:start}
+.terminal{background:var(--paper);color:var(--ink);border:3px solid var(--green-dim);
+  box-shadow:0 0 0 3px #0d0b08, var(--shadow-lg);
+  background-image:radial-gradient(rgba(30,92,67,.10) 1px, transparent 1px);background-size:7px 7px}
+.terminal .thead{padding:15px 20px;border-bottom:2px solid var(--green-dim);display:flex;align-items:center;gap:10px;background:#efe4cd}
+.terminal .thead h3{font-family:var(--font-display);color:#1a150e;font-size:22px;margin:0}
+.terminal .thead .dot{color:var(--green-dim)}
+.terminal .body{padding:16px 20px}
+.terminal .label{color:var(--muted)}
+.terminal input,.terminal select{background:#fffdf3;color:#1a150e;border:1px solid #b09a63}
+.terminal input:focus,.terminal select:focus{outline:2px solid var(--green-dim);border-color:var(--green-dim)}
+.tstat{font-family:var(--font-display);font-size:30px;color:var(--green-dim);line-height:1}
+.tbox{border:1px solid #cbbe9c;background:#efe4cd;padding:11px 13px}
+.tbox .k{font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)}
+.tbox .v{font-family:var(--font-display);font-size:24px;color:#1a150e;margin-top:2px}
+.trow{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px dashed #cbbe9c}
+.trow:last-child{border-bottom:none}
+.trow .k{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted)}
+.trow .v{font-family:var(--font-display);font-size:20px;color:#1a150e}
+.trow .v.up{color:var(--green-dim)} .trow .v.down{color:var(--oxblood)}
+.addrbar{display:flex;gap:8px;margin-bottom:12px}
+.addrbar input{flex:1}
+.addrbar button,.reportbtn{background:#12100c;color:var(--brass-light);border:2px solid var(--amber);
+  padding:9px 14px;font-family:var(--font-mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;box-shadow:2px 3px 0 rgba(0,0,0,.4)}
+.addrbar button:hover,.reportbtn:hover{background:#1c1710}
+.advisory{background:linear-gradient(180deg,#141009,#0f0c07);border:1px solid var(--brass-dark);box-shadow:var(--shadow);padding:0}
+.advisory .ahead{padding:14px 18px;border-bottom:1px solid #3a2f1a;display:flex;align-items:center;gap:10px}
+.advisory .ahead h3{font-family:var(--font-display);font-size:20px;color:var(--paper)}
+.advisory .abody{padding:16px 18px}
+.verdict{display:inline-block;font-family:var(--font-mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;padding:4px 10px;border:1px solid currentColor;margin-bottom:12px}
+.strat p{margin:0 0 11px;font-size:13px;line-height:1.6;color:var(--paper-2)}
+.strat p b{color:var(--brass-light)}
+.strat .tag{color:var(--amber)}
+.strat .rec{background:#0c0906;border-left:3px solid var(--amber);padding:10px 12px;margin-top:6px;font-size:12.5px;color:var(--muted-cream)}
+.strat .rec b{color:var(--paper)}
+@media(max-width:820px){
+  .report-grid{grid-template-columns:1fr}
+  .g4{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:1fr} .g2{grid-template-columns:1fr}
+  .calc-grid{grid-template-columns:1fr}
+  .sign h1{font-size:32px;letter-spacing:3px}
+  section{padding:26px 0}
+  .section-head h2{font-size:22px}
+  .section-head .sub{display:none}
+  /* keep nav usable on mobile: horizontal scroll strip, not hidden */
+  .top .wrap{gap:8px}
+  .top .brand img{height:22px}
+  .top nav{display:flex;flex-wrap:nowrap;overflow-x:auto;max-width:64%;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .top nav::-webkit-scrollbar{display:none}
+  .top nav a{padding:8px 9px;font-size:10px;white-space:nowrap}
+}
+@media(max-width:480px){
+  .wrap{padding:0 13px}
+  .hero{padding:26px 0 22px}
+  .sign{padding:20px 16px} .sign h1{font-size:24px;letter-spacing:2px} .sign p{font-size:10px;letter-spacing:2px}
+  .playbtn{padding:12px 30px} .playbtn .pn{font-size:20px}
+  .g4{grid-template-columns:1fr 1fr;gap:9px}
+  .chip{min-width:0} .chip .v{font-size:17px}
+  .stat{font-size:24px}
+  .out .v{font-size:18px} .out .v.big{font-size:24px}
+  .tstat{font-size:22px} .tbox .v{font-size:20px}
+  .row2,.row3{grid-template-columns:1fr}
+  .stepper button{width:32px;height:32px} .stepper input{width:38px}
+  th,td{padding:8px 9px;font-size:12px}
+  .terminal .body,.panel{padding:14px}
+  .addrbar{flex-wrap:wrap} .addrbar input{min-width:0} .addrbar button{width:100%}
+  .ticker .tk{gap:8px} .tk-lab{font-size:9px;letter-spacing:1px} .tk-val{font-size:11px}
+  .tk-deals{padding:4px 8px;font-size:9px;gap:4px}
+}
+</style>
+<script>
+/* Set before first paint so a live floor never flashes frozen sprites. Mirrors motionStill() below;
+   the floor is live unless the viewer explicitly chose the still scene. */
+try{ if(localStorage.getItem('floor.motion')!=='still') document.documentElement.classList.add('motion-live'); }catch(e){ document.documentElement.classList.add('motion-live'); }
+</script>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><img src="assets/logo-floor.svg" alt="The Floor" /></div>
+    <nav id="tabnav">
+      <button class="tabx on" data-tab="floor">The Floor</button>
+      <button class="tabx" data-tab="desk">My Desk</button>
+      <button class="tabx" data-tab="league">League</button>
+      <button class="tabx" data-tab="markets">Markets</button>
+      <button class="tabx" data-tab="firms">Firms</button>
+      <button class="tabx" data-tab="about">About</button>
+      <a href="/firmwars">Firm Wars 🏢</a>
+      <a href="https://thefloor.sh/docs" target="_blank" rel="noopener">Docs ↗</a>
+    </nav>
+  </div>
+</header>
+
+<div class="ticker">
+  <div class="wrap tk">
+    <div class="tk-halving"><span class="tk-lab">⛏ Next halving</span> <span id="halveCd" class="tk-val">—</span></div>
+    <a id="dealsInd" class="tk-deals off" href="https://thefloor.sh/deals?ref=0x30602250c5f1fcbA5407E99B1DFaAB992EA4fFD2" target="_blank" rel="noopener">
+      <span class="bell">🔔</span> <span id="dealsMsg">Deals</span> <span class="arr">↗</span>
+    </a>
+  </div>
+</div>
+
+<div class="wrap" id="page">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="sign">
+      <h1>THE <span class="b">FLOOR</span></h1>
+      <p>Dashboard &amp; Yield Calculator</p>
+    </div>
+    <div class="playwrap">
+      <a class="playbtn" href="https://thefloor.sh/?ref=0x30602250c5f1fcbA5407E99B1DFaAB992EA4fFD2" target="_blank" rel="noopener">
+        <span class="pn">Play Now</span>
+        <span class="os">Official site ↗</span>
+      </a>
+    </div>
+    <div class="chips" id="heroChips"></div>
+    <div class="disc">Unofficial fan tool · data from thefloor.sh/docs · $FLOOR is an experimental token with no promise of value</div>
+  </div>
+
+  <div id="tabpanels">
+
+  <!-- OVERVIEW -->
+  <section id="overview" data-tab="markets">
+    <div class="section-head">
+      <img src="assets/icon-pnl.svg" alt="" />
+      <h2>Tokenomics</h2>
+      <span class="sub label">Hard-capped · halving every 30 days</span>
+    </div>
+    <div id="liveStrip" class="chips" style="justify-content:flex-start;margin:0 0 18px">
+      <div class="chip"><div class="k">◍ Live on-chain</div><div class="v" style="font-size:13px;color:var(--muted-cream)">connecting to explorer…</div></div>
+    </div>
+    <p class="label" style="margin:-8px 0 18px;color:var(--muted)">Market cap = live price × true circulating supply — all burned tokens removed, unlike aggregators that count them.</p>
+    <div class="grid g4" id="tokenCards"></div>
+
+    <div style="margin-top:20px" class="grid g2">
+      <div>
+        <div class="label" style="margin-bottom:8px">Emission &amp; Halving Schedule</div>
+        <div class="tbl-wrap">
+          <table id="halvingTbl">
+            <thead><tr><th>Epoch</th><th>Rate /sec</th><th>FLOOR / day</th><th>Minted (30d)</th><th>Cumulative</th><th>% of pool</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+      <div>
+        <div class="label" style="margin-bottom:8px">Spend Split — every 100 FLOOR spent</div>
+        <div class="card">
+          <div class="split-bars">
+            <i style="width:75%;background:var(--red)" title="Burned 75%"></i>
+            <i style="width:20%;background:var(--blue)" title="Treasury 20%"></i>
+            <i style="width:5%;background:var(--green)" title="Recruiter 5%"></i>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:12px">
+            <span><b class="red">75%</b> Burned 🔥</span>
+            <span><b style="color:var(--blue)">20%</b> Treasury</span>
+            <span><b class="green">5%</b> Recruiter</span>
+          </div>
+          <p>Spending FLOOR is deflationary — three-quarters of every upgrade, recruit and desk purchase is burned forever. If you have no recruiter, the 5% rolls into treasury (25% total).</p>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <span class="pill">Desk mint · 0.01 ETH</span>
+            <span class="pill">Free starter · 1 Retail Analyst</span>
+            <span class="pill">Found a Firm · 2,500 FLOOR</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATE OF THE FLOOR -->
+  <section id="state" data-tab="markets">
+    <div class="section-head">
+      <img src="assets/icon-pnl.svg" alt="" />
+      <h2>State of the Floor</h2>
+      <span class="sub label">live economy · reinvest vs sell</span>
+    </div>
+    <div class="grid g3" id="stateCards">
+      <div class="card" style="text-align:center;color:var(--muted)">reading live economy…</div>
+    </div>
+    <p class="note">Reinvesting/building <b>burns</b> FLOOR (75% of every upgrade &amp; recruit); <b>selling</b> routes it to the LP pool. Read live from the game contract + FLOOR/WETH pool — and this sentiment auto-feeds the Strategy Desk.</p>
+  </section>
+
+  <!-- PLAYER BASE -->
+  <section id="players" data-tab="league">
+    <div class="section-head">
+      <img src="assets/icon-league.svg" alt="" />
+      <h2>The Player Base</h2>
+      <span class="sub label" id="playersSub">who's playing · live desk tiers</span>
+    </div>
+    <div class="card"><h3 style="font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;font-size:13px;color:var(--brass-light)">Desks by tier</h3><div id="distBars" style="margin-top:10px;max-width:640px"><p style="color:var(--muted)">reading the chain…</p></div></div>
+    <p class="note">Every player that's created a desk, read live from the chain. Refreshes every ~45 min.</p>
+  </section>
+
+  <!-- LEADERBOARDS -->
+  <section id="leaders" data-tab="league">
+    <div class="section-head">
+      <img src="assets/icon-league.svg" alt="" />
+      <h2>Leaderboards</h2>
+      <span class="sub label" id="leadersSub">who's on top · the recruiter race</span>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3 style="font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;font-size:13px;color:var(--brass-light)">Top of the floor · by alpha</h3><div id="lbAlpha" style="margin-top:8px"><p style="color:var(--muted)">reading the chain…</p></div></div>
+      <div class="card"><h3 style="font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;font-size:13px;color:var(--brass-light)">Recruiter race · $FLOOR earned</h3><div id="lbRecruit" style="margin-top:8px"><p style="color:var(--muted)">—</p></div><p class="label" style="margin:9px 0 0;color:var(--muted)">recruiters earn 5% of everything their recruits ever spend, forever. paste your wallet up top to see your rank.</p></div>
+    </div>
+    <p class="note">Alpha = earning power (share of daily $FLOOR). The recruiter race reads <b>referralEarned</b> straight from the chain. Refreshes every ~30 min.</p>
+  </section>
+
+  <!-- THE OFFICE -->
+  <section id="office" data-tab="floor">
+    <div class="section-head">
+      <img src="assets/icon-office.svg" alt="" onerror="this.style.display='none'" />
+      <h2>The Office</h2>
+      <span class="sub label" id="officeSub">every wallet, working the floor</span>
+      <button class="pip-btn" id="motionBtn" style="margin-left:auto"></button>
+      <button class="pip-btn" id="pipBtn" style="margin-left:8px" title="Pop the floor into a floating player">⧉ Pop out</button>
+    </div>
+    <div id="officeScene" class="scene-wrap">
+      <div id="sceneRoot" class="scene-root">
+        <svg id="sceneBg" viewBox="0 0 1150 430" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#070d1a"/><stop offset=".62" stop-color="#101d36"/><stop offset="1" stop-color="#243350"/></linearGradient>
+            <linearGradient id="wallG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#170f07"/><stop offset=".5" stop-color="#211709"/><stop offset="1" stop-color="#1a1208"/></linearGradient>
+            <linearGradient id="floorG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#332111"/><stop offset="1" stop-color="#1f1408"/></linearGradient>
+            <linearGradient id="brassV" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e6c96b"/><stop offset=".5" stop-color="#8a6d16"/><stop offset="1" stop-color="#5c4712"/></linearGradient>
+            <linearGradient id="ironG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b3b45"/><stop offset=".55" stop-color="#26262e"/><stop offset="1" stop-color="#191920"/></linearGradient>
+            <linearGradient id="pipeG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#43434e"/><stop offset=".5" stop-color="#2b2b33"/><stop offset="1" stop-color="#1b1b21"/></linearGradient>
+            <radialGradient id="moonG"><stop offset="0" stop-color="#f4edd8"/><stop offset=".5" stop-color="#f4edd8" stop-opacity=".55"/><stop offset="1" stop-color="#f4edd8" stop-opacity="0"/></radialGradient>
+            <radialGradient id="sunG"><stop offset="0" stop-color="#ffe9a8"/><stop offset=".5" stop-color="#ffd36b" stop-opacity=".5"/><stop offset="1" stop-color="#ffd36b" stop-opacity="0"/></radialGradient>
+            <linearGradient id="dayG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a86bd"/><stop offset=".55" stop-color="#83b0da"/><stop offset="1" stop-color="#c3daee"/></linearGradient>
+            <radialGradient id="poolG"><stop offset="0" stop-color="#ffc45a" stop-opacity=".14"/><stop offset="1" stop-color="#ffc45a" stop-opacity="0"/></radialGradient>
+            <radialGradient id="fireGlowG"><stop offset="0" stop-color="#ff8a1f" stop-opacity=".5"/><stop offset="1" stop-color="#ff8a1f" stop-opacity="0"/></radialGradient>
+            <linearGradient id="coneG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc45a" stop-opacity=".16"/><stop offset="1" stop-color="#ffc45a" stop-opacity="0"/></linearGradient>
+            <linearGradient id="shaftG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ff" stop-opacity=".10"/><stop offset="1" stop-color="#cfe0ff" stop-opacity="0"/></linearGradient>
+            <radialGradient id="vinG" cx=".5" cy=".42" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".42"/></radialGradient>
+            <clipPath id="doorClip"><circle cx="1052" cy="313" r="27"/></clipPath>
+            <g id="windowG">
+              <rect x="-8" y="-8" width="146" height="192" fill="#6b5426"/>
+              <rect x="-4" y="-4" width="138" height="184" fill="#2c2110"/>
+              <rect x="0" y="0" width="130" height="176" fill="url(#skyG)"/>
+            </g>
+            <g id="plantG">
+              <path d="M0,0 q-9,-16 -4,-34 q7,12 8,20 q1,-20 10,-30 q3,16 -1,30 q7,-12 16,-16 q-3,16 -12,26z" fill="#2f5d33"/>
+              <path d="M2,-6 q-4,-12 -1,-22 q5,9 4,18z" fill="#3f7a44"/>
+              <path d="M-12,0 h34 l-5,22 h-24z" fill="#7c2d12"/><path d="M-12,0 h34 l-2,6 h-30z" fill="#5c210d"/>
+            </g>
+          </defs>
+          <rect x="0" y="0" width="1150" height="332" fill="url(#wallG)"/>
+          <g opacity=".55"><rect x="150" y="14" width="2" height="288" fill="#0e0a05"/><rect x="360" y="14" width="2" height="288" fill="#0e0a05"/><rect x="574" y="14" width="2" height="288" fill="#0e0a05"/><rect x="788" y="14" width="2" height="288" fill="#0e0a05"/><rect x="998" y="14" width="2" height="288" fill="#0e0a05"/></g>
+          <rect x="0" y="0" width="1150" height="12" fill="#100b06"/><rect x="0" y="12" width="1150" height="3" fill="#3a2c12"/>
+          <use href="#windowG" x="230" y="58"/><use href="#windowG" x="444" y="58"/><use href="#windowG" x="658" y="58"/>
+          <g fill="#f4edd8" opacity=".6"><circle cx="262" cy="78" r="1.1"/><circle cx="318" cy="96" r="1.4"/><circle cx="292" cy="120" r="1"/><circle cx="486" cy="84" r="1.2"/><circle cx="548" cy="72" r="1"/><circle cx="700" cy="90" r="1.3"/><circle cx="742" cy="70" r="1"/><circle cx="762" cy="112" r="1.2"/></g>
+          <g id="sceneMoon"><circle cx="512" cy="104" r="22" fill="url(#moonG)"/><circle cx="512" cy="104" r="8" fill="#f4edd8"/><circle cx="509" cy="101" r="2" fill="#ded5b8"/><circle cx="515" cy="107" r="1.5" fill="#ded5b8"/></g>
+          <g id="sceneSun" style="display:none"><circle cx="512" cy="104" r="40" fill="url(#sunG)"/><g stroke="#ffd76b" stroke-width="2" opacity=".55"><line x1="512" y1="60" x2="512" y2="50"/><line x1="512" y1="148" x2="512" y2="158"/><line x1="468" y1="104" x2="458" y2="104"/><line x1="556" y1="104" x2="566" y2="104"/><line x1="481" y1="73" x2="474" y2="66"/><line x1="543" y1="73" x2="550" y2="66"/><line x1="481" y1="135" x2="474" y2="142"/><line x1="543" y1="135" x2="550" y2="142"/></g><circle cx="512" cy="104" r="15" fill="#ffe08a"/><circle cx="507" cy="99" r="4" fill="#fff2c8"/></g>
+          <g fill="#0d1526">
+            <rect x="236" y="176" width="22" height="58"/><rect x="262" y="156" width="18" height="78"/><rect x="284" y="188" width="26" height="46"/><rect x="314" y="168" width="20" height="66"/><rect x="338" y="196" width="18" height="38"/>
+            <rect x="450" y="184" width="24" height="50"/><rect x="478" y="162" width="16" height="72"/><rect x="498" y="192" width="28" height="42"/><rect x="530" y="172" width="18" height="62"/><rect x="552" y="188" width="18" height="46"/>
+            <rect x="664" y="180" width="20" height="54"/><rect x="688" y="150" width="18" height="84"/><rect x="710" y="188" width="26" height="46"/><rect x="740" y="170" width="18" height="64"/><rect x="762" y="192" width="20" height="42"/>
+          </g>
+          <line x1="697" y1="150" x2="697" y2="140" stroke="#0d1526" stroke-width="2"/><circle cx="697" cy="139" r="2" fill="#d9534f"><animate attributeName="opacity" values="1;.15;1" dur="2.2s" repeatCount="indefinite"/></circle>
+          <g fill="#f2d98c" opacity=".85"><rect x="266" y="166" width="3" height="3"/><rect x="272" y="180" width="3" height="3"/><rect x="320" y="178" width="3" height="3"/><rect x="290" y="196" width="3" height="3"/><rect x="482" y="172" width="3" height="3"/><rect x="486" y="190" width="3" height="3"/><rect x="534" y="182" width="3" height="3"/><rect x="504" y="200" width="3" height="3"/><rect x="692" y="160" width="3" height="3"/><rect x="698" y="176" width="3" height="3"/><rect x="744" y="182" width="3" height="3"/><rect x="716" y="196" width="3" height="3"/><rect x="668" y="190" width="3" height="3"/></g>
+          <g fill="#7fd4e8" opacity=".5"><rect x="300" y="172" width="3" height="3"/><rect x="522" y="178" width="3" height="3"/><rect x="752" y="200" width="3" height="3"/></g>
+          <g stroke="#100b06" stroke-width="4"><line x1="295" y1="58" x2="295" y2="234"/><line x1="230" y1="146" x2="360" y2="146"/><line x1="509" y1="58" x2="509" y2="234"/><line x1="444" y1="146" x2="574" y2="146"/><line x1="723" y1="58" x2="723" y2="234"/><line x1="658" y1="146" x2="788" y2="146"/></g>
+          <polygon points="512,234 574,234 760,332 620,332" fill="url(#shaftG)"/>
+          <g>
+            <circle cx="182" cy="100" r="15" fill="#0c0906" stroke="#8a6d16" stroke-width="3"/>
+            <line x1="182" y1="100" x2="182" y2="90" stroke="#e6c96b" stroke-width="2"/><line x1="182" y1="100" x2="189" y2="104" stroke="#e6c96b" stroke-width="2"/><circle cx="182" cy="100" r="1.6" fill="#e6c96b"/>
+          </g>
+          <g font-family="DM Serif Display,Georgia,serif" text-anchor="middle">
+            <text x="893" y="112" font-size="26" letter-spacing="7" fill="#c9a227" style="text-shadow:0 0 12px rgba(201,162,39,.5)">THE FLOOR</text>
+            <rect x="820" y="122" width="146" height="2" fill="#6b5426"/>
+            <text id="wallBurn" x="893" y="146" font-size="12" letter-spacing="2" fill="#e08030" font-family="IBM Plex Mono,monospace">— FLOOR BURNED</text>
+          </g>
+          <rect x="0" y="300" width="1150" height="5" fill="url(#brassV)"/><rect x="0" y="305" width="1150" height="27" fill="#241a10"/>
+          <g opacity=".5"><rect x="90" y="308" width="2" height="21" fill="#120d07"/><rect x="330" y="308" width="2" height="21" fill="#120d07"/><rect x="570" y="308" width="2" height="21" fill="#120d07"/><rect x="810" y="308" width="2" height="21" fill="#120d07"/><rect x="1050" y="308" width="2" height="21" fill="#120d07"/></g>
+          <rect x="0" y="332" width="1150" height="98" fill="url(#floorG)"/>
+          <g stroke="#160e06" stroke-width="1.5" opacity=".8"><line x1="0" y1="354" x2="1150" y2="354"/><line x1="0" y1="378" x2="1150" y2="378"/><line x1="0" y1="404" x2="1150" y2="404"/></g>
+          <g stroke="#160e06" stroke-width="1" opacity=".5"><line x1="140" y1="332" x2="128" y2="354"/><line x1="470" y1="332" x2="458" y2="354"/><line x1="820" y1="332" x2="808" y2="354"/><line x1="300" y1="354" x2="286" y2="378"/><line x1="650" y1="354" x2="636" y2="378"/><line x1="980" y1="354" x2="966" y2="378"/><line x1="180" y1="378" x2="162" y2="404"/><line x1="540" y1="378" x2="522" y2="404"/><line x1="880" y1="378" x2="862" y2="404"/></g>
+          <ellipse cx="575" cy="400" rx="78" ry="15" fill="none" stroke="#8a6d16" stroke-width="3" opacity=".7"/><ellipse cx="575" cy="400" rx="58" ry="10" fill="none" stroke="#5c4712" stroke-width="2" opacity=".6"/>
+          <g><line x1="305" y1="15" x2="305" y2="46" stroke="#3a2c12" stroke-width="3"/><path d="M289,46 h32 l-7,14 h-18z" fill="#2c2110" stroke="#8a6d16" stroke-width="2"/><circle cx="305" cy="62" r="4" fill="#ffd88a"/><polygon points="289,62 321,62 391,392 219,392" fill="url(#coneG)"/><ellipse cx="305" cy="392" rx="86" ry="13" fill="url(#poolG)"/></g>
+          <g><line x1="730" y1="15" x2="730" y2="46" stroke="#3a2c12" stroke-width="3"/><path d="M714,46 h32 l-7,14 h-18z" fill="#2c2110" stroke="#8a6d16" stroke-width="2"/><circle cx="730" cy="62" r="4" fill="#ffd88a"/><polygon points="714,62 746,62 816,392 644,392" fill="url(#coneG)"/><ellipse cx="730" cy="392" rx="86" ry="13" fill="url(#poolG)"/></g>
+          <g>
+            <rect x="34" y="108" width="108" height="224" fill="#0a0705"/>
+            <rect x="34" y="108" width="108" height="10" fill="url(#brassV)"/>
+            <rect x="34" y="108" width="7" height="224" fill="url(#brassV)"/><rect x="135" y="108" width="7" height="224" fill="url(#brassV)"/>
+            <path d="M60,96 a28,28 0 0 1 56,0z" fill="none" stroke="#8a6d16" stroke-width="4"/>
+            <line x1="88" y1="96" x2="102" y2="78" stroke="#e6c96b" stroke-width="3"/>
+            <text x="88" y="93" font-size="8" fill="#8a6d16" text-anchor="middle" font-family="IBM Plex Mono,monospace">▲</text>
+          </g>
+          <g>
+            <rect x="192" y="286" width="30" height="46" fill="#3b342a"/><rect x="192" y="286" width="30" height="5" fill="#4a4336"/>
+            <path d="M197,258 h20 v28 h-20z" fill="#4a86c2"/><path d="M197,258 q10,-8 20,0 v6 h-20z" fill="#6aa4d8"/><rect x="203" y="252" width="8" height="8" fill="#37648f"/>
+            <rect x="219" y="296" width="6" height="10" fill="#e8dcc3"/>
+          </g>
+          <use href="#plantG" transform="translate(168,330)"/>
+          <use href="#plantG" transform="translate(962,330)"/>
+          <g>
+            <rect x="806" y="336" width="86" height="12" fill="#1c1610"/>
+            <path d="M810,336 l8,-30 h64 l8,30z" fill="#2c2318"/>
+            <rect x="820" y="282" width="40" height="28" rx="2" fill="#07140c" stroke="#241c0e" stroke-width="3" id="crtScreen"/>
+            <polyline points="824,302 830,296 836,299 842,290 848,293 854,287" fill="none" stroke="#2fbf71" stroke-width="1.6"/>
+            <rect x="862" y="290" width="22" height="20" rx="2" fill="#07140c" stroke="#241c0e" stroke-width="2.5"/>
+            <polyline points="865,304 870,298 874,301 880,294" fill="none" stroke="#2fbf71" stroke-width="1.3"/>
+            <rect x="826" y="312" width="34" height="5" rx="1" fill="#161006"/>
+            <text x="849" y="358" font-size="8" letter-spacing="1.5" fill="#b3a88f" text-anchor="middle" font-family="IBM Plex Mono,monospace">PNL TERMINAL</text>
+          </g>
+          <g>
+            <rect x="1028" y="0" width="30" height="240" fill="url(#pipeG)"/>
+            <rect x="1024" y="236" width="38" height="10" fill="#1b1b21"/>
+            <rect x="1002" y="244" width="100" height="146" rx="8" fill="url(#ironG)" stroke="#141419" stroke-width="3"/>
+            <g fill="#55555f"><circle cx="1012" cy="256" r="2"/><circle cx="1092" cy="256" r="2"/><circle cx="1012" cy="378" r="2"/><circle cx="1092" cy="378" r="2"/><circle cx="1012" cy="316" r="2"/><circle cx="1092" cy="316" r="2"/></g>
+            <circle cx="1076" cy="264" r="9" fill="#0c0906" stroke="#8a6d16" stroke-width="2"/><line x1="1076" y1="264" x2="1081" y2="258" stroke="#d9534f" stroke-width="1.6"/>
+            <g id="incinDoor">
+              <circle cx="1052" cy="313" r="30" fill="#101014"/>
+              <g clip-path="url(#doorClip)">
+                <rect x="1022" y="286" width="60" height="56" fill="#2a0d02"/>
+                <g id="fireFlames">
+                  <path d="M1032,338 Q1035,314 1042,306 Q1044,318 1049,320 Q1049,300 1057,294 Q1059,312 1064,316 Q1068,306 1071,300 Q1076,318 1070,330 Q1062,340 1044,340 Z" fill="#ff8a1f"><animate attributeName="opacity" values="1;.72;.92;1" dur=".8s" repeatCount="indefinite"/></path>
+                  <path d="M1040,338 Q1043,322 1049,316 Q1051,326 1056,326 Q1057,314 1062,310 Q1066,324 1062,332 Q1056,340 1044,340 Z" fill="#ffd23f"><animate attributeName="opacity" values=".9;.6;1;.9" dur=".6s" repeatCount="indefinite"/></path>
+                </g>
+                <g fill="#101014"><rect x="1022" y="296" width="60" height="4"/><rect x="1022" y="308" width="60" height="4"/><rect x="1022" y="320" width="60" height="4"/><rect x="1022" y="332" width="60" height="4"/></g>
+              </g>
+              <circle cx="1052" cy="313" r="30" fill="none" stroke="#101014" stroke-width="6"/>
+              <circle cx="1052" cy="313" r="33" fill="none" stroke="#33333c" stroke-width="2"/>
+            </g>
+            <g><rect x="1002" y="376" width="100" height="14" fill="#1c1c22"/><path d="M1002,376 l7,14 h14 l-7,-14z M1030,376 l7,14 h14 l-7,-14z M1058,376 l7,14 h14 l-7,-14z M1086,376 l7,14 h9 v-14z" fill="#c9a227" opacity=".55"/></g>
+            <ellipse cx="1032" cy="392" rx="16" ry="4" fill="#3b3b45" opacity=".8"/><ellipse cx="1022" cy="394" rx="9" ry="3" fill="#4a4a55" opacity=".7"/>
+            <text x="1052" y="410" font-size="9" letter-spacing="2" fill="#e08030" text-anchor="middle" font-family="IBM Plex Mono,monospace">INCINERATOR</text>
+            <ellipse id="incinGlow" cx="1035" cy="398" rx="80" ry="20" fill="url(#fireGlowG)" opacity=".55"><animate attributeName="opacity" values=".55;.4;.55" dur="2.4s" repeatCount="indefinite"/></ellipse>
+          </g>
+          <g fill="#ffe9a8" opacity=".14">
+            <circle cx="560" cy="270" r="1.4"><animateTransform attributeName="transform" type="translate" values="0,0; 26,34; 0,0" dur="13s" repeatCount="indefinite"/></circle>
+            <circle cx="600" cy="250" r="1.1"><animateTransform attributeName="transform" type="translate" values="0,0; -20,44; 0,0" dur="17s" repeatCount="indefinite"/></circle>
+            <circle cx="650" cy="290" r="1.3"><animateTransform attributeName="transform" type="translate" values="0,0; 18,26; 0,0" dur="11s" repeatCount="indefinite"/></circle>
+          </g>
+          <rect x="0" y="0" width="1150" height="430" fill="url(#vinG)" pointer-events="none"/>
+        </svg>
+        <div id="sceneBoard" class="scene-board"><div id="boardTape" class="board-tape">connecting to the floor…</div></div>
+        <div id="mktBadge" class="mkt-badge"></div>
+        <div class="scene-elevator" id="sElev"><div class="ele-door l"></div><div class="ele-door r"></div><div class="ele-lamp" id="eleLamp"></div></div>
+        <div id="sceneDesks"></div>
+        <div id="sceneActors"></div>
+        <div id="sceneTint"></div>
+        <svg id="sceneFgSvg" viewBox="0 0 1150 430" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <g id="deskF">
+              <rect x="-46" y="-20" width="92" height="7" rx="2" fill="#5a3d1c"/><rect x="-46" y="-15" width="92" height="3" fill="#3a2810"/>
+              <rect x="-42" y="-12" width="84" height="18" fill="#33230f"/>
+              <rect x="-38" y="-8" width="34" height="7" rx="1" fill="#241807"/><rect x="-25" y="-5" width="8" height="2" fill="#8a6d16"/>
+              <rect x="4" y="-8" width="34" height="7" rx="1" fill="#241807"/><rect x="17" y="-5" width="8" height="2" fill="#8a6d16"/>
+              <rect x="-45" y="-37" width="21" height="16" rx="2" fill="#07140c" stroke="#241c0e" stroke-width="2"/>
+              <polyline points="-42,-26 -38,-31 -34,-28 -30,-34 -27,-30" fill="none" stroke="#2fbf71" stroke-width="1.3"/>
+              <rect x="26" y="-26" width="16" height="5" fill="#d8cfb8" transform="rotate(-4 34 -24)"/>
+              <rect x="30" y="-34" width="9" height="8" rx="1" fill="#7c2d12"/><rect x="38" y="-32" width="3" height="4" fill="#7c2d12"/>
+            </g>
+          </defs>
+          <use href="#deskF" transform="translate(280,392)"/><use href="#deskF" transform="translate(430,392)"/><use href="#deskF" transform="translate(580,392)"/><use href="#deskF" transform="translate(730,392)"/>
+          <use href="#deskF" transform="translate(355,344) scale(.84)"/><use href="#deskF" transform="translate(505,344) scale(.84)"/>
+        </svg>
+        <div id="sceneFx"></div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:10px">A live diorama of the floor. The top desks belong to the biggest alpha holders; everyone else walks in when the chain says they did something — collecting at the terminal, burning at the incinerator, new hires stepping off the elevator. Click any operator for their stat card.</p>
+    <details class="office-roster" id="officeRosterWrap">
+      <summary>Staff directory — every desk owner, grouped by firm</summary>
+      <div class="office-legend" id="officeLegend"></div>
+      <div id="officeTicker" class="office-ticker" style="display:none"></div>
+      <div id="officeFloor" class="office"><p style="color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:24px">clocking everyone in…</p></div>
+    </details>
+  </section>
+
+  <!-- HISTORICAL TRENDS -->
+  <section id="trends" data-tab="markets">
+    <div class="section-head">
+      <img src="assets/icon-chart.svg" alt="" onerror="this.style.display='none'" />
+      <h2>Trends</h2>
+      <span class="sub label" id="trendsSub">the floor over time</span>
+    </div>
+    <div class="card">
+      <div id="trendTabs" class="trend-tabs"></div>
+      <div id="trendChart" class="trend-chart"><p style="color:var(--muted);font-family:var(--font-mono);font-size:12px">reading history…</p></div>
+      <div id="trendMeta" class="trend-meta"></div>
+    </div>
+    <p class="note">One snapshot per day, straight from the chain — days before we started tracking are reconstructed from chain events and daily DEX candles, so this covers the token's whole life. Each metric is only plotted on days it can be honestly sourced: Total Alpha begins where historical chain state is still readable, Holders from when live tracking began.</p>
+  </section>
+
+  <!-- PLAYERS VS TRADERS -->
+  <section id="behavior" data-tab="league">
+    <div class="section-head">
+      <img src="assets/icon-pnl.svg" alt="" />
+      <h2>Players vs Traders</h2>
+      <span class="sub label" id="behSub">who's building vs who's just trading</span>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <div class="label" style="margin-bottom:8px">Share of all $FLOOR sell volume</div>
+      <div id="behSplit" style="display:flex;height:26px;border:1px solid #37301f;border-radius:4px;overflow:hidden;background:var(--navy-950)"><i style="width:15%;background:var(--green);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;color:#0c0906">—</i><i style="width:85%;background:var(--red);opacity:.85;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:11px;color:#0c0906">—</i></div>
+      <p id="behHead" class="label" style="margin:9px 0 0;color:var(--muted)">reading the chain…</p>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3 id="behPlayersH" style="font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;font-size:13px;color:var(--brass-light)">Players · desk owners</h3><div id="behPlayers" style="margin-top:10px"><p style="color:var(--muted)">—</p></div></div>
+      <div class="card"><h3 style="font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;font-size:13px;color:var(--brass-light)">Traders · never opened a desk</h3><div id="behTraders" style="margin-top:10px"><p style="color:var(--muted)">—</p></div></div>
+    </div>
+    <p class="note">Classified live from $FLOOR transfers: <b>to the pool</b> = sold, <b>from the pool</b> = bought, <b>to the game</b> = reinvested (75% of it burns). A "player" is any wallet that's opened a desk. Cross-wallet activity can't be seen on-chain, so player selling is a ceiling, not a certainty. Refreshes hourly.</p>
+  </section>
+
+  <!-- TOP HOLDERS -->
+  <section id="holders" data-tab="league">
+    <div class="section-head">
+      <img src="assets/icon-league.svg" alt="" />
+      <h2>Top Holders</h2>
+      <span class="sub label">whale watch · live from chain</span>
+    </div>
+    <div class="tbl-wrap">
+      <table id="holdersTbl">
+        <thead><tr><th>#</th><th>Holder</th><th>$FLOOR</th><th>% supply</th></tr></thead>
+        <tbody><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">loading live holders…</td></tr></tbody>
+      </table>
+    </div>
+    <p class="note">Top 25 $FLOOR holders on Robinhood Chain, cached &amp; refreshed every few minutes. Contracts (the Uniswap pool, the dead address, game contracts) are labeled. Note: most burned $FLOOR doesn't appear here — it's destroyed outright (sent to 0x0), shrinking total supply; the full burn tally is in State of the Floor.</p>
+  </section>
+
+  <!-- DESKS -->
+  <section id="desks" data-tab="desk">
+    <div class="section-head">
+      <img src="assets/icon-seats.svg" alt="" />
+      <h2>Desks</h2>
+      <span class="sub label">11 tiers · seats · bandwidth · prestige</span>
+    </div>
+    <div class="tbl-wrap">
+      <table id="deskTbl">
+        <thead><tr>
+          <th>Lvl</th><th>Desk</th><th>Seats</th><th>Bandwidth</th><th>Prestige</th>
+          <th>Upgrade Cost</th><th>Cumulative to Reach</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="note">Prestige is a permanent multiplier on your total Alpha. Cumulative cost is the total FLOOR to climb from the free Kitchen Table (Lvl 0) to that tier.</p>
+  </section>
+
+  <!-- OPERATORS -->
+  <section id="operators" data-tab="desk">
+    <div class="section-head">
+      <img src="assets/icon-alpha.svg" alt="" />
+      <h2>Operators</h2>
+      <span class="sub label" id="opSub">15 NFTs · live $FLOOR/day per operator</span>
+    </div>
+    <div class="tbl-wrap">
+      <table id="opTbl">
+        <thead><tr>
+          <th data-sort="idx">#</th><th data-sort="name">Operator</th><th data-sort="rarity">Rarity</th>
+          <th data-sort="alpha">Alpha</th><th data-sort="bw">Bandwidth</th><th data-sort="cost">Cost (FLOOR)</th>
+          <th data-sort="fpd">$FLOOR / day</th><th data-sort="pb">Payback</th>
+          <th data-sort="apf">Alpha / FLOOR</th><th data-sort="apb">Alpha / BW</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="note"><b id="opRateNote">$FLOOR/day is live</b> — each operator's alpha × the current network rate (emissions ÷ total alpha across all players). It drops as more players seat operators. <b>Payback</b> = recruit cost ÷ current $FLOOR/day (days to earn it back at today's rate). Click any column to sort.</p>
+  </section>
+
+  <!-- FIRMS -->
+  <section id="firms" data-tab="firms">
+    <div class="section-head">
+      <img src="assets/icon-league.svg" alt="" />
+      <h2>Firms &amp; Office Boosts</h2>
+      <span class="sub label">team up · boost the whole roster</span>
+    </div>
+    <div class="tbl-wrap">
+      <table id="firmTbl">
+        <thead><tr><th>Office</th><th>Alpha Boost</th><th>Unlock (FLOOR contributed)</th><th>Member Cap</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="note">Soulbound boosts stack on top: <b>The Intern (+10%)</b>, <b>The Principal (+5%</b> — claimable by Firm founders on the Firms page<b>)</b>, <b>X Badge (+2%</b> — connect your X on The Floor<b>)</b>. Total boost hard-capped at <b>+50%</b>. Found a Firm for 2,500 FLOOR; members contribute FLOOR to level the shared office.</p>
+  </section>
+
+  <!-- CALCULATOR -->
+  <section id="calc" data-tab="desk">
+    <div class="section-head">
+      <img src="assets/icon-bell.svg" alt="" />
+      <h2>Desk Builder &amp; Yield Calculator</h2>
+      <span class="sub label">what you earn · what it costs</span>
+    </div>
+
+    <div class="calc-grid">
+      <!-- LEFT: builder -->
+      <div class="panel">
+        <h3><img src="assets/icon-seats.svg" alt="" />Build your desk</h3>
+        <div class="field">
+          <label>Desk tier</label>
+          <select id="deskSel"></select>
+        </div>
+
+        <div class="meter">
+          <div class="top"><span>Seats used</span><span><b id="seatUsed">0</b> / <span id="seatCap">2</span></span></div>
+          <div class="bar" id="seatBar"><i style="width:0%"></i></div>
+        </div>
+        <div class="meter">
+          <div class="top"><span>Bandwidth used</span><span><b id="bwUsed">0</b> / <span id="bwCap">20</span></span></div>
+          <div class="bar" id="bwBar"><i style="width:0%"></i></div>
+        </div>
+        <div class="warn" id="capWarn">⚠ Over capacity — reduce operators, or upgrade your desk.</div>
+
+        <div style="overflow-x:auto;margin-top:10px">
+          <table class="op-table" id="pickTbl">
+            <thead><tr><th style="text-align:left">Operator</th><th>Alpha</th><th>BW</th><th>Seated</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <button id="clearBtn" style="margin-top:10px;background:var(--navy-800);color:var(--muted-cream);border:1px solid #4a3d22;padding:7px 12px;border-radius:3px;cursor:pointer;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase">Clear seats</button>
+      </div>
+
+      <!-- RIGHT: boosts + earnings -->
+      <div>
+        <div class="panel">
+          <h3><img src="assets/icon-alpha.svg" alt="" />Boosts &amp; emissions</h3>
+          <div class="field">
+            <label>Firm office boost</label>
+            <select id="officeSel"></select>
+          </div>
+          <div class="row3">
+            <div class="field" style="margin-bottom:6px">
+              <label>The Intern (+10%)</label>
+              <select id="internSel"><option value="0">No</option><option value="0.10">Yes</option></select>
+            </div>
+            <div class="field" style="margin-bottom:6px">
+              <label>Principal (+5%)</label>
+              <select id="principalSel"><option value="0">No</option><option value="0.05">Yes</option></select>
+            </div>
+            <div class="field" style="margin-bottom:6px">
+              <label>X Badge (+2%)</label>
+              <select id="xbadgeSel"><option value="0">No</option><option value="0.02">Yes</option></select>
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:6px">
+            <label>Other boost %</label>
+            <input type="number" id="otherBoost" value="0" min="0" step="1" />
+          </div>
+          <div class="note" id="boostNote"></div>
+          <div class="row2" style="margin-top:10px">
+            <div class="field" style="margin-bottom:6px">
+              <label>Epoch (halving)</label>
+              <select id="epochSel"></select>
+            </div>
+            <div class="field" style="margin-bottom:6px">
+              <label>Network total alpha</label>
+              <input type="number" id="netAlpha" value="750000" min="1" step="1000" />
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>$FLOOR price (USD, optional)</label>
+            <input type="number" id="price" value="0" min="0" step="0.0001" placeholder="e.g. 0.05" />
+          </div>
+          <div class="note">Network total alpha is a live, game-wide number the docs don’t expose — set it to the current network alpha (or your best estimate) to get your real share. Emissions are split pro-rata by alpha across all players.</div>
+        </div>
+
+        <div class="panel hl" style="margin-top:14px">
+          <div class="out"><span class="k">Your effective alpha</span><span class="v" id="effAlpha">0</span></div>
+          <div class="out"><span class="k">Your share of network</span><span class="v" id="share">0%</span></div>
+          <div class="out"><span class="k">FLOOR / day</span><span class="v big" id="perDay">0</span></div>
+          <div class="out"><span class="k">FLOOR / week</span><span class="v" id="perWeek">0</span></div>
+          <div class="out"><span class="k">FLOOR / 30-day epoch</span><span class="v" id="perEpoch">0</span></div>
+          <div class="out" id="usdRow" style="display:none"><span class="k">≈ USD / day</span><span class="v green" id="perDayUsd">$0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COST PLANNER -->
+    <div class="section-head" style="margin-top:34px">
+      <img src="assets/icon-burn.svg" alt="" />
+      <h2 style="font-size:22px">Cost &amp; ROI Planner</h2>
+    </div>
+    <div class="calc-grid">
+      <div class="panel">
+        <h3><img src="assets/icon-seats.svg" alt="" />Desk upgrade cost</h3>
+        <div class="row2">
+          <div class="field"><label>From tier</label><select id="fromSel"></select></div>
+          <div class="field"><label>To tier</label><select id="toSel"></select></div>
+        </div>
+        <div class="hl">
+          <div class="out"><span class="k">Total upgrade cost</span><span class="v big" id="upgTotal">0</span></div>
+          <div class="split-bars"><i style="width:75%;background:var(--red)"></i><i style="width:20%;background:var(--blue)"></i><i style="width:5%;background:var(--green)"></i></div>
+          <div class="out" style="margin-top:6px"><span class="k">🔥 Burned (75%)</span><span class="v" id="upgBurn">0</span></div>
+          <div class="out"><span class="k">Days to afford (at your yield)</span><span class="v" id="upgDays">—</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3><img src="assets/icon-deal.svg" alt="" />Recruit cost &amp; payback</h3>
+        <div class="out"><span class="k">Seated roster cost</span><span class="v" id="rosterCost">0</span></div>
+        <div class="out"><span class="k">🔥 Burned on recruiting</span><span class="v" id="rosterBurn">0</span></div>
+        <div class="out"><span class="k">Roster payback</span><span class="v" id="payback">—</span></div>
+        <p class="note">Payback = what your currently-seated operators cost to recruit ÷ what they now earn per day. Lower is better. It ignores halving decay, so treat it as a best-case floor.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ / WIKI -->
+  <section id="faq" data-tab="about">
+    <div class="section-head">
+      <img src="assets/icon-bell.svg" alt="" />
+      <h2>FAQ &amp; Wiki</h2>
+      <span class="sub label">how the game works · quick answers</span>
+    </div>
+
+    <div class="faq-cat">Getting started</div>
+    <details class="faq"><summary>What is The Floor?</summary><div class="a">An on-chain idle-strategy game on <b>Robinhood Chain</b>. You run a trading desk, seat pixel-art <b>operator</b> NFTs on it, and they generate <b>$FLOOR</b> for you around the clock — even while you're offline.</div></details>
+    <details class="faq"><summary>How do I start playing?</summary><div class="a">Head to <a href="https://thefloor.sh/?ref=0x30602250c5f1fcbA5407E99B1DFaAB992EA4fFD2" target="_blank" rel="noopener">thefloor.sh</a>, connect a wallet, and claim your free <b>Kitchen Table</b> desk and starter operator. From there you reinvest earnings (or buy $FLOOR) to upgrade your desk and recruit stronger operators.</div></details>
+    <details class="faq"><summary>Does it cost anything to try?</summary><div class="a">No — the Kitchen Table desk and starter operator are free. Spending only starts when you upgrade your desk or recruit more operators, and that spend is priced in $FLOOR.</div></details>
+
+    <div class="faq-cat">Desks · Operators · Alpha</div>
+    <details class="faq"><summary>What does my desk do?</summary><div class="a">Your desk sets your capacity: how many <b>seats</b> you have and how much <b>bandwidth</b> your operators can use. There are 11 tiers, from Kitchen Table to the Bell Room. Higher tiers also grant permanent <b>prestige</b> — a multiplier on your total alpha (up to +80%). The full table is in the <a href="#desks">Desks</a> section.</div></details>
+    <details class="faq"><summary>What is alpha?</summary><div class="a"><b>Alpha is your earning power.</b> Every operator contributes alpha; your share of the network's total alpha is your share of the daily $FLOOR emissions. Double your alpha and you double your earnings (until others grow theirs too).</div></details>
+    <details class="faq"><summary>What is bandwidth?</summary><div class="a">Each operator consumes bandwidth, and your desk only has so much. Stronger operators bring more alpha but eat more bandwidth — the <a href="#calc">calculator</a> lets you plan the best roster that fits your desk before you spend.</div></details>
+    <details class="faq"><summary>Which operator should I buy?</summary><div class="a">Check the <a href="#operators">Operators</a> table — it shows live <b>$FLOOR/day</b> and <b>payback days</b> for each one at current emission rates. As a rule of thumb, the best value is the highest alpha-per-FLOOR that still fits your bandwidth.</div></details>
+
+    <div class="faq-cat">Earning · Emissions · Halving</div>
+    <details class="faq"><summary>How much can I earn?</summary><div class="a">Emissions are split pro-rata by alpha. The live rate per 1 alpha (in $FLOOR and USD) is in <a href="#state">State of the Floor</a> — multiply by your total alpha for your daily rate, or just paste your address into <a href="#player">My Report</a> for exact numbers from the chain.</div></details>
+    <details class="faq"><summary>What is the halving?</summary><div class="a">The emission rate <b>halves every 30-day epoch</b>, exactly like Bitcoin's schedule but faster. The countdown in the top bar reads the exact halving timestamp from the game contract. Earlier players earn at richer rates — that's the incentive to start now.</div></details>
+    <details class="faq"><summary>Do I need to claim my earnings?</summary><div class="a">Yes — earnings accrue as <b>pending PnL</b> inside the game until you claim, which mints them to your wallet. Unclaimed PnL isn't lost; it just sits there (the dashboard tracks the network-wide total in State of the Floor).</div></details>
+
+    <div class="faq-cat">$FLOOR token &amp; economy</div>
+    <details class="faq"><summary>What's the total supply?</summary><div class="a">Hard cap <b>17.92M $FLOOR</b>, of which 95% (17.024M) is the emissions pool paid out to players over time. Only a small fraction has been emitted so far — the progress bar is in State of the Floor.</div></details>
+    <details class="faq"><summary>What happens to $FLOOR I spend in-game?</summary><div class="a"><b>75% of every FLOOR spent on upgrades and recruits is burned forever</b>, permanently reducing supply — and founding Firms burns even more. The deflation is real: <b>more $FLOOR has already been burned than currently exists</b> (live total in State of the Floor, read from the token contract's burn ledger).</div></details>
+    <details class="faq"><summary>Why does the market cap here differ from other sites?</summary><div class="a">We compute it as <b>live price × true circulating supply</b> — burned tokens and tokens parked at the dead address are excluded, read straight from the token contract. Some aggregators count those dead tokens and overstate the cap.</div></details>
+    <details class="faq"><summary>Where can I buy or sell $FLOOR?</summary><div class="a">Trading happens on Uniswap V3 on Robinhood Chain — easiest via the <a href="https://thefloor.sh/?ref=0x30602250c5f1fcbA5407E99B1DFaAB992EA4fFD2" target="_blank" rel="noopener">official site</a>. $FLOOR is an experimental game token — never risk more than you can afford to lose.</div></details>
+
+    <div class="faq-cat">Firms &amp; boosts</div>
+    <details class="faq"><summary>Should I join a Firm?</summary><div class="a">Usually yes — it's a free alpha boost. Members pool FLOOR to level a shared office that boosts <b>everyone's</b> alpha (+2% Startup up to +22% Penthouse). Founding your own costs 2,500 FLOOR and unlocks the <b>Principal (+5%)</b> soulbound boost.</div></details>
+    <details class="faq"><summary>What are soulbound boosts?</summary><div class="a">Permanent, non-transferable multipliers on your alpha: <b>The Intern (+10%)</b>, <b>The Principal (+5%</b>, firm founders<b>)</b>, and <b>X Badge (+2%</b>, connect your X account<b>)</b>. All boosts combined are capped at <b>+50%</b>. The <a href="#calc">calculator</a> models them.</div></details>
+    <details class="faq"><summary>What are Deals?</summary><div class="a">Limited-time offers on the official site (discounted operators, bundles). When deals go live, the 🔔 indicator in the top bar of this dashboard lights up.</div></details>
+
+    <div class="faq-cat">About this dashboard</div>
+    <details class="faq"><summary>Where does the data come from?</summary><div class="a">Everything is read live: game state straight from the <b>game contract via Robinhood Chain RPC</b> (desk, operators, alpha, pending PnL, burns, halving time), prices and volume from DEX data, holder lists from the block explorer. No manual numbers.</div></details>
+    <details class="faq"><summary>Is it safe to paste my address?</summary><div class="a">Yes — it's a <b>read-only lookup</b> of public on-chain data. This site never asks you to connect a wallet, sign anything, or share a private key. Never share your seed phrase with any site.</div></details>
+    <details class="faq"><summary>Is this the official site?</summary><div class="a">No — this is an unofficial fan-built dashboard. The official game is at <a href="https://thefloor.sh/?ref=0x30602250c5f1fcbA5407E99B1DFaAB992EA4fFD2" target="_blank" rel="noopener">thefloor.sh</a>, and their <a href="https://thefloor.sh/docs" target="_blank" rel="noopener">docs</a> are the canonical rules.</div></details>
+  </section>
+
+  <!-- PLAYER REPORT & STRATEGY -->
+  <section id="player" data-tab="desk">
+    <div class="section-head">
+      <img src="assets/icon-pnl.svg" alt="" />
+      <h2>Player Report &amp; Strategy</h2>
+      <span class="sub label">spent vs earning · what to do next</span>
+    </div>
+
+    <div id="flexCard" class="flexcard" style="display:none"></div>
+
+    <div class="report-grid">
+      <!-- cream PnL terminal -->
+      <div class="terminal">
+        <div class="thead"><span class="dot">◆</span><h3>PnL Terminal</h3><span id="liveBadge" style="margin-left:auto;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);padding:3px 8px;border:1px solid #cbbe9c">manual</span></div>
+        <div class="body">
+          <div class="addrbar">
+            <input type="text" id="rAddr" placeholder="Paste player address (0x…)" />
+            <button id="rLoadBtn">Load</button>
+          </div>
+          <div class="note" id="rAddrNote" style="color:var(--muted);margin-top:-4px">
+            Paste your wallet and hit <b>Load</b> to pull your on-chain FLOOR earnings, spend &amp; balance live — or type the numbers from your in-game PnL Terminal by hand. Set your desk tier &amp; roster in the builder further down for the exact in-game spend.
+          </div>
+          <div id="rRank" style="margin-top:8px;font-size:12px;color:var(--muted-cream)"></div>
+
+          <div class="row2" style="margin-top:14px">
+            <div class="field"><label>Pending PnL ($FLOOR)</label><input type="number" id="rPending" value="" min="0" step="0.1" placeholder="auto on Load" /></div>
+            <div class="field"><label>Wallet balance ($FLOOR)</label><input type="number" id="rWallet" value="" min="0" step="0.1" placeholder="auto on Load" /></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label>Per-day $FLOOR (from game)</label><input type="number" id="rPerDay" value="0" min="0" step="0.1" placeholder="optional override" /></div>
+            <div class="field"><label>Extra $FLOOR spent (untracked)</label><input type="number" id="rExtra" value="0" min="0" step="1" /></div>
+          </div>
+          <div class="row2">
+            <div class="field"><label>$FLOOR price (USD)</label><input type="number" id="rPrice" value="0" min="0" step="0.0001" placeholder="e.g. 0.02" /></div>
+            <div class="field"><label>Price trend</label>
+              <select id="rTrend">
+                <option value="unknown">Unknown / new</option>
+                <option value="pump">Pumping ↑</option>
+                <option value="stable">Stable →</option>
+                <option value="bleed">Bleeding ↓</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;padding:12px 14px;background:#efe4cd;border:1px solid #cbbe9c">
+            <div class="grid g2">
+              <div><div class="k" style="font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)">◈ FLOOR / day</div><div style="font-family:var(--font-display);font-size:30px;color:var(--green-dim);line-height:1" id="tPerDay">—</div></div>
+              <div><div class="k" style="font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)">≈ USD / day</div><div style="font-family:var(--font-display);font-size:30px;color:#1a150e;line-height:1" id="tPerDayUsd">—</div></div>
+            </div>
+            <div class="trow" style="margin-top:10px"><span class="k">Effective alpha</span><span class="v" id="tEffAlpha">—</span></div>
+            <div class="trow"><span class="k">Share of network</span><span class="v" id="tShare">—</span></div>
+            <div class="trow"><span class="k">FLOOR / week · 30-day</span><span class="v" id="tPerWeekEpoch">—</span></div>
+            <div class="trow"><span class="k">Roster payback</span><span class="v" id="tPayback">—</span></div>
+          </div>
+          <div class="grid g2" style="margin-top:12px">
+            <div class="tbox"><div class="k">Total spent</div><div class="v" id="oSpent">0 F</div></div>
+            <div class="tbox"><div class="k">Currently held</div><div class="v" id="oHeld">0 F</div></div>
+          </div>
+          <div style="margin-top:12px">
+            <div class="trow"><span class="k" id="oDeskK">Desk upgrades spent</span><span class="v" id="oDesk">0 F</span></div>
+            <div class="trow"><span class="k" id="oRosterK">Operators recruited</span><span class="v" id="oRoster">0 F</span></div>
+            <div class="trow" id="oMintedRow" style="display:none"><span class="k">Minted — earned from game</span><span class="v up" id="oMinted">0 F</span></div>
+            <div class="trow" id="oChainRow" style="display:none"><span class="k">On-chain FLOOR balance</span><span class="v" id="oChainBal">0 F</span></div>
+            <div class="trow"><span class="k">Net vs spend</span><span class="v" id="oNet">0 F</span></div>
+            <div class="trow"><span class="k">Return on spend</span><span class="v" id="oRoi">0%</span></div>
+            <div class="trow"><span class="k" id="oBreakK">Break-even in</span><span class="v" id="oBreak">—</span></div>
+            <div class="trow" id="oUsdRow" style="display:none"><span class="k">Holdings value (USD)</span><span class="v up" id="oUsd">$0</span></div>
+          </div>
+          <div class="note" id="oFlows" style="display:none;color:var(--muted-cream)"></div>
+          <div class="note" style="color:var(--muted)">＋ one-time <b>0.01 ETH</b> desk mint (not counted in FLOOR spend). “Spent” = your desk climb + recruited operators (deterministic from what you own), burned 75%. Live mode reads <b>minted PnL</b> &amp; balance straight from the chain.</div>
+        </div>
+      </div>
+
+      <!-- right column: strategy + trading floor -->
+      <div>
+        <div class="advisory">
+          <div class="ahead"><img src="assets/icon-bell.svg" alt="" style="width:20px;height:20px" /><h3>Strategy Desk</h3></div>
+          <div class="abody strat" id="stratBox">
+            <div class="verdict" id="verdict">—</div>
+            <div id="stratText"></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px;padding:0;overflow:hidden;border-color:var(--brass-dark)">
+          <div style="padding:11px 14px;border-bottom:1px solid #37301f;display:flex;align-items:center;gap:9px">
+            <img src="assets/icon-seats.svg" style="width:18px;height:18px" alt="" />
+            <h3 style="font-family:var(--font-display);font-size:18px;color:var(--paper);margin:0">Your Trading Floor</h3>
+            <span class="label" style="margin-left:auto;font-size:9px" id="floorSub">— </span>
+          </div>
+          <div id="deskScene"></div>
+        </div>
+      </div>
+    </div>
+    <p class="note">Strategy updates live from your desk tier, seated roster, epoch, network-alpha estimate and the price trend you pick. It’s reasoning from the game’s own emission math (front-loaded, halving every 30 days, 75% burn) and how reflexive game tokens have behaved historically — not financial advice.</p>
+  </section>
+
+  </div><!-- /tabpanels -->
+
+</div>
+
+<div id="deskToast" class="desk-toast" style="display:none"></div>
+
+<div id="pipDock" class="pipdock" style="display:none">
+  <div class="pip-bar" id="pipBar">
+    <div style="display:flex;flex-direction:column;gap:1px;min-width:0">
+      <span class="pip-t">▸ The Floor · live</span>
+      <span class="pip-hint" id="pipHint" style="display:none"></span>
+    </div>
+    <div class="pip-ctl"><button id="pipClose" title="Dock back into the page">✕</button></div>
+  </div>
+  <div class="pip-body" id="pipBody"></div>
+</div>
+
+<footer>
+  <div class="wrap">
+    Built as a personal companion for <a href="https://thefloor.sh" target="_blank" rel="noopener">thefloor.sh</a> ·
+    An onchain Wall Street strategy game on Robinhood Chain.<br/>
+    Not affiliated with or endorsed by The Floor. All game numbers sourced from the public
+    <a href="https://thefloor.sh/docs" target="_blank" rel="noopener">docs</a>; verify in-game before acting. $FLOOR is experimental and may be worthless.<br/>
+    <span style="opacity:.7">Anonymous usage analytics help improve this tool — no wallet connection required, no personal data collected.</span>
+  </div>
+</footer>
+
+<script>
+/* ---------------- GAME DATA (from thefloor.sh/docs) ---------------- */
+const DESKS = [
+  {lvl:0,name:"Kitchen Table",seats:2,bw:20,prestige:0,cost:0},
+  {lvl:1,name:"One Laptop Desk",seats:3,bw:45,prestige:0.025,cost:100},
+  {lvl:2,name:"Retail Desk",seats:4,bw:80,prestige:0.05,cost:250},
+  {lvl:3,name:"Boiler Room",seats:6,bw:150,prestige:0.10,cost:600},
+  {lvl:4,name:"Broker Desk",seats:8,bw:260,prestige:0.15,cost:1200},
+  {lvl:5,name:"Options Desk",seats:10,bw:420,prestige:0.20,cost:2500},
+  {lvl:6,name:"Prop Desk",seats:12,bw:650,prestige:0.275,cost:5000},
+  {lvl:7,name:"Quant Floor",seats:15,bw:1000,prestige:0.35,cost:9000},
+  {lvl:8,name:"Prime Brokerage",seats:18,bw:1500,prestige:0.45,cost:16000},
+  {lvl:9,name:"Exchange Floor",seats:22,bw:2200,prestige:0.60,cost:30000},
+  {lvl:10,name:"Bell Room",seats:26,bw:3200,prestige:0.80,cost:60000},
+];
+const OPS = [
+  {name:"Retail Analyst",rarity:"Common",alpha:10,bw:5,cost:25},
+  {name:"Junior Broker",rarity:"Common",alpha:25,bw:10,cost:60},
+  {name:"Chart Intern",rarity:"Common",alpha:40,bw:15,cost:100},
+  {name:"Cold Caller",rarity:"Uncommon",alpha:70,bw:20,cost:175},
+  {name:"Options Degen",rarity:"Uncommon",alpha:120,bw:30,cost:300},
+  {name:"Market Maker",rarity:"Uncommon",alpha:200,bw:45,cost:500},
+  {name:"ETF Boomer",rarity:"Rare",alpha:320,bw:60,cost:800},
+  {name:"Sell-Side Analyst",rarity:"Rare",alpha:500,bw:80,cost:1250},
+  {name:"Compliance Guy",rarity:"Rare",alpha:750,bw:100,cost:1900},
+  {name:"Quant Goblin",rarity:"Epic",alpha:1100,bw:130,cost:2800},
+  {name:"Dark Pool Dealer",rarity:"Epic",alpha:1600,bw:170,cost:4200},
+  {name:"Prop Desk Killer",rarity:"Epic",alpha:2400,bw:220,cost:6500},
+  {name:"Activist Whale",rarity:"Legendary",alpha:3600,bw:280,cost:10000},
+  {name:"Terminal Wizard",rarity:"Legendary",alpha:5200,bw:350,cost:15000},
+  {name:"The Closer",rarity:"Legendary",alpha:8000,bw:450,cost:25000},
+];
+const OFFICES = [
+  {name:"None (solo)",boost:0,unlock:0,cap:"—"},
+  {name:"Startup",boost:0.02,unlock:0,cap:10},
+  {name:"Rented Floor",boost:0.06,unlock:5000,cap:15},
+  {name:"Corner Office",boost:0.10,unlock:20000,cap:20},
+  {name:"Tower Suite",boost:0.15,unlock:60000,cap:30},
+  {name:"Penthouse",boost:0.22,unlock:150000,cap:50},
+];
+const RARITY_COLOR = {Common:"#b3a88f",Uncommon:"#2fbf71",Rare:"#46698a",Epic:"#a066cc",Legendary:"#c9a227"};
+const INIT_RATE = 3.2839;       // FLOOR / second at epoch 0
+const EPOCH_DAYS = 30;
+const POOL = 17024000;          // emissions pool
+const BOOST_CAP = 0.50;
+
+/* ---------------- helpers ---------------- */
+const $=s=>document.querySelector(s);
+/* ---- anonymous, same-origin telemetry (helps fix issues fast) ---- */
+const TRACK=(()=>{
+  let sid=sessionStorage.getItem('floor_sid'); if(!sid){sid=Math.random().toString(36).slice(2)+Date.now().toString(36);sessionStorage.setItem('floor_sid',sid);}
+  const base={sid,w:innerWidth,h:innerHeight,mob:innerWidth<=820,ref:document.referrer||'',ua:(navigator.userAgent||'').slice(0,120)};
+  return function(t,data){ try{ const payload=JSON.stringify(Object.assign({t},base,data||{},{ts:Date.now()}));
+    if(navigator.sendBeacon)navigator.sendBeacon('/event',payload); else fetch('/event',{method:'POST',body:payload,keepalive:true}); }catch(e){} };
+})();
+TRACK('pageview',{path:location.pathname});
+addEventListener('error',e=>{ const fn=e.filename||''; if(fn && !fn.startsWith(location.origin)) return; /* ignore wallet-extension inpage.js/sui.js/solana.js noise */ if(!fn && e.message==='Script error.') return; /* opaque cross-origin errors (iOS Safari) — not ours */ TRACK('js_error',{msg:(e.message||'').slice(0,200),src:fn.split('/').pop(),line:e.lineno}); });
+addEventListener('unhandledrejection',e=>TRACK('promise_reject',{msg:String(e&&e.reason).slice(0,200)}));
+document.querySelectorAll('details.faq').forEach(d=>d.addEventListener('toggle',()=>{ if(d.open) TRACK('faq_open',{q:d.querySelector('summary').textContent.slice(0,60)}); }));
+/* auto-load: /?addr=0x… share links (explicit), else the last wallet you looked up (remembered) */
+(()=>{
+  const q=new URLSearchParams(location.search).get('addr');
+  const fromLink=!!q;
+  let a=q; if(!a){ try{ a=localStorage.getItem('floor_addr'); }catch(e){} }
+  if(!a||!/^0x[0-9a-fA-F]{40}$/.test(a)) return;
+  const i=$('#rAddr'),b=$('#rLoadBtn'); if(!i||!b) return;
+  i.value=a;
+  setTimeout(()=>{
+    if(fromLink){ try{ window.showTab&&window.showTab('desk',{noScroll:true}); }catch(e){} }  // share link: show the card
+    b.click();
+    // one auto-retry if the first read got throttled (RPC busy at boot) so it reliably loads
+    setTimeout(()=>{ if(!window.LIVE && $('#rAddr').value===a) b.click(); },4200);
+    if(fromLink){ setTimeout(()=>{ const fc=$('#flexCard')||$('#player'); if(fc)fc.scrollIntoView({behavior:'smooth',block:'start'}); },1200); TRACK('report_link',{}); }
+    else TRACK('report_preload',{});   // remembered wallet: silent preload, stay on the Floor
+  },700);
+})();
+const fmt=(n,d=0)=>Number(n).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:0});
+const cum=lvl=>DESKS.slice(1,lvl+1).reduce((s,d)=>s+d.cost,0);
+const epochRate=e=>INIT_RATE/Math.pow(2,e);          // FLOOR/sec at epoch e (0-indexed)
+const epochDaily=e=>epochRate(e)*86400;
+
+/* ---------------- render static sections ---------------- */
+// hero chips
+$('#heroChips').innerHTML = [
+  ['Hard cap','17,920,000','$FLOOR'],
+  ['Emissions pool','17,024,000','95%'],
+  ['Start rate','3.2839','/sec'],
+  ['Next halving','<span id="halveChip">—</span>',''],
+  ['Burn on spend','75','%'],
+].map(c=>`<div class="chip"><div class="k">${c[0]}</div><div class="v">${c[1]} <small>${c[2]}</small></div></div>`).join('');
+
+// token cards
+$('#tokenCards').innerHTML = [
+  {h:'Hard Cap',v:'17.92M',p:'Immutable maximum supply of $FLOOR. Nothing can mint beyond it.'},
+  {h:'Emissions',v:'17.024M',p:'95% of supply released only through PnL emissions to players.'},
+  {h:'Bootstrap',v:'896K',p:'5% bootstrap supply to seed the game at launch.'},
+  {h:'First Quarter',v:'~87.5%',p:'Of the whole pool emits in the first 3 epochs — early alpha is worth the most.'},
+].map(c=>`<div class="card"><h3>${c.h}</h3><div class="stat">${c.v}</div><p>${c.p}</p></div>`).join('');
+
+// halving schedule
+(function(){
+  let rows='',cumv=0;
+  for(let e=0;e<12;e++){
+    const minted=epochDaily(e)*EPOCH_DAYS; cumv+=minted;
+    rows+=`<tr><td class="name">Month ${e+1}${e===0?' ★':''}</td><td class="num">${epochRate(e).toFixed(4)}</td>
+      <td class="num">${fmt(epochDaily(e))}</td><td class="num">${fmt(minted)}</td>
+      <td class="num">${fmt(cumv)}</td><td class="num amber">${(cumv/POOL*100).toFixed(1)}%</td></tr>`;
+  }
+  $('#halvingTbl tbody').innerHTML=rows;
+})();
+
+// desks table
+$('#deskTbl tbody').innerHTML = DESKS.map(d=>`<tr class="tier">
+  <td class="num">${d.lvl}</td><td class="name">${d.name}</td><td class="num">${d.seats}</td>
+  <td class="num">${fmt(d.bw)}</td><td class="num amber">+${(d.prestige*100).toFixed(1)}%</td>
+  <td class="num">${d.cost?fmt(d.cost):'<span class="muted">free</span>'}</td>
+  <td class="num">${d.lvl?fmt(cum(d.lvl)):'<span class="muted">—</span>'}</td></tr>`).join('');
+
+// firms table
+$('#firmTbl tbody').innerHTML = OFFICES.filter(o=>o.boost>0).map(o=>`<tr>
+  <td class="name">${o.name}</td><td class="num green">+${(o.boost*100).toFixed(0)}%</td>
+  <td class="num">${fmt(o.unlock)}</td><td class="num">${o.cap}</td></tr>`).join('');
+
+/* ---------------- operators table (sortable) ---------------- */
+let opSort={key:'idx',dir:1};
+function renderOps(){
+  const rate=window.__perAlphaDay||0;   // FLOOR/day per 1 alpha, from live token-stats
+  const data=OPS.map((o,i)=>({...o,idx:i+1,apf:o.alpha/o.cost,apb:o.alpha/o.bw,fpd:o.alpha*rate,pb:(o.alpha*rate)>0?o.cost/(o.alpha*rate):Infinity}));
+  data.sort((a,b)=>{const k=opSort.key; let av=a[k],bv=b[k];
+    if(k==='name'||k==='rarity'){return av.localeCompare(bv)*opSort.dir;} return (av-bv)*opSort.dir;});
+  $('#opTbl tbody').innerHTML=data.map(o=>{
+    const c=RARITY_COLOR[o.rarity];
+    return `<tr><td class="num muted">${o.idx}</td><td class="name">${o.name}</td>
+      <td><span class="badge" style="color:${c}">${o.rarity}</span></td>
+      <td class="num amber">${fmt(o.alpha)}</td><td class="num">${o.bw}</td><td class="num">${fmt(o.cost)}</td>
+      <td class="num green">${rate>0?fmt(o.fpd,o.fpd<10?1:0):'—'}</td><td class="num">${rate>0&&isFinite(o.pb)?fmt(o.pb,0)+'d':'—'}</td>
+      <td class="num">${o.apf.toFixed(3)}</td><td class="num">${o.apb.toFixed(2)}</td></tr>`;
+  }).join('');
+}
+document.querySelectorAll('#opTbl th').forEach(th=>th.style.cursor='pointer');
+document.querySelectorAll('#opTbl th').forEach(th=>th.addEventListener('click',()=>{
+  const k=th.dataset.sort; if(!k)return;
+  opSort.dir = (opSort.key===k)? -opSort.dir : 1; opSort.key=k; renderOps();
+}));
+renderOps();
+
+/* ---------------- calculator ---------------- */
+const seated = OPS.map(()=>0);
+
+// populate selects
+$('#deskSel').innerHTML = DESKS.map(d=>`<option value="${d.lvl}">Lvl ${d.lvl} · ${d.name} (${d.seats} seats · ${fmt(d.bw)} bw)</option>`).join('');
+$('#officeSel').innerHTML = OFFICES.map((o,i)=>`<option value="${i}">${o.name} · +${(o.boost*100).toFixed(0)}%</option>`).join('');
+$('#epochSel').innerHTML = Array.from({length:12},(_,e)=>`<option value="${e}">Month ${e+1} · ${fmt(epochDaily(e))}/day pool</option>`).join('');
+$('#fromSel').innerHTML = DESKS.map(d=>`<option value="${d.lvl}">Lvl ${d.lvl} · ${d.name}</option>`).join('');
+$('#toSel').innerHTML = DESKS.map(d=>`<option value="${d.lvl}">Lvl ${d.lvl} · ${d.name}</option>`).join('');
+$('#toSel').value=10;
+
+// operator picker rows
+$('#pickTbl tbody').innerHTML = OPS.map((o,i)=>{
+  const c=RARITY_COLOR[o.rarity];
+  return `<tr>
+    <td class="opn"><span style="color:${c}">●</span> ${o.name}</td>
+    <td class="num amber">${fmt(o.alpha)}</td><td class="num">${o.bw}</td>
+    <td><span class="stepper"><button data-dec="${i}">−</button><input type="number" id="q${i}" value="0" min="0"><button data-inc="${i}">+</button></span></td>
+  </tr>`;
+}).join('');
+
+function currentDesk(){ return DESKS[+$('#deskSel').value]; }
+function totalBoost(){
+  const office=OFFICES[+$('#officeSel').value].boost;
+  const intern=parseFloat($('#internSel').value)||0;
+  const principal=parseFloat($('#principalSel').value)||0;
+  const xbadge=parseFloat($('#xbadgeSel').value)||0;
+  const other=(parseFloat($('#otherBoost').value)||0)/100;
+  const raw=office+intern+principal+xbadge+other;
+  return {raw, capped:Math.min(BOOST_CAP,raw), office,intern,principal,xbadge,other};
+}
+
+function recompute(){
+  const desk=currentDesk();
+  let seats=0,bw=0,baseAlpha=0,rosterCost=0;
+  seated.forEach((q,i)=>{ if(q>0){ seats+=q; bw+=q*OPS[i].bw; baseAlpha+=q*OPS[i].alpha; rosterCost+=q*OPS[i].cost; }});
+
+  // capacity meters
+  const seatPct=Math.min(100,seats/desk.seats*100), bwPct=Math.min(100,bw/desk.bw*100);
+  $('#seatUsed').textContent=seats; $('#seatCap').textContent=desk.seats;
+  $('#bwUsed').textContent=fmt(bw); $('#bwCap').textContent=fmt(desk.bw);
+  $('#seatBar').firstElementChild.style.width=seatPct+'%';
+  $('#bwBar').firstElementChild.style.width=bwPct+'%';
+  const over = seats>desk.seats || bw>desk.bw;
+  $('#seatBar').classList.toggle('over',seats>desk.seats);
+  $('#bwBar').classList.toggle('over',bw>desk.bw);
+  $('#capWarn').classList.toggle('show',over);
+
+  // boosts
+  const b=totalBoost();
+  const parts=[['Office',b.office],['Intern',b.intern],['Principal',b.principal],['X Badge',b.xbadge],['Other',b.other]].filter(p=>p[1]>0).map(p=>`${p[0]} +${(p[1]*100).toFixed(0)}%`);
+  $('#boostNote').innerHTML = (parts.length?parts.join(' + '):'no boosts') + ` = <b>+${(b.raw*100).toFixed(0)}%</b>` +
+    (b.raw>BOOST_CAP?` <span class="red">(capped at +50%)</span>`:``);
+
+  // effective alpha
+  let effAlpha = baseAlpha * (1+desk.prestige) * (1+b.capped);
+
+  // emissions share
+  const e=+$('#epochSel').value;
+  const netAlpha=Math.max(1,parseFloat($('#netAlpha').value)||1);
+  let share = effAlpha/netAlpha;
+  let perDay = epochDaily(e)*share;
+  const price=parseFloat($('#price').value)||0;
+
+  // when a wallet is loaded, use the EXACT on-chain figures instead of the model
+  if(window.LIVE && window.LIVE.stateOk){
+    if(window.LIVE.userAlpha!=null) effAlpha=window.LIVE.userAlpha;
+    if(window.LIVE.globalAlpha) share=effAlpha/window.LIVE.globalAlpha;
+    if(window.LIVE.perDay!=null) perDay=window.LIVE.perDay;
+  }
+
+  $('#effAlpha').textContent=fmt(effAlpha,1);
+  $('#share').textContent=(share*100<0.01 && share>0? (share*100).toFixed(4): (share*100).toFixed(2))+'%';
+  $('#perDay').textContent=fmt(perDay,1);
+  $('#perWeek').textContent=fmt(perDay*7,1);
+  $('#perEpoch').textContent=fmt(perDay*30,0);
+  if(price>0){ $('#usdRow').style.display='flex'; $('#perDayUsd').textContent='$'+fmt(perDay*price,2); }
+  else $('#usdRow').style.display='none';
+
+  // roster cost / payback
+  $('#rosterCost').textContent=fmt(rosterCost)+' F';
+  $('#rosterBurn').textContent=fmt(rosterCost*0.75)+' F';
+  $('#payback').textContent = (perDay>0 && rosterCost>0)? fmt(rosterCost/perDay,1)+' days' : '—';
+
+  LAST={perDay,effAlpha,share,e,netAlpha,epochDailyNow:epochDaily(e),baseAlpha,seats,bw,rosterCost};
+  return {perDay};
+}
+let LAST={perDay:0,effAlpha:0,share:0,e:0,netAlpha:1,epochDailyNow:0,baseAlpha:0,seats:0,bw:0,rosterCost:0};
+
+function recomputeUpg(){
+  const from=+$('#fromSel').value, to=+$('#toSel').value;
+  let total=0;
+  if(to>from){ total = DESKS.slice(from+1,to+1).reduce((s,d)=>s+d.cost,0); }
+  $('#upgTotal').textContent=fmt(total)+' F';
+  $('#upgBurn').textContent=fmt(total*0.75)+' F';
+  const perDay=recompute().perDay;
+  $('#upgDays').textContent = (total>0 && perDay>0)? fmt(total/perDay,1)+' days' : (total===0?'—':'∞');
+  computeReport();
+}
+
+/* ---------------- player report + strategy ---------------- */
+function reportActive(){ return !!(window.LIVE || window.__builderTouched || window.__reportActive); }
+function blankReport(){
+  ['#tPerDay','#tPerDayUsd','#tEffAlpha','#tShare','#tPerWeekEpoch','#tPayback','#oSpent','#oHeld','#oDesk','#oRoster','#oNet','#oRoi','#oBreak'].forEach(s=>{const el=$(s); if(el)el.textContent='—';});
+  ['#oMintedRow','#oChainRow','#oUsdRow'].forEach(s=>{const el=$(s); if(el)el.style.display='none';});
+  const fl=$('#oFlows'); if(fl)fl.style.display='none';
+  const v=$('#verdict'); if(v){v.textContent='—'; v.style.color='var(--muted)';}
+  const st=$('#stratText'); if(st)st.innerHTML='<p style="color:var(--muted-cream)">Paste your wallet above and hit <b>Load</b> for a tailored strategy — or set your desk &amp; roster in the builder below to model one.</p>';
+}
+function computeReport(){
+  if(!reportActive()){ blankReport(); try{ renderScene(); }catch(e){} return; }
+  const deskLvl=+$('#deskSel').value;
+  const deskSpent=cum(deskLvl);
+  const roster=LAST.rosterCost;
+  const extra=parseFloat($('#rExtra').value)||0;
+  const L=window.LIVE;                    // live on-chain data or null
+
+  const spent = deskSpent+roster+extra;   // in-game spend is deterministic from what you own
+  const pending=parseFloat($('#rPending').value)||0;
+  const wallet=parseFloat($('#rWallet').value)||0;
+  const held = (L ? L.bal : wallet) + pending;
+  const earned = (L && L.earnedKnown) ? L.mint : null;   // FLOOR minted to you by the game (Collect PnL)
+  const perDay=(parseFloat($('#rPerDay').value)||0)>0 ? parseFloat($('#rPerDay').value) : LAST.perDay;
+  const price=parseFloat($('#rPrice').value)||0;
+  const basis = earned!=null ? earned : held;     // measure return-on-spend against this
+  const net=basis-spent, roi = spent>0? basis/spent*100 : (basis>0?Infinity:0);
+
+  $('#oSpent').textContent=fmt(spent)+' F';
+  $('#oHeld').textContent=fmt(held,1)+' F';
+  $('#oDeskK').textContent='Desk upgrades spent'; $('#oDesk').textContent=fmt(deskSpent)+' F';
+  $('#oRosterK').textContent='Operators recruited'; $('#oRoster').textContent=fmt(roster)+' F';
+  $('#oMintedRow').style.display = L?'flex':'none';
+  $('#oChainRow').style.display = L?'flex':'none';
+  $('#oFlows').style.display = L?'block':'none';
+  if(L){
+    $('#oMinted').textContent = L.earnedKnown ? fmt(L.mint,1)+' F' : 'read pending';
+    $('#oChainBal').textContent=fmt(L.bal,1)+' F';
+    $('#oFlows').innerHTML = L.earnedKnown
+      ? `On-chain flows: bought/received in <b>${fmt(L.inOther,0)}</b> · sold to LP <b>${fmt(L.sold,0)}</b> · sent out <b>${fmt(L.out,0)}</b> FLOOR${(L.partial||L.capped)?' <span style="color:var(--oxblood)">· partial history (explorer busy)</span>':''}.`
+      : `Transfer history unavailable (explorer busy) — hit Load again for earnings & flows.`;
+  }
+  const netEl=$('#oNet'); netEl.textContent=(net>=0?'+':'')+fmt(net,1)+' F';
+  netEl.className='v '+(net>=0?'up':'down');
+  $('#oRoi').textContent=(isFinite(roi)?roi.toFixed(1)+'%':'∞'); $('#oRoi').className='v '+(roi>=100?'up':'down');
+  if(spent>basis && perDay>0){ $('#oBreakK').textContent='Break-even in'; $('#oBreak').textContent=fmt((spent-basis)/perDay,0)+' days'; }
+  else if(basis>=spent && spent>0){ $('#oBreakK').textContent='Status'; $('#oBreak').textContent='recouped ✓'; }
+  else { $('#oBreak').textContent='—'; }
+  if(price>0){ $('#oUsdRow').style.display='flex'; $('#oUsd').textContent='$'+fmt(held*price,2); }
+  else $('#oUsdRow').style.display='none';
+
+  // surface earnings at the top of the report (exact from chain when a wallet is loaded)
+  const shareVal=(L&&L.stateOk&&L.globalAlpha)? (L.userAlpha/L.globalAlpha) : (isFinite(LAST.share)?LAST.share:0);
+  const effAlphaVal=(L&&L.stateOk)?L.userAlpha:(LAST.effAlpha||0);
+  $('#tPerDay').textContent=fmt(perDay,1)+' F';
+  $('#tPerDayUsd').textContent=price>0?'$'+fmt(perDay*price,2):'—';
+  $('#tPerWeekEpoch').textContent=fmt(perDay*7,0)+' / '+fmt(perDay*30,0)+' F';
+  $('#tShare').textContent=(shareVal*100<0.01&&shareVal>0?(shareVal*100).toFixed(4):(shareVal*100).toFixed(2))+'%';
+  $('#tEffAlpha').textContent=fmt(effAlphaVal,0);
+  $('#tPayback').textContent=(perDay>0 && LAST.rosterCost>0)? fmt(LAST.rosterCost/perDay,1)+' days' : '—';
+
+  buildStrategy({spent,held,earned,perDay,roi,price,deskLvl});
+  try{ renderScene(); }catch(e){}
+}
+
+function buildStrategy(c){
+  const e=LAST.e;                                  // epoch index (0 = month 1)
+  const trend=$('#rTrend').value;
+  const basis = c.earned!=null ? c.earned : c.held;
+  const recouped = basis>=c.spent && c.spent>0;
+  const phase = e<=1?'early': e<=3?'mid':'late';
+
+  // marginal value of alpha right now, and the best next operator by payback
+  const perAlphaDay = LAST.netAlpha>0 ? LAST.epochDailyNow/LAST.netAlpha : 0;   // FLOOR/day per 1 alpha
+  const desk=DESKS[c.deskLvl];
+  const L=window.LIVE;
+  let seatsLeft, bwLeft;
+  if(L && L.stateOk && L.deskSeats){ seatsLeft=L.deskSeats-L.seatsUsed; bwLeft=L.deskBandwidth-L.bwUsed; }  // exact on-chain capacity
+  else { seatsLeft=desk.seats-LAST.seats; bwLeft=desk.bw-LAST.bw; }
+  const HORIZON=30;                               // ~ FLOOR earned per (FLOOR/day) over the halving-decayed future, conservative
+  let best=null;
+  OPS.forEach(o=>{
+    if(seatsLeft<=0 || o.bw>bwLeft) return;
+    const mDay=o.alpha*perAlphaDay, life=mDay*HORIZON, ratio=o.cost>0?life/o.cost:0;
+    if(!best || ratio>best.ratio) best={o,mDay,life,ratio,payback:mDay>0?o.cost/mDay:Infinity};
+  });
+
+  // verdict
+  let vLabel,vColor;
+  if(trend==='bleed'){vLabel='HARVEST & DE-RISK';vColor='var(--red)';}
+  else if(!recouped && phase!=='late'){vLabel='REINVEST TO BREAK-EVEN';vColor='var(--amber)';}
+  else if(recouped && (trend==='pump')){vLabel='TAKE PROFITS, KEEP FARMING';vColor='var(--green)';}
+  else if(phase==='late'){vLabel='EXTRACT / HOLD';vColor='var(--brass-light)';}
+  else {vLabel='REINVEST, SKIM STABLES';vColor='var(--amber)';}
+  const v=$('#verdict'); v.textContent=vLabel; v.style.color=vColor;
+
+  const P=[];
+  // 1) phase + emission time-value
+  if(phase==='early') P.push(`<b>You're in the fat-emission window.</b> ~87.5% of all $FLOOR that will ever exist mints in the first three 30-day epochs, and the rate <b>halves every 30 days</b>. FLOOR earned today is worth roughly <span class="tag">2× next month's</span> — the game rewards showing up early and compounding, not waiting.`);
+  else if(phase==='mid') P.push(`<b>Emissions are thinning.</b> You're past the first halvings, so your nominal FLOOR/day is falling from <i>both</i> the halving schedule <i>and</i> dilution as more desks seat Alpha. The easy yield is largely gone; every new spend has to justify itself.`);
+  else P.push(`<b>Emissions are a trickle now.</b> Most of the pool has minted. This is an extraction / hold phase — fresh spend almost never pays for itself, and your edge is the 75% burn slowly tightening supply, not new rewards.`);
+
+  // 2) ROI status
+  if(recouped) P.push(`You've <b class="tag">already recouped</b> your ${fmt(c.spent)} FLOOR of spend (holding ${fmt(c.held,1)}). You're on house money — bias toward banking rewards; further reinvestment is optional upside, not rent you owe.`);
+  else P.push(`You're <b>still underwater</b> — spent ${fmt(c.spent)} FLOOR${c.earned!=null?`, earned ${fmt(c.earned,1)} back`:`, holding ${fmt(c.held,1)}`} (${isFinite(c.roi)?c.roi.toFixed(0)+'%':'—'}). Priority #1 is getting back to break-even${(c.perDay>0)?` (~${fmt(Math.max(0,c.spent-basis)/c.perDay,0)} days at your current rate)`:''} before you speculate on more NFTs.`);
+
+  // 3) price-trend playbook
+  if(trend==='pump') P.push(`Price is <b class="tag">running</b>. Reflexive game tokens (think Axie's SLP, STEPN's GST) almost always round-trip — the crowd that pumps it dumps it. <b>Harvest often and convert a chunk of every Collect into ETH/stables.</b> Don't let paper gains become a memory. Keep reinvesting only what still passes the payback test below.`);
+  else if(trend==='stable') P.push(`Price is <b>holding</b>. That's the best regime to <b>compound</b>: reinvest most PnL to grow your Alpha share while emissions are still meaningful, but skim ~20–30% to stables so you're never 100% exposed to a farm token.`);
+  else if(trend==='bleed') P.push(`Price is <b class="tag">bleeding</b>. Early emissions outrun demand — this is the classic mid-life farm slide. Flip to <b>harvest-and-exit</b>: Collect PnL frequently and sell into whatever liquidity exists, and <b>stop buying operators you can't recoup before the next 1–2 halvings.</b>`);
+  else P.push(`With price unknown, play it neutral: reinvest what clears the payback test, keep a stables reserve, and re-check once there's a real market for $FLOOR.`);
+
+  // 4) concrete next-move rec
+  let rec;
+  if(!best){
+    rec=`<b>Desk is the bottleneck.</b> You're out of ${seatsLeft<=0?'seats':'bandwidth'} at <b>${desk.name}</b>. Your best next spend is the desk upgrade to <b>${DESKS[Math.min(10,c.deskLvl+1)].name}</b> (${fmt(DESKS[Math.min(10,c.deskLvl+1)].cost)} FLOOR) — it lifts capacity <i>and</i> permanent prestige.`;
+  } else {
+    const worth = best.ratio>1;
+    rec=`<b>Best next operator:</b> ${best.o.name} — ~${isFinite(best.payback)?fmt(best.payback,0):'∞'}-day payback vs a ~${HORIZON}-day effective earnings horizon. <b class="${worth?'tag':''}" style="${worth?'':'color:var(--red)'}">${worth?'Worth recruiting.':'Not worth it right now'}</b> ${worth?'':'— at your Alpha share it won\'t earn back its cost before halvings erode the yield. Grow share cheaply or wait.'}`;
+  }
+  P.push(`<div class="rec">${rec}</div>`);
+
+  P.push(`<div class="note" style="color:var(--muted);margin-top:4px">$FLOOR is an experimental token — never put in more than you're happy to see burned.</div>`);
+  $('#stratText').innerHTML=P.map(x=>x.startsWith('<div')?x:`<p>${x}</p>`).join('');
+}
+
+['rPending','rWallet','rPerDay','rExtra','rPrice','rTrend'].forEach(id=>$('#'+id).addEventListener('input',()=>{ window.__reportActive=true; computeReport(); }));
+/* ---------------- LIVE on-chain (Robinhood Chain Blockscout) ---------------- */
+const EXPLORER='https://robinhoodchain.blockscout.com';
+const FLOOR_ADDR='0xA80Ba06F0a0327E68dA6BedE67eB35ac023D6e62';
+const ZERO='0x0000000000000000000000000000000000000000';
+const DEAD='0x000000000000000000000000000000000000dead';
+const FLOOR_POOL='0x73ed66f4e5e7e59e279cab050074bfeaec5c55a2'; // FLOOR/WETH Uniswap V3 pool (sells route here)
+window.LIVE=null;
+
+async function jget(pathOrUrl,tries=6){
+  const url = pathOrUrl.startsWith('http')?pathOrUrl:EXPLORER+pathOrUrl;
+  for(let i=0;i<tries;i++){
+    try{ const r=await fetch(url,{headers:{accept:'application/json'}}); const t=await r.text();
+      if(!r.ok||!t){ await new Promise(s=>setTimeout(s,700*(i+1))); continue; }   // retry 429/5xx/empty
+      return JSON.parse(t);
+    }catch(e){ await new Promise(s=>setTimeout(s,600)); }
+  }
+  TRACK('explorer_error',{path:(pathOrUrl.split('?')[0]||'').slice(-48)});
+  throw new Error('fetch failed: '+url);
+}
+const floorBal = arr => { const f=(arr||[]).find(x=>x.token && (x.token.address_hash||'').toLowerCase()===FLOOR_ADDR.toLowerCase()); return f? Number(f.value)/10**parseInt(f.token.decimals||'18',10):0; };
+
+async function loadChain(){
+  try{
+    const s=await (await fetch('/api/token-stats',{cache:'no-store'})).json();
+    if(!s.ok) throw new Error('no stats');
+    const price=s.price||0;
+    const chips=[
+      ['◍ Live · $FLOOR', price?('$'+price.toFixed(4)):'—',''],
+      ['Market cap', s.marketCap>0?('$'+fmt(s.marketCap)):'—','true circulating'],
+      ['Supply', fmt(s.supply), 'FLOOR'],
+      ['Burned 🔥', fmt(s.burned), (s.burnedPct||0).toFixed(0)+'% of supply'],
+      ['Emitted', fmt(s.emitted), (s.emittedPct||0).toFixed(1)+'% pool'],
+      ['Holders', fmt(s.holders),''],
+      ['24h Volume', '$'+fmt(s.volume24h),''],
+    ];
+    $('#liveStrip').innerHTML=chips.map(c=>`<div class="chip"><div class="k">${c[0]}</div><div class="v">${c[1]} <small>${c[2]}</small></div></div>`).join('');
+    if(s.halveAt>0) window.__halveAt = s.halveAt;   // exact on-chain nextHalvingTime → drives the countdown
+    // live per-alpha rate → refresh the Operators table's $FLOOR/day + payback columns
+    window.__perAlphaDay = s.perAlphaDay||0;
+    if(window.__perAlphaDay>0){
+      renderOps();
+      const sub=$('#opSub'); if(sub) sub.textContent='each 1 alpha ≈ '+ (window.__perAlphaDay).toFixed(3) +' $FLOOR/day now';
+    }
+    try{ renderState(s); }catch(e){}
+    // auto-fill the shared live price where the user hasn't set one
+    if(price>0){ ['#price','#rPrice'].forEach(sel=>{ const el=$(sel); if(!parseFloat(el.value)){ el.value=price; } }); recomputeUpg(); }
+  }catch(e){
+    $('#liveStrip').innerHTML=`<div class="chip"><div class="k">◍ Live on-chain</div><div class="v" style="font-size:12px;color:var(--red)">stats unavailable — using manual mode</div></div>`;
+  }
+}
+
+async function loadPlayer(addr){
+  const t0=Date.now();
+  const badge=$('#liveBadge'); badge.textContent='loading…'; badge.style.color='var(--brass-dark)';
+  $('#rAddrNote').innerHTML=`Reading <b>${addr.slice(0,6)}…${addr.slice(-4)}</b> from the chain…`;
+  try{
+    const s=await (await fetch('/api/player?addr='+encodeURIComponent(addr),{cache:'no-store'})).json();
+    if(!s.ok) throw new Error(s.error||'lookup failed');
+    const nothing = !s.stateOk && !s.earnedKnown && !(s.bal>0);
+    if(nothing){ window.LIVE=null; badge.textContent='retry'; badge.style.color='var(--oxblood)';
+      $('#rAddrNote').innerHTML=`Couldn't read that wallet right now (RPC/explorer busy) — <b>hit Load again</b>.`;
+      TRACK('wallet_lookup',{addr:addr.toLowerCase(),ok:false,ms:Date.now()-t0}); return; }
+    window.LIVE={mint:s.mint,inOther:s.inOther,out:s.out,sold:s.sold,bal:s.bal,partial:!!s.partial,capped:false,count:s.count,earnedKnown:s.earnedKnown,
+      stateOk:!!s.stateOk,perDay:s.perDay,userAlpha:s.userAlpha,globalAlpha:s.globalAlpha,pendingPnL:s.pendingPnL,
+      deskLevelChain:s.deskLevelChain,deskSeats:s.deskSeats,deskBandwidth:s.deskBandwidth,seatsUsed:s.seatsUsed,bwUsed:s.bwUsed,
+      seatedRoster:s.seatedRoster||[],share:s.share};
+    badge.textContent='● live'; badge.style.color='var(--green-dim)';
+    // exact current state from the game contract (RPC) — pending PnL, per-day, real network alpha
+    let live='';
+    if(s.stateOk){
+      $('#rPending').value=(s.pendingPnL||0).toFixed(4);
+      $('#rPerDay').value=(s.perDay||0).toFixed(3);
+      if(s.globalAlpha) $('#netAlpha').value=Math.round(s.globalAlpha);
+      live=` · <b class="tag">live</b> pending <b>${fmt(s.pendingPnL,2)}</b> · ~<b>${fmt(s.perDay,1)}/day</b> · ${fmt(s.userAlpha)} alpha (${(s.share*100).toFixed(3)}% of net)`;
+    }
+    // auto-fill the builder — desk level from the EXACT contract read; operators best-effort from transfers
+    let recon='';
+    if(!window.__builderTouched){
+      const realLevel = (s.stateOk && s.deskLevelChain!=null) ? s.deskLevelChain : (s.spendKnown ? (s.deskLevel||0) : null);
+      if(realLevel!=null) $('#deskSel').value=Math.min(10,realLevel);
+      if(s.stateOk && s.seatedRoster){                 // exact currently-seated operators (from on-chain alpha+bandwidth)
+        seated.fill(0);
+        s.seatedRoster.forEach(name=>{ const i=OPS.findIndex(o=>o.name===name); if(i>=0) seated[i]++; });
+        OPS.forEach((_,i)=>{ const q=$('#q'+i); if(q) q.value=seated[i]; });
+      } else if(s.spendKnown){                          // fallback: recruited operators from transfer history
+        seated.fill(0); if(s.operators){ for(const name in s.operators){ const i=OPS.findIndex(o=>o.name===name); if(i>=0) seated[i]=s.operators[name]; } } OPS.forEach((_,i)=>{ const q=$('#q'+i); if(q) q.value=seated[i]; });
+      }
+    }
+    if(s.stateOk && s.deskSeats){
+      const dn = DESKS[Math.min(10,s.deskLevelChain)] ? DESKS[Math.min(10,s.deskLevelChain)].name : ('Lvl '+s.deskLevelChain);
+      recon=` · <b>${dn}</b> · ${s.seatsUsed}/${s.deskSeats} seats · ${fmt(s.bwUsed)}/${fmt(s.deskBandwidth)} bw`;
+    } else if(s.spendKnown){
+      recon=` · spend <b>${fmt(s.spend)} FLOOR</b> → Lvl ${s.deskLevel||0}${s.partial?' <span style="color:var(--oxblood)">partial</span>':''}`;
+    }
+    $('#rAddrNote').innerHTML=`<b class="tag">✓ ${addr.slice(0,6)}…${addr.slice(-4)}</b>${s.cached?' <span style="color:var(--muted)">cached</span>':''}`+live+recon+`. Pending PnL &amp; per-day are exact from the contract.`;
+    window.__lastAddr=addr; applyRank(addr);
+    try{ localStorage.setItem('floor_addr',addr); }catch(e){}   // remember for next visit
+    ['rWallet','rExtra'].forEach(id=>{ $('#'+id).style.opacity=.5; });
+    TRACK('wallet_lookup',{addr:addr.toLowerCase(),ok:true,stateOk:!!s.stateOk,earnedKnown:!!s.earnedKnown,count:s.count,cached:!!s.cached,ms:Date.now()-t0});
+    recomputeUpg();
+  }catch(e){
+    window.LIVE=null; badge.textContent='manual'; badge.style.color='var(--muted)';
+    TRACK('wallet_lookup',{addr:addr.toLowerCase(),ok:false,ms:Date.now()-t0});
+    $('#rAddrNote').innerHTML=`Couldn't read that address right now (explorer busy or bad address). Fill the numbers from your in-game PnL Terminal below instead.`;
+  }
+}
+
+$('#rLoadBtn').addEventListener('click',()=>{
+  const a=$('#rAddr').value.trim();
+  if(!/^0x[0-9a-fA-F]{40}$/.test(a)){ $('#rAddrNote').innerHTML=`That doesn't look like a valid 0x address.`; return; }
+  loadPlayer(a);
+});
+$('#rAddr').addEventListener('input',()=>{ if(!$('#rAddr').value.trim()){ window.LIVE=null; $('#liveBadge').textContent='manual'; $('#liveBadge').style.color='var(--muted)'; ['rWallet','rExtra'].forEach(id=>$('#'+id).style.opacity=1); recomputeUpg(); }});
+
+/* ---------------- trading floor scene (renders The Floor's hosted art) ---------------- */
+const ART='https://thefloor.sh/assets';
+const RAR_C={Common:'#b3a88f',Uncommon:'#2fbf71',Rare:'#46698a',Epic:'#a066cc',Legendary:'#c9a227'};
+const opSlug=n=>n.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+const DESK_ART={0:'kitchen-table',3:'boiler-room',7:'quant-floor',8:'prime-brokerage',9:'exchange-floor',10:'bell-room'};
+function deskArtFor(level){ let best='kitchen-table'; [0,3,7,8,9,10].forEach(k=>{ if(k<=level) best=DESK_ART[k]; }); return best; }
+function renderScene(){
+  const box=$('#deskScene'); if(!box) return;
+  if(!reportActive()){
+    box.style.backgroundImage=`url('${ART}/desk-kitchen-table.svg')`;
+    const sub=$('#floorSub'); if(sub) sub.textContent='awaiting wallet';
+    box.innerHTML=`<div class="floor-empty"><div class="floor-empty-in">◈ Load your wallet above<span>to see your desk, operators &amp; live production</span></div></div>`;
+    return;
+  }
+  const L=window.LIVE, level=+$('#deskSel').value, desk=DESKS[level];
+  const ops=[]; seated.forEach((cnt,i)=>{ for(let k=0;k<cnt;k++) ops.push({name:OPS[i].name,rarity:OPS[i].rarity,alpha:OPS[i].alpha}); });
+  const seatsUsed=(L&&L.stateOk&&L.seatsUsed!=null)?L.seatsUsed:ops.length;
+  while(ops.length<seatsUsed) ops.push({name:'Operator',rarity:'Common',alpha:0,unknown:true});
+  ops.length=seatsUsed;
+  const perDay=(L&&L.stateOk&&L.perDay!=null)?L.perDay:(LAST.perDay||0);
+  const userAlpha=(L&&L.stateOk&&L.userAlpha)?L.userAlpha:null;
+  const unk=ops.filter(o=>o.unknown), knownA=ops.filter(o=>!o.unknown).reduce((s,o)=>s+o.alpha,0);
+  if(userAlpha&&unk.length){ const extra=Math.max(0,userAlpha-knownA); unk.forEach(o=>o.alpha=extra/unk.length); }
+  const sumA=ops.reduce((s,o)=>s+o.alpha,0);
+  ops.forEach(o=>o.perDay = sumA>0 ? perDay*(o.alpha/sumA) : perDay/(ops.length||1));
+  const totalSeats=(L&&L.stateOk&&L.deskSeats)?L.deskSeats:desk.seats;
+  $('#floorSub').textContent=`${desk.name} · ${seatsUsed}/${totalSeats} seats`;
+  const shown=ops.slice(0,12), hidden=seatsUsed-shown.length;
+  const emptyCount=Math.max(0,Math.min(totalSeats-seatsUsed,12-shown.length));
+  let row='';
+  shown.forEach((o,i)=>{
+    const sl=o.unknown?'retail-analyst':opSlug(o.name);
+    const pd=o.perDay>=10?fmt(o.perDay,0):o.perDay.toFixed(1);
+    row+=`<div class="op-station"><span class="prod" style="animation-delay:${(i*0.35).toFixed(2)}s">+${pd}</span>`
+       +`<img class="op-sprite" style="animation-delay:${(i*0.12).toFixed(2)}s${o.unknown?';opacity:.55':''}" src="${ART}/operator-${sl}.svg" alt="" loading="lazy"/>`
+       +`<div class="op-rar" style="background:${RAR_C[o.rarity]||'#b3a88f'}"></div>`
+       +`<div class="op-name">${o.unknown?'Operator':o.name}</div></div>`;
+  });
+  for(let e=0;e<emptyCount;e++) row+=`<div class="op-station"><div class="empty-seat"></div><div class="op-name" style="opacity:.5">empty</div></div>`;
+  if(hidden>0) row+=`<div class="floor-more">+${hidden} more</div>`;
+  box.style.backgroundImage=`url('${ART}/desk-${deskArtFor(level)}.svg')`;
+  box.innerHTML=`<div class="floor-tier">${desk.name}</div>`
+    +`<div class="floor-total">▲ ${fmt(perDay,0)}<small>$FLOOR / day</small></div>`
+    +`<div class="floor-row">${row}</div>`;
+}
+
+/* ---------------- State of the Floor ---------------- */
+function tokUsd(v){ const px=window.__price||0; if(!px||!(v>0)) return '';
+  const d=v*px; return '$'+(d>=1e6?(d/1e6).toFixed(2)+'M':d>=1e3?(d/1e3).toFixed(1)+'K':d>=10?d.toFixed(0):d.toFixed(2)); }
+function renderState(s){
+  const box=$('#stateCards'); if(!box) return;
+  window.__price=s.price||0; window.__globalAlpha=s.globalAlpha||0;
+  const wb=document.getElementById('wallBurn');
+  if(wb&&s.burned>0) wb.textContent=(s.burned>=1e6?(s.burned/1e6).toFixed(2)+'M':Math.round(s.burned/1e3)+'K')+' FLOOR BURNED';
+  const m=s.market;
+  const emitted=s.emitted||0, emittedPct=s.emittedPct||0, burned=s.burned||0, burnedPct=s.burnedPct||0;
+  const perAlphaDay=s.perAlphaDay||0, emissionRate=s.emissionRate||0, epoch=s.epoch||0;
+  const sm=v=>{const u=tokUsd(v);return u?` <small style="color:var(--muted);font-weight:400">${u}</small>`:'';};
+  const c1=`<div class="card"><h3>Emission &amp; Burn</h3>
+    <div class="stat">${fmt(emitted)}</div><p style="margin:2px 0 0">emitted · ${emittedPct.toFixed(1)}% of 17.02M pool${tokUsd(emitted)?' · '+tokUsd(emitted):''}</p>
+    <div class="bar" style="margin-top:9px;height:9px;background:var(--navy-950);border:1px solid #4a3d22;border-radius:5px;overflow:hidden"><i style="display:block;height:100%;width:${Math.min(100,emittedPct)}%;background:linear-gradient(90deg,var(--brass-dark),var(--amber))"></i></div>
+    <div class="out" style="margin-top:10px"><span class="k">🔥 Burned</span><span class="v">${fmt(burned)}${sm(burned)}</span></div>
+    <div class="out"><span class="k">Reinvested</span><span class="v" style="color:var(--amber)">${fmt((s.burnedGame||burned)/0.75)}${sm((s.burnedGame||burned)/0.75)}</span></div>
+    <div class="out"><span class="k">Unclaimed PnL</span><span class="v" id="stUnclaimed">${window.__unclaimed>0?fmt(window.__unclaimed)+sm(window.__unclaimed):'—'}</span></div>
+    <p class="label" style="margin:9px 0 0;color:var(--muted)">${burnedPct>=100?'<span style="color:var(--amber)">more $FLOOR has been burned than exists today ('+burnedPct.toFixed(0)+'% of supply)</span>':'burned = '+burnedPct.toFixed(0)+'% of current supply'} · reinvested = est. player spend (75% of it burns)</p></div>`;
+  let c2;
+  if(m){
+    const b24=m.tx24.buys, s24=m.tx24.sells, t24=(b24+s24)||1;
+    const b6=m.tx6.buys, s6=m.tx6.sells, sellPct6=(s6/((b6+s6)||1))*100;
+    const b1=m.tx1.buys, s1=m.tx1.sells;
+    let verdict,vc;
+    if(m.change24>=8 && sellPct6>52){verdict='PUMPED · COOLING';vc='var(--amber)';}
+    else if(m.change24>=8){verdict='PUMPING ↑';vc='var(--green)';}
+    else if(m.change24<=-8){verdict='BLEEDING ↓';vc='var(--red)';}
+    else if(sellPct6>56){verdict='SELL PRESSURE';vc='var(--red)';}
+    else if(b24/t24*100>56){verdict='ACCUMULATING';vc='var(--green)';}
+    else {verdict='BALANCED';vc='var(--muted-cream)';}
+    const chg=v=>`<span style="color:${v>=0?'var(--green)':'var(--red)'}">${v>=0?'+':''}${v.toFixed(1)}%</span>`;
+    c2=`<div class="card"><h3>Market Sentiment</h3>
+      <div class="verdict" style="color:${vc};border-color:${vc};margin-bottom:8px">${verdict}</div>
+      <div class="stat" style="color:${m.change24>=0?'var(--green)':'var(--red)'}">${m.change24>=0?'+':''}${m.change24.toFixed(1)}%</div><p style="margin:2px 0 0">price · 24h</p>
+      <p class="label" style="margin-top:10px">24h flow · ${fmt(b24)} buys / ${fmt(s24)} sells</p>
+      <div class="split-bars" style="margin-top:5px"><i style="width:${b24/t24*100}%;background:var(--green)"></i><i style="width:${s24/t24*100}%;background:var(--red)"></i></div>
+      <div class="out" style="margin-top:8px"><span class="k">Last 1h</span><span class="v">${b1}▲ ${s1}▼ · ${chg(m.change1)}</span></div>
+      <div class="out"><span class="k">Last 6h</span><span class="v">${b6}▲ ${s6}▼ · ${chg(m.change6)}</span></div></div>`;
+    // auto-feed the Strategy Desk's price trend from live market
+    let tr='stable'; if(m.change24>=8) tr='pump'; else if(m.change24<=-8) tr='bleed';
+    if(!window.__rTrendTouched){ const el=$('#rTrend'); if(el && el.value!==tr){ el.value=tr; if(window.LIVE||window.__reportActive) computeReport(); } }
+  } else { c2=`<div class="card"><h3>Market Sentiment</h3><p style="color:var(--muted)">market data unavailable</p></div>`; }
+  const c3=`<div class="card"><h3>Emission Clock</h3>
+    <div class="stat">${fmt(emissionRate*86400)}</div><p style="margin:2px 0 0">$FLOOR minting / day${tokUsd(emissionRate*86400)?' · '+tokUsd(emissionRate*86400):''}</p>
+    <div class="out" style="margin-top:10px"><span class="k">Per 1 alpha</span><span class="v" style="color:var(--amber)">${perAlphaDay.toFixed(3)}/day${sm(perAlphaDay)}</span></div>
+    <div class="out"><span class="k">Pool remaining</span><span class="v">${(100-emittedPct).toFixed(1)}%</span></div>
+    <div class="out"><span class="k">Epoch · halving</span><span class="v">M${epoch+1} · <span id="stateHalve">—</span></span></div></div>`;
+  box.innerHTML=c1+c2+c3;
+}
+if($('#rTrend')) $('#rTrend').addEventListener('change',()=>{ window.__rTrendTouched=true; });
+
+/* ---------------- Player base: desk-tier histogram (concentration stats intentionally not shown) ---------------- */
+function renderDistribution(d){
+  const bars=$('#distBars'); if(!bars) return;
+  const bl=d.byLevel||{}; const max=Math.max(1,...Object.values(bl).map(Number));
+  let html='';
+  for(let lv=0;lv<=10;lv++){ const n=bl[lv]||0;
+    html+=`<div style="display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px"><span style="width:120px;color:var(--muted-cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">L${lv} ${DESKS[lv].name}</span><span style="flex:1;height:13px;background:var(--navy-950);border:1px solid #37301f;border-radius:3px;overflow:hidden"><i style="display:block;height:100%;width:${n/max*100}%;background:linear-gradient(90deg,var(--brass-dark),var(--amber))"></i></span><span style="width:34px;text-align:right;color:var(--paper)">${n}</span></div>`;
+  }
+  bars.innerHTML=html;
+}
+async function loadDistribution(){
+  try{ const j=await (await fetch('/api/distribution',{cache:'no-store'})).json();
+    if(j.ok && j.dist){
+      renderDistribution(j.dist);
+      const sub=$('#playersSub'); if(sub) sub.textContent=fmt(j.dist.withDesk||j.dist.players)+' players · live desk tiers';
+      if(j.dist.unclaimed>0){ window.__unclaimed=j.dist.unclaimed; const u=$('#stUnclaimed');
+        if(u){ const usd=tokUsd(j.dist.unclaimed); u.innerHTML=fmt(j.dist.unclaimed)+(usd?` <small style="color:var(--muted);font-weight:400">${usd}</small>`:''); } }
+    }
+  }catch(e){}
+}
+loadDistribution(); setInterval(loadDistribution, 300000);
+
+/* ---------------- Leaderboards + rank ---------------- */
+window.__lb=null;
+function rankOf(addr){ if(!window.__lb||!addr)return null; const a=addr.toLowerCase();
+  const row=window.__lb.byAlpha.find(r=>r.a.toLowerCase()===a); if(!row)return null;
+  return {rank:row.rank, of:window.__lb.ranked, pct:Math.max(1,Math.round(row.rank/window.__lb.ranked*100))}; }
+function medal(i){ return i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'.'; }
+function renderLeaderboard(lb){
+  window.__lb=lb;
+  const A=$('#lbAlpha');
+  if(A){ A.innerHTML=lb.byAlpha.slice(0,15).map((r,i)=>`
+    <div class="out" style="padding:6px 0"><span class="k">${medal(i)} ${r.a.slice(0,6)}…${r.a.slice(-4)} <small style="color:var(--muted)">L${r.dl}</small></span><span class="v" style="font-size:15px">${fmt(r.alpha)} <small style="color:var(--muted);font-weight:400">α</small></span></div>`).join(''); }
+  const R=$('#lbRecruit');
+  if(R){ const rec=lb.recruiters.filter(r=>r.earned>0); R.innerHTML=(rec.length?rec:lb.recruiters).slice(0,15).map((r,i)=>`
+    <div class="out" style="padding:6px 0"><span class="k">${medal(i)} ${r.a.slice(0,6)}…${r.a.slice(-4)} <small style="color:var(--muted)">${r.recruits} recruits</small></span><span class="v" style="font-size:15px;color:var(--amber)">${fmt(r.earned)} <small style="color:var(--muted);font-weight:400">$FLOOR</small></span></div>`).join('')
+    || '<p style="color:var(--muted)">no referral earnings yet</p>'; }
+  const sub=$('#leadersSub'); if(sub) sub.textContent=fmt(lb.ranked)+' ranked · '+fmt(lb.totalRecruits)+' recruits · '+fmt(lb.totalReferral)+' $FLOOR paid to recruiters';
+  // if a wallet is already loaded, refresh its rank line
+  if(window.LIVE && window.__lastAddr) applyRank(window.__lastAddr);
+  try{ sceneCast(); }catch(e){}   // seat the top desks in the office scene
+}
+function applyRank(addr){ const r=rankOf(addr); const el=$('#rRank'); if(!el)return;
+  el.innerHTML = r ? `<b class="tag" style="background:var(--amber);color:#0c0906">rank #${r.rank}</b> of ${fmt(r.of)} · top ${r.pct}% by alpha` : '';
+  renderFlexCard(); }
+function fcSlug(n){ return n.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''); }
+// Backdrop themed to the player's desk tier (0 Kitchen Table … 10 Bell Room), tinted to rarity color.
+function deskBackdrop(dl,col){
+  const T=Math.max(0,Math.min(10,dl|0)), c=col||'#c9a227';
+  const night = T>=3;
+  const bld=(x,y,w,h)=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#0d1526"/>`;
+  const lit=(x,y)=>`<rect x="${x}" y="${y}" width="3" height="3" fill="#f2d98c" opacity=".8"><animate attributeName="opacity" values=".85;.2;.95;.4;.85" dur="${3+(x%6)}s" begin="${(x%9)/3}s" repeatCount="indefinite"/></rect>`;
+  const skyline=(x0,x1)=>{let s='';for(let x=x0;x<x1;x+=22){const w=10+((x*7)%9),h=20+((x*13)%42);s+=bld(x,130-h,w,h);if((x%3))s+=lit(x+3,140-h);}return s;};
+  const win=(x,w)=>`<rect x="${x-4}" y="16" width="${w+8}" height="118" fill="#6b5426"/><rect x="${x}" y="20" width="${w}" height="110" fill="${night?'url(#fcSky)':'#33456a'}"/>`
+     +`<g clip-path="url(#fcw${x})">${night?skyline(x,x+w):''}</g>`
+     +`<clipPath id="fcw${x}"><rect x="${x}" y="20" width="${w}" height="110"/></clipPath>`
+     +`<line x1="${x+w/2}" y1="20" x2="${x+w/2}" y2="130" stroke="#100b06" stroke-width="3"/><line x1="${x}" y1="72" x2="${x+w}" y2="72" stroke="#100b06" stroke-width="3"/>`;
+  const moon=(x)=>`<circle cx="${x}" cy="50" r="15" fill="url(#fcMoon)"><animate attributeName="r" values="15;18;15" dur="6s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;.75;1" dur="6s" repeatCount="indefinite"/></circle><circle cx="${x}" cy="50" r="7" fill="#f4edd8"/>`;
+  const chand=(x)=>`<line x1="${x}" y1="0" x2="${x}" y2="14" stroke="#6b5426" stroke-width="2"/><path d="M${x-16},14 h32 l-6,11 h-20z" fill="${c}"/><circle cx="${x-8}" cy="27" r="2.6" fill="#ffe9a8"/><circle cx="${x}" cy="30" r="2.6" fill="#ffe9a8"/><circle cx="${x+8}" cy="27" r="2.6" fill="#ffe9a8"/>`;
+  const column=(x)=>`<rect x="${x}" y="8" width="26" height="150" fill="url(#fcCol)"/><rect x="${x-4}" y="8" width="34" height="10" fill="${c}" opacity=".8"/><rect x="${x-4}" y="150" width="34" height="12" fill="${c}" opacity=".7"/><g stroke="#0c0906" stroke-width="1" opacity=".35"><line x1="${x+7}" y1="18" x2="${x+7}" y2="150"/><line x1="${x+13}" y1="18" x2="${x+13}" y2="150"/><line x1="${x+19}" y1="18" x2="${x+19}" y2="150"/></g>`;
+  const bell=(x,sc)=>`<g transform="translate(${x},64) scale(${sc})"><ellipse cx="0" cy="88" rx="70" ry="16" fill="url(#fcAccent)"/><line x1="0" y1="-30" x2="0" y2="-14" stroke="#5c4712" stroke-width="4"/><circle cx="0" cy="-30" r="7" fill="none" stroke="url(#fcBell)" stroke-width="4"/><path d="M-40,70 Q-46,20 -20,-6 Q-8,-16 0,-16 Q8,-16 20,-6 Q46,20 40,70 Q42,80 0,80 Q-42,80 -40,70Z" fill="url(#fcBell)" stroke="#5c4712" stroke-width="2"/><rect x="-46" y="70" width="92" height="10" rx="4" fill="url(#fcBell)" stroke="#5c4712" stroke-width="2"/><circle cx="0" cy="86" r="6" fill="#3a2c12"/><path d="M-40,70 Q0,58 40,70" fill="none" stroke="#fff6d8" stroke-opacity=".3" stroke-width="3"/></g>`;
+  const clock=(x)=>`<circle cx="${x}" cy="40" r="13" fill="#0c0906" stroke="${c}" stroke-width="2.5"/><line x1="${x}" y1="40" x2="${x}" y2="31" stroke="${c}" stroke-width="2"/><line x1="${x}" y1="40" x2="${x+6}" y2="43" stroke="${c}" stroke-width="2"/>`;
+  const plant=(x)=>`<path d="M${x},164 q-8,-14 -3,-30 q6,10 7,17 q1,-17 9,-26 q3,14 -1,26 q6,-10 14,-14 q-3,14 -11,23z" fill="#2f5d33"/><path d="M${x-11},164 h30 l-4,18 h-22z" fill="#7c2d12"/>`;
+  const bulb=(x)=>`<line x1="${x}" y1="0" x2="${x}" y2="26" stroke="#3a2c12" stroke-width="2"/><circle cx="${x}" cy="31" r="6" fill="#ffe1a0"/><circle cx="${x}" cy="31" r="16" fill="url(#fcAccent)"/>`;
+  const confetti=()=>{let s='';const cs=['#e6c96b','#2fbf71','#d9534f','#46698a','#f0e6d2'];for(let i=0;i<26;i++){const x=(i*53)%600,y=(i*37)%120;s+=`<rect x="${x}" y="${y}" width="4" height="4" fill="${cs[i%5]}" opacity=".7" transform="rotate(${(i*40)%90} ${x} ${y})"/>`;}return s;};
+  let body='';
+  const wall=`<rect width="600" height="200" fill="url(#fcWall)"/>`;
+  const floorEl=`<rect y="162" width="600" height="38" fill="#20160b"/><rect y="160" width="600" height="3" fill="${c}" opacity=".55"/>`;
+  const rail=`<rect y="140" width="600" height="4" fill="${c}" opacity=".5"/><rect y="144" width="600" height="18" fill="#241a10"/>`;
+  if(T<=1){                      // home: kitchen table / one-laptop
+    body=wall+win(255,90)+bulb(150)+plant(70)+floorEl;
+  }else if(T<=4){                // office
+    body=wall+win(150,110)+win(330,110)+clock(90)+rail+floorEl;
+  }else if(T<=7){                // trading floor
+    body=wall+win(70,140)+win(250,140)+win(430,140)+moon(320)+chand(300)+rail+floorEl
+       +`<g opacity=".6">${bld(0,0,0,0)}</g>`;
+  }else if(T<=9){                // prime brokerage
+    body=wall+win(120,150)+win(340,150)+moon(300)+column(40)+column(534)+chand(300)+rail+floorEl;
+  }else{                         // bell room — the pinnacle
+    body=wall+win(90,120)+win(400,120)+moon(300)+column(30)+column(544)+confetti()+bell(300,1)+chand(160)+chand(440)+rail+floorEl;
+  }
+  return `<svg class="fc-bg" viewBox="0 0 600 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs>
+    <linearGradient id="fcWall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d1409"/><stop offset="1" stop-color="#120c06"/></linearGradient>
+    <linearGradient id="fcSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0a1120"/><stop offset="1" stop-color="#1d2c48"/></linearGradient>
+    <radialGradient id="fcMoon"><stop offset="0" stop-color="#f4edd8"/><stop offset=".5" stop-color="#f4edd8" stop-opacity=".5"/><stop offset="1" stop-color="#f4edd8" stop-opacity="0"/></radialGradient>
+    <radialGradient id="fcAccent"><stop offset="0" stop-color="${c}" stop-opacity=".55"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></radialGradient>
+    <linearGradient id="fcBell" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f0d98a"/><stop offset=".5" stop-color="${c}"/><stop offset="1" stop-color="#6b5426"/></linearGradient>
+    <linearGradient id="fcCol" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2a2012"/><stop offset=".5" stop-color="#3a2c17"/><stop offset="1" stop-color="#241a0e"/></linearGradient>
+    <linearGradient id="fcShade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0b0704" stop-opacity=".9"/><stop offset=".42" stop-color="#0b0704" stop-opacity=".52"/><stop offset=".7" stop-color="#0b0704" stop-opacity=".5"/><stop offset="1" stop-color="#0b0704" stop-opacity=".8"/></linearGradient>
+    <linearGradient id="fcShadeY" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b0704" stop-opacity=".45"/><stop offset=".5" stop-color="#0b0704" stop-opacity="0"/><stop offset="1" stop-color="#0b0704" stop-opacity=".55"/></linearGradient>
+    </defs>${body}<rect width="600" height="200" fill="url(#fcShadeY)"/><rect width="600" height="200" fill="url(#fcShade)"/></svg>`;
+}
+function topOperator(){ const L=window.LIVE; if(!L||!L.seatedRoster||!L.seatedRoster.length)return null;
+  let best=null; L.seatedRoster.forEach(nm=>{ const o=OPS.find(x=>x.name===nm); if(o&&(!best||o.alpha>best.alpha))best=o; }); return best; }
+function renderFlexCard(){
+  const el=$('#flexCard'), L=window.LIVE, addr=window.__lastAddr; if(!el)return;
+  const liveOk=!!(L&&L.stateOk);
+  const lbRow=(!liveOk&&addr&&window.__lb)?window.__lb.byAlpha.find(x=>x.a.toLowerCase()===addr.toLowerCase()):null;
+  if(!addr||(!liveOk&&!lbRow)){ el.style.display='none'; return; }
+  const r=rankOf(addr);
+  // live path uses the seated roster; fallback uses the leaderboard's derived top operator
+  const op=liveOk?topOperator():(lbRow&&lbRow.op?OPS.find(x=>x.name===lbRow.op):null);
+  const col=op?RARITY_COLOR[op.rarity]:'#c9a227'; const glow=col+'40';
+  const dl=liveOk?L.deskLevelChain:(lbRow?lbRow.dl:0);
+  const desk=(typeof DESKS!=='undefined'&&DESKS[dl])?DESKS[dl].name:('Lvl '+(dl||0));
+  const alpha=liveOk?L.userAlpha:(lbRow?lbRow.alpha:0);
+  const perDay=liveOk?L.perDay:(alpha*(window.__perAlphaDay||0));
+  const gA=liveOk?L.globalAlpha:(window.__globalAlpha||0);
+  const px=window.__price||0; const usd=px&&perDay?(' <small style="color:var(--muted-cream);font-weight:400">$'+(perDay*px>=1000?(perDay*px/1000).toFixed(1)+'K':(perDay*px).toFixed(0))+'/day</small>'):'';
+  const shareVal=(gA? alpha/gA : (liveOk?(L.share||0):0))*100;
+  const h=(typeof handleOf==='function')?handleOf(addr):null;
+  const hSafe=h?String(h.handle).replace(/[^A-Za-z0-9_]/g,''):'';
+  el.style.setProperty('--fc-col',col); el.style.setProperty('--fc-glow',glow);
+  el.innerHTML=`
+    ${deskBackdrop(dl,col)}
+    <div class="fc-top">
+      <div class="fc-av" style="background-image:url('https://thefloor.sh/assets/operator-${op?fcSlug(op.name):'retail-analyst'}.svg')"></div>
+      <div class="fc-id">
+        <div class="fc-addr">${addr.slice(0,6)}…${addr.slice(-4)}</div>
+        ${h?`<a class="fc-x" href="https://x.com/${hSafe}" target="_blank" rel="noopener">${h.avatar?`<img src="${encodeURI(h.avatar)}" onerror="this.remove()">`:''}<span class="xm">𝕏</span> @${hSafe}</a>`:''}
+        <div class="fc-op">${op?op.name+' · '+op.rarity:'no operator seated'} · <b style="color:var(--paper)">${desk}</b></div>
+        ${r?`<div class="fc-rank">RANK #${r.rank} · TOP ${r.pct}% OF ${fmt(r.of)}</div>`:''}
+      </div>
+      <div class="fc-hero"><div class="big">${fmt(perDay,perDay<10?1:0)}${usd}</div><div class="lab">$FLOOR / day</div></div>
+    </div>
+    <div class="fc-stats">
+      <div class="fc-stat"><div class="k">Alpha</div><div class="v">${fmt(alpha)}</div></div>
+      <div class="fc-stat"><div class="k">Share of floor</div><div class="v">${shareVal<0.01&&shareVal>0?shareVal.toFixed(3):shareVal.toFixed(2)}%</div></div>
+      <div class="fc-stat"><div class="k">Pending PnL</div><div class="v">${liveOk?fmt(L.pendingPnL,1):'—'}</div></div>
+      <div class="fc-stat"><div class="k">Seats</div><div class="v">${liveOk?((L.seatsUsed||0)+'/'+(L.deskSeats||0)):'—'}</div></div>
+    </div>
+    <div class="fc-foot">
+      <span class="fc-brand">📊 The Floor · ${liveOk?'live on-chain':'from the leaderboard (~30 min)'}</span>
+      <button class="fc-share" id="fcShare">📸 copy share link</button>
+    </div>`;
+  el.style.display='block';
+  const sh=$('#fcShare'); if(sh) sh.addEventListener('click',()=>{
+    const link=location.origin+'/?addr='+addr;
+    navigator.clipboard.writeText(link).then(()=>{ sh.textContent='✓ link copied — screenshot the card'; setTimeout(()=>sh.textContent='📸 copy share link',2200); }).catch(()=>{ sh.textContent='screenshot the card to share'; });
+  });
+}
+async function loadLeaderboard(){
+  try{ const j=await (await fetch('/api/leaderboard',{cache:'no-store'})).json();
+    if(j.ok && j.lb) renderLeaderboard(j.lb);
+    else { const a=$('#lbAlpha'); if(a) a.innerHTML='<p style="color:var(--muted)">building leaderboard… (first load ~1 min)</p>'; }
+  }catch(e){}
+}
+loadLeaderboard(); setInterval(loadLeaderboard, 180000);
+
+/* ---------------- Historical trends ---------------- */
+window.__hist=[];
+const TREND_METRICS=[
+  {key:'burned',   lab:'Burned',     col:'#c9a227', fmt:'compact', suf:' FLOOR'},
+  {key:'price',    lab:'Price',      col:'#2fbf71', fmt:'price',   pre:'$'},
+  {key:'marketCap',lab:'Market Cap', col:'#e6c96b', fmt:'money'},
+  {key:'players',  lab:'Players',    col:'#46698a', fmt:'int'},
+  {key:'alpha',    lab:'Total Alpha',col:'#a066cc', fmt:'compact'},
+  {key:'vol24',    lab:'24h Volume', col:'#cd7f32', fmt:'money'},
+  {key:'holders',  lab:'Holders',    col:'#b3a88f', fmt:'int'}
+];
+let __trendKey='burned';
+function tcCompact(n){ n=+n||0; const a=Math.abs(n);
+  if(a>=1e9)return (n/1e9).toFixed(2)+'B'; if(a>=1e6)return (n/1e6).toFixed(2)+'M';
+  if(a>=1e3)return (n/1e3).toFixed(1)+'K'; return Math.round(n).toLocaleString(); }
+function tcFmt(m,v){ v=+v||0;
+  if(m.fmt==='money')return '$'+tcCompact(v);
+  if(m.fmt==='compact')return tcCompact(v)+(m.suf||'');
+  if(m.fmt==='price')return '$'+(v<0.01?v.toPrecision(3):v.toFixed(4));
+  return Math.round(v).toLocaleString(); }
+function renderTrendTabs(){
+  const el=$('#trendTabs'); if(!el)return;
+  el.innerHTML=TREND_METRICS.map(m=>`<button class="trend-tab${m.key===__trendKey?' on':''}" data-k="${m.key}">${m.lab}</button>`).join('');
+  el.querySelectorAll('.trend-tab').forEach(b=>b.onclick=()=>{ __trendKey=b.dataset.k; renderTrendTabs(); drawTrend(); });
+}
+function drawTrend(){
+  const box=$('#trendChart'), meta=$('#trendMeta'); if(!box)return;
+  const m=TREND_METRICS.find(x=>x.key===__trendKey);
+  const H=window.__hist.filter(r=>r&&r.d);
+  if(!H.length){ box.innerHTML='<p style="color:var(--muted);font-family:var(--font-mono);font-size:12px">Trends begin accumulating from today. Check back tomorrow for the first line.</p>'; if(meta)meta.innerHTML=''; return; }
+  // A reconstructed day legitimately lacks some metrics (alpha predates the archive window, price
+  // predates the pool, holders can't be rebuilt to the same definition). Absent must mean "no point" —
+  // `||0` would draw a cliff to zero that never happened.
+  const pts=H.filter(r=>r[m.key]!==null&&r[m.key]!==undefined&&isFinite(+r[m.key])).map(r=>({d:r.d, v:+r[m.key]}));
+  if(!pts.length){ box.innerHTML='<p style="color:var(--muted);font-family:var(--font-mono);font-size:12px">No history for this metric yet — it starts tracking from today.</p>'; if(meta)meta.innerHTML=''; return; }
+  const vals=pts.map(p=>p.v);
+  let lo=Math.min(...vals), hi=Math.max(...vals); if(lo===hi){ hi=hi||1; lo=m.fmt==='price'?lo*0.98:0; if(lo===hi)hi=lo+1; }
+  const W=800,Ht=260,padL=8,padR=8,padT=18,padB=26, iw=W-padL-padR, ih=Ht-padT-padB;
+  const n=pts.length;
+  const X=i=> n<2?W/2:padL+ i/(n-1)*iw;
+  const Y=v=> padT+ (1-(v-lo)/(hi-lo))*ih;
+  let path='', area='';
+  pts.forEach((p,i)=>{ const x=X(i).toFixed(1),y=Y(p.v).toFixed(1); path+=(i?'L':'M')+x+' '+y+' '; });
+  if(n>=2){ area='M'+X(0).toFixed(1)+' '+Y(pts[0].v).toFixed(1)+' '; pts.forEach((p,i)=>{ if(i)area+='L'+X(i).toFixed(1)+' '+Y(p.v).toFixed(1)+' '; }); area+='L'+X(n-1).toFixed(1)+' '+(padT+ih)+' L'+X(0).toFixed(1)+' '+(padT+ih)+' Z'; }
+  const gid='tg_'+m.key;
+  const grid=[0,.25,.5,.75,1].map(f=>{ const y=(padT+f*ih).toFixed(1); return `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#2a2318" stroke-width="1"/>`; }).join('');
+  const lastX=X(n-1), lastY=Y(pts[n-1].v);
+  const dots = n===1 ? `<circle cx="${X(0)}" cy="${Y(pts[0].v)}" r="5" fill="${m.col}"/>` :
+    `<circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="4.5" fill="${m.col}"/><circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="9" fill="none" stroke="${m.col}" stroke-opacity=".35" stroke-width="2"/>`;
+  const fmtDay=d=>{ const p=d.split('-'); return p[1]+'/'+p[2]; };
+  const xlabs = n>=2 ? `<text x="${padL}" y="${Ht-8}" fill="#6f6249" font-size="11" font-family="var(--font-mono)">${fmtDay(pts[0].d)}</text><text x="${W-padR}" y="${Ht-8}" fill="#6f6249" font-size="11" font-family="var(--font-mono)" text-anchor="end">${fmtDay(pts[n-1].d)}</text>` : '';
+  box.innerHTML=`<svg viewBox="0 0 ${W} ${Ht}" preserveAspectRatio="none" role="img" aria-label="${m.lab} over time">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${m.col}" stop-opacity=".28"/><stop offset="1" stop-color="${m.col}" stop-opacity="0"/></linearGradient></defs>
+    ${grid}
+    ${n>=2?`<path d="${area}" fill="url(#${gid})"/>`:''}
+    ${n>=2?`<path d="${path}" fill="none" stroke="${m.col}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`:''}
+    ${dots}
+    ${xlabs}
+  </svg>
+  <div class="tc-hint">${n===1?'1 day tracked':n+' days'}</div>`;
+  // top-right max / bottom-left min labels overlaid via meta row instead
+  const first=pts[0].v, last=pts[n-1].v, chg=last-first, pct= first? (chg/Math.abs(first)*100):0;
+  const up=chg>=0, arrow=up?'▲':'▼', col=up?'var(--green)':'var(--red)';
+  if(meta) meta.innerHTML=`
+    <div class="tm"><div class="k">Now</div><div class="v" style="color:${m.col}">${tcFmt(m,last)}</div></div>
+    <div class="tm"><div class="k">Peak</div><div class="v">${tcFmt(m,hi)}</div></div>
+    ${n>=2?`<div class="tm"><div class="k">Change (${n}d)</div><div class="v" style="color:${col}">${arrow} ${tcFmt(m,Math.abs(chg))}${first?` <small>(${up?'+':''}${pct.toFixed(1)}%)</small>`:''}</div></div>`:''}`;
+  // percent is omitted from a zero baseline on purpose: the series now reaches back to day 0, where
+  // "+0.0%" next to "▲ 233 players" is just wrong (growth from nothing has no percentage).
+}
+async function loadTrends(){
+  try{ const j=await (await fetch('/api/history',{cache:'no-store'})).json();
+    window.__hist=(j&&Array.isArray(j.history))?j.history:[];
+    renderTrendTabs(); drawTrend();
+  }catch(e){ renderTrendTabs(); drawTrend(); }
+}
+loadTrends(); setInterval(loadTrends, 600000);
+
+/* ---------------- The Office ---------------- */
+const OFFICE_SVG=a=>`https://thefloor.sh/assets/operator-${fcSlug(a||'Retail Analyst')}.svg`;
+// click an operator -> load their report (into My Desk) + notify, since the report tab is hidden
+function inspectWallet(addr){
+  if(!addr)return;
+  const inp=$('#rAddr'); if(inp)inp.value=addr;
+  window.__lastAddr=addr; try{applyRank(addr)}catch(e){}   // instant card from leaderboard data
+  try{loadPlayer(addr)}catch(e){}                          // then enrich with live on-chain state
+  officeNotify(addr);
+}
+let __deskToastT=null;
+function officeNotify(addr){
+  const el=$('#deskToast'); if(!el)return;
+  const h=(typeof handleOf==='function')?handleOf(addr):null;
+  const row=(window.__lb&&window.__lb.byAlpha.find(r=>r.a.toLowerCase()===addr.toLowerCase()))||null;
+  const label=(h&&h.name)||(h?'@'+h.handle:'')||(addr.slice(0,6)+'…'+addr.slice(-4));
+  const av=(h&&h.avatar)?encodeURI(h.avatar):OFFICE_SVG((row&&row.op)||'Retail Analyst');
+  el.innerHTML=`<div class="dt-av" style="background-image:url('${av}')"></div>
+    <div class="dt-txt">Loaded <b></b>${row?` <span style="color:var(--muted)">· #${row.rank}</span>`:''}<br><span style="color:var(--muted-cream)">their report is ready in My Desk</span></div>
+    <span class="dt-cta">View →</span><span class="dt-x" title="dismiss">✕</span>`;
+  el.querySelector('.dt-txt b').textContent=label;   // textContent: handle names carry arbitrary unicode
+  el.style.display='flex'; requestAnimationFrame(()=>el.classList.add('show'));
+  const hide=()=>{ clearTimeout(__deskToastT); el.classList.remove('show'); setTimeout(()=>{el.style.display='none';},320); };
+  const go=()=>{ try{ window.showTab&&window.showTab('desk'); }catch(e){} setTimeout(()=>{ const fc=$('#flexCard'); if(fc&&getComputedStyle(fc).display!=='none') fc.scrollIntoView({behavior:'smooth',block:'start'}); },260); hide(); };
+  el.onclick=(ev)=>{ if(ev.target.classList.contains('dt-x')){ hide(); return; } go(); };
+  clearTimeout(__deskToastT); __deskToastT=setTimeout(hide,6500);
+}
+function opTier(pct){                     // pct = 0..1 (1 = top of the floor)
+  if(pct>=0.97)return {sz:74,gc:'#c9a227',gb:20};
+  if(pct>=0.85)return {sz:62,gc:'#e6c96b',gb:14};
+  if(pct>=0.50)return {sz:52,gc:'#46698a',gb:9};
+  return {sz:44,gc:'#6b5a33',gb:6};
+}
+let __officeTimer=null;
+function officeDesk(r,total){
+  const pct=1-((r.rank-1)/Math.max(1,total));
+  const t=opTier(pct);
+  const op=r.op||'Retail Analyst';
+  const del=(Math.random()*2.2).toFixed(2), bd=(2.4+Math.random()*1.6).toFixed(2);
+  return `<div class="op" data-a="${r.a}" title="${op} · alpha ${(r.alpha||0).toLocaleString()} · rank #${r.rank}">
+    <div class="fig" style="--sz:${t.sz}px;--gc:${t.gc};--gb:${t.gb}px;--del:${del}s;--bd:${bd}s;background-image:url('${OFFICE_SVG(op)}')"></div>
+    <div class="rk">#${r.rank}</div><span class="pop"></span>
+    <div class="plate">${r.a.slice(0,6)}</div></div>`;
+}
+function officePod(cls,title,tierBadge,sub,members,total){
+  return `<div class="pod ${cls}"><div class="pod-h"><span class="nm">${title}</span>${tierBadge}<span class="mc">${sub}</span></div>
+    <div class="desks">${members.map(r=>officeDesk(r,total)).join('')}</div></div>`;
+}
+async function loadOffice(){
+  const floor=$('#officeFloor'); if(!floor)return;
+  let lb=null,fm=null;
+  try{ lb=await (await fetch('/api/leaderboard',{cache:'no-store'})).json(); }catch(e){}
+  try{ fm=await (await fetch('/api/firms',{cache:'no-store'})).json(); }catch(e){}
+  const rows=(lb&&lb.ok&&lb.lb&&lb.lb.byAlpha)||[];
+  if(!rows.length){ floor.innerHTML='<p style="color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:24px">building the floor… (first load ~1 min)</p>'; return; }
+  const F=(fm&&fm.ok&&fm.firms)||null;
+  const firmList=(F&&F.firms)||[]; const firmByAddr=(F&&F.firmByAddr)||{};
+  const meta={}; firmList.forEach(f=>meta[f.id]=f);
+  const total=rows.length;
+  const groups={}; const freeRows=[];
+  rows.forEach(r=>{ const fid=firmByAddr[r.a]||firmByAddr[r.a.toLowerCase()];
+    if(fid){ (groups[fid]=groups[fid]||[]).push(r); } else freeRows.push(r); });
+  // firm pods, ordered by member count desc
+  const ids=Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length);
+  let html='<div class="pods">';
+  ids.forEach(id=>{ const m=meta[id]||{}; const mem=groups[id];
+    const tier=m.officeTier?`<span class="tier">Office L${m.officeTier}${m.boostPct?' · +'+m.boostPct+'%':''}</span>`:'';
+    html+=officePod('', (m.name||('Firm '+id)), tier, mem.length+' seated', mem, total);
+  });
+  if(freeRows.length) html+=officePod('free','Free Agents','<span class="tier" style="background:#3a3120;color:var(--muted-cream)">Unaffiliated</span>',freeRows.length+' solo',freeRows,total);
+  html+='</div>';
+  floor.innerHTML=html;
+  floor.querySelectorAll('.op').forEach(el=>el.onclick=()=>inspectWallet(el.dataset.a));
+  const leg=$('#officeLegend');
+  if(leg) leg.innerHTML=`
+    <span><span class="dot" style="background:#c9a227"></span>Whale</span>
+    <span><span class="dot" style="background:#e6c96b"></span>Big</span>
+    <span><span class="dot" style="background:#46698a"></span>Mid</span>
+    <span><span class="dot" style="background:#6b5a33"></span>Small</span>
+    <span style="margin-left:auto">size &amp; glow = alpha · ${total} on the floor</span>`;
+}
+/* ================= the office scene engine ================= */
+const SCN={W:1150,H:430,BACK:344,FRONT:392,SPEED:110};
+const ST={elev:{x:88,l:0},cooler:{x:208,l:0},term:{x:846,l:1},incin:{x:1006,l:1},hr:{x:655,l:0}};
+const DESK_SPOTS=[{x:280,l:1},{x:430,l:1},{x:580,l:1},{x:730,l:1},{x:355,l:0},{x:505,l:0}];
+const laneY=l=>l?SCN.FRONT:SCN.BACK, laneS=l=>l?1:.84;
+const SCENE={actors:new Map(),inited:false,visible:true,static:false,last:0,zooming:false};
+let PV_ON=false;                                 // true while the office is streaming into a real (OS) picture-in-picture window
+const sceneLive=()=>(SCENE.visible||PV_ON)&&!document.hidden;
+function sceneScale(){ const w=$('#officeScene'),r=$('#sceneRoot'); if(!w||!r)return; r.style.transform='scale('+(w.clientWidth/SCN.W)+')'; }
+function sceneFocus(fx,fy,Z,ms){                 // cinematic punch-in on a point, then ease back
+  if(SCENE.static||SCENE.zooming||!SCENE.visible||document.hidden)return;
+  const w=$('#officeScene'),r=$('#sceneRoot'); if(!w||!r)return;
+  const W=w.clientWidth,H=w.clientHeight,S=W/SCN.W,Sz=S*(Z||1.5);
+  const tx=W/2-fx*Sz, ty=H/2-fy*Sz;
+  SCENE.zooming=true;
+  r.style.transform=`translate(${tx}px,${ty}px) scale(${Sz})`;
+  setTimeout(()=>{ sceneScale(); setTimeout(()=>{SCENE.zooming=false;},1200); }, ms||2300);
+}
+function nyseOpen(){
+  try{ const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());
+    const wd=p.find(x=>x.type==='weekday').value, hh=+p.find(x=>x.type==='hour').value, mm=+p.find(x=>x.type==='minute').value;
+    if(wd==='Sat'||wd==='Sun')return false; const t=hh*60+mm; return t>=570&&t<960; }catch(e){return false;}
+}
+function updateMarketHours(open){
+  const r=$('#sceneRoot'); if(!r)return; if(open===undefined)open=nyseOpen();
+  r.classList.toggle('daymode',open);
+  const moon=$('#sceneMoon'),sun=$('#sceneSun');
+  if(moon)moon.style.display=open?'none':'';
+  if(sun)sun.style.display=open?'':'none';
+  const bd=$('#mktBadge'); if(bd){ bd.className='mkt-badge'+(open?' open':''); bd.innerHTML=open?'<b>●</b> MARKET OPEN':'<b>☾</b> AFTER HOURS'; }
+}
+/* Motion preference. The OS "reduce motion" flag used to hard-kill the floor: the loop never started,
+   operators sat frozen at their desks, and it read as a broken dashboard rather than an accessibility
+   choice — reduce was being treated as delete. The floor is live by default now; anyone who wants the
+   still scene (which still gets the text ticker) can pick it, and the choice sticks. */
+const MOTION_KEY='floor.motion';
+const motionStill=()=>localStorage.getItem(MOTION_KEY)==='still';
+function paintMotionBtn(){
+  const b=$('#motionBtn'); if(!b)return;
+  const still=motionStill();
+  b.textContent=still?'▸ Motion off':'◉ Motion on';
+  b.title=still?'The floor is a still scene — click to bring it to life':'The floor is live — click for a still scene (reduced motion)';
+}
+function sceneInit(){
+  if(SCENE.inited||!$('#officeScene'))return; SCENE.inited=true;
+  SCENE.static=motionStill();
+  document.documentElement.classList.toggle('motion-live', !SCENE.static);
+  paintMotionBtn();
+  const mb=$('#motionBtn');
+  // reload rather than hot-swap: sceneInit seats the actors differently in each mode, and a full
+  // re-init is bulletproof next to unpicking half-walked actors and a running loop.
+  if(mb) mb.onclick=()=>{ localStorage.setItem(MOTION_KEY, motionStill()?'live':'still'); location.reload(); };
+  sceneScale(); addEventListener('resize',()=>{if(!SCENE.zooming)sceneScale();});
+  requestAnimationFrame(()=>{const r=$('#sceneRoot');if(r)r.classList.add('zoomable');});
+  updateMarketHours(); setInterval(updateMarketHours,60000);
+  try{ new IntersectionObserver(es=>{SCENE.visible=es[0].isIntersecting;},{threshold:.05}).observe($('#officeScene')); }catch(e){}
+  const dk=$('#sceneDesks');
+  if(dk) dk.innerHTML=DESK_SPOTS.map((d,i)=>{const y=laneY(d.l);return `<div class="desk" data-i="${i}" style="left:${d.x}px;top:${y+8}px"><div class="plate" style="display:none"></div></div>`;}).join('');
+  if(!SCENE.static) requestAnimationFrame(sceneTick);
+}
+function sceneTick(ts){
+  const dt=Math.min(0.05,(ts-(SCENE.last||ts))/1000); SCENE.last=ts;
+  if(sceneLive()) SCENE.actors.forEach(a=>actorStep(a,dt));
+  requestAnimationFrame(sceneTick);
+}
+function mkActor(addr,opName,o){
+  o=o||{};
+  const el=document.createElement('div');
+  el.className='actor'+(o.regular?' regular':'');
+  el.dataset.a=addr;
+  el.innerHTML=`<div class="tag">${o.rank?'#'+o.rank+' ':''}${addr.slice(0,6)}</div><div class="nameplate"></div><div class="flip"><img class="body" src="${OFFICE_SVG(opName)}" alt=""><span class="bag">💰</span></div><div class="shadow"></div>`;
+  el.onclick=()=>inspectWallet(addr);
+  $('#sceneActors').appendChild(el);
+  const a={addr,el,x:o.x!=null?o.x:ST.elev.x,y:laneY(o.l==null?0:o.l),s:laneS(o.l==null?0:o.l),tx:null,regular:!!o.regular,home:o.home||null,born:Date.now()};
+  SCENE.actors.set(addr,a); actorRender(a); applyHandle(a); return a;
+}
+function handleOf(addr){ return (window.__handles&&window.__handles[addr.toLowerCase()])||null; }
+function applyHandle(a){
+  const np=a.el.querySelector('.nameplate'); if(!np)return;
+  const h=handleOf(a.addr);
+  if(h){ np.innerHTML=''; if(h.avatar){const im=document.createElement('img');im.className='xa';im.src=h.avatar;im.onerror=()=>im.remove();np.appendChild(im);} const x=document.createElement('span');x.className='xm';x.textContent='𝕏';np.appendChild(x); np.appendChild(document.createTextNode(' '+(h.name||('@'+h.handle)))); np.title='@'+h.handle; a.el.classList.add('named'); }
+  else a.el.classList.remove('named');
+}
+function actorRender(a){ a.el.style.zIndex=Math.round(a.y); a.el.style.transform=`translate(${a.x-25}px,${a.y-58}px) scale(${a.s})`; }
+function actorWalk(a,x,l,cb){
+  a.tx={x,y:laneY(l),s:laneS(l),cb};
+  a.el.classList.add('walking');
+  const f=a.el.querySelector('.flip'); if(f)f.style.transform='scaleX('+(x<a.x?-1:1)+')';
+}
+function actorStep(a,dt){
+  if(!a.tx)return;
+  const dx=a.tx.x-a.x, dy=a.tx.y-a.y, dist=Math.hypot(dx,dy), sp=SCN.SPEED*a.s*dt;
+  if(dist<=sp){ a.x=a.tx.x;a.y=a.tx.y;a.s=a.tx.s; const cb=a.tx.cb; a.tx=null; a.el.classList.remove('walking'); actorRender(a); if(cb)cb(a); return; }
+  a.x+=dx/dist*sp; a.y+=dy/dist*sp; a.s+=(a.tx.s-a.s)*Math.min(1,sp/Math.max(1,dist));
+  actorRender(a);
+}
+function removeActor(a){ a.el.classList.add('fadeout'); setTimeout(()=>a.el.remove(),700); SCENE.actors.delete(a.addr); }
+function lbRowOf(addr){ return (window.__lb&&window.__lb.byAlpha.find(r=>r.a.toLowerCase()===addr.toLowerCase()))||null; }
+function ensureActor(addr){
+  let a=SCENE.actors.get(addr); if(a)return a;
+  const visitors=[...SCENE.actors.values()].filter(v=>!v.regular);
+  if(visitors.length>=9) walkOut(visitors.sort((x,y)=>x.born-y.born)[0]);
+  const row=lbRowOf(addr);
+  eleDing();
+  a=mkActor(addr,(row&&row.op)||'Retail Analyst',{rank:row&&row.rank,x:ST.elev.x,l:0});
+  actorWalk(a,240+Math.random()*480,Math.random()<0.5?0:1);
+  return a;
+}
+function walkOut(a){ actorWalk(a,ST.elev.x,0,()=>{eleDing();removeActor(a);}); }
+function eleDing(){ const e=$('#sElev'); if(!e)return; e.classList.add('open'); setTimeout(()=>e.classList.remove('open'),1900); }
+function goHome(a){
+  if(a.regular&&a.home) actorWalk(a,a.home.x,a.home.l);
+  else actorWalk(a,230+Math.random()*500,Math.random()<0.5?0:1);
+}
+function fxLabel(x,y,text,color,live){
+  const fx=$('#sceneFx'); if(!fx)return;
+  const d=document.createElement('div'); d.className='fx-label'+(live?' live':'');
+  d.style.left=x+'px'; d.style.top=(y-70)+'px'; d.style.color=color||'var(--amber)'; d.textContent=text;
+  fx.appendChild(d); setTimeout(()=>d.remove(),2100);
+}
+function fxBurst(x,y,cls,n){
+  const fx=$('#sceneFx'); if(!fx)return;
+  for(let i=0;i<n;i++){ const p=document.createElement('div'); p.className=cls;
+    p.style.left=(x-4+Math.random()*8)+'px'; p.style.top=(y-10)+'px';
+    p.style.setProperty('--dx',(Math.random()*70-35)+'px');
+    p.style.setProperty('--dy',(cls==='fx-ember'?-(30+Math.random()*55):(Math.random()*24-46))+'px');
+    fx.appendChild(p); setTimeout(()=>p.remove(),1300); }
+}
+function fxMini(x,y,opName){
+  const fx=$('#sceneFx'); if(!fx)return;
+  const m=document.createElement('img'); m.className='mini-op'; m.src=OFFICE_SVG(opName);
+  m.style.left=(x+18)+'px'; m.style.top=(y-30)+'px'; m.style.zIndex=y+1;
+  fx.appendChild(m); setTimeout(()=>{m.style.opacity=0;},3600); setTimeout(()=>m.remove(),4600);
+}
+const fmtAmt=v=>v==null?null:(v>=1000?(v/1000).toFixed(1)+'K':(v>=10?Math.round(v):v));
+function performAction(d,live){
+  if(SCENE.static||!SCENE.inited)return;
+  const amt=fmtAmt(d.amt);
+  if(d.t==='newdesk'){ if(!SCENE.actors.get(d.a))ensureActor(d.a); fxLabel(ST.elev.x,laneY(0)-8,'🆕 NEW DESK','var(--brass-light)',live); return; }
+  const a=ensureActor(d.a);
+  switch(d.t){
+    case 'firmburn':
+      a.el.classList.add('carry');
+      actorWalk(a,ST.incin.x-52,1,()=>{
+        a.el.classList.remove('carry');
+        const door=$('#incinDoor'),glow=$('#incinGlow');
+        if(door){door.classList.remove('flare');void door.offsetWidth;door.classList.add('flare');}
+        if(glow){glow.classList.remove('flare');void glow.offsetWidth;glow.classList.add('flare');setTimeout(()=>glow.classList.remove('flare'),950);}
+        fxBurst(ST.incin.x-8,laneY(1)-64,'fx-ember',7);
+        fxLabel(ST.incin.x-30,laneY(1)-6,'🔥 '+d.a.slice(0,6)+' -'+(amt?amt+' ':'')+'FLOOR','var(--red)',live);
+        if(live&&d.amt>=250){ fxBurst(ST.incin.x-8,laneY(1)-64,'fx-ember',10); sceneFocus(ST.incin.x-16,laneY(1)-40,1.55,2400); }
+        setTimeout(()=>goHome(a),2400);
+      });
+      break;
+    case 'collect': case 'claim':
+      actorWalk(a,ST.term.x-46,1,()=>{
+        const c=$('#crtScreen'); if(c){c.classList.add('flash');setTimeout(()=>c.classList.remove('flash'),900);}
+        fxBurst(ST.term.x,laneY(1)-58,'fx-coin',6);
+        fxLabel(ST.term.x-24,laneY(1)-6,(d.t==='claim'?'📈 ':'💰 ')+d.a.slice(0,6)+' +'+(amt?amt+' ':'')+'FLOOR','var(--amber)',live);
+        if(live&&d.amt>=1000){ fxBurst(ST.term.x,laneY(1)-58,'fx-coin',10); sceneFocus(ST.term.x-8,laneY(1)-36,1.5,2300); }
+        setTimeout(()=>goHome(a),2400);
+      });
+      break;
+    case 'recruit': case 'starter': case 'seat':
+      actorWalk(a,ST.hr.x,0,()=>{
+        fxMini(a.x,a.y,d.t==='starter'?'Retail Analyst':'Chart Intern');
+        fxLabel(a.x,a.y-4,d.t==='seat'?'🪑 OPERATOR SEATED':'🤝 NEW RECRUIT','var(--green)',live);
+        setTimeout(()=>goHome(a),3000);
+      });
+      break;
+    case 'unseat': fxLabel(a.x,a.y-4,'📤 UNSEATED','var(--muted-cream)',live); break;
+    case 'upgrade': fxBurst(a.x,a.y-40,'fx-coin',4); fxLabel(a.x,a.y-4,'⬆️ DESK UPGRADED','var(--brass-light)',live); break;
+    case 'referral': fxLabel(a.x,a.y-4,'💸 +'+(amt?amt+' ':'')+'REFERRAL','var(--green)',live); break;
+  }
+}
+function sceneCast(){
+  if(!SCENE.inited||!window.__lb)return;
+  const top=window.__lb.byAlpha.filter(r=>r.op).slice(0,DESK_SPOTS.length);
+  top.forEach((r,i)=>{
+    if(SCENE.actors.has(r.a))return;
+    const d=DESK_SPOTS[i];
+    if(SCENE.static){ mkActor(r.a,r.op,{rank:r.rank,regular:true,x:d.x,l:d.l,home:{x:d.x,l:d.l}}); }
+    else{
+      const a=mkActor(r.a,r.op,{rank:r.rank,regular:true,x:ST.elev.x,l:0,home:{x:d.x,l:d.l}});
+      setTimeout(()=>{eleDing();actorWalk(a,d.x,d.l);},400+i*800);
+    }
+    labelDeskPlate(i,r);
+  });
+}
+function labelDeskPlate(i,r){
+  const plate=document.querySelector('#sceneDesks .desk[data-i="'+i+'"] .plate'); if(!plate)return;
+  const h=handleOf(r.a);
+  plate.textContent='#'+r.rank+' '+(h?'@'+h.handle:r.a.slice(0,6)); plate.style.display='block';
+}
+function relabelPlates(){ if(!window.__lb)return; window.__lb.byAlpha.filter(r=>r.op).slice(0,DESK_SPOTS.length).forEach((r,i)=>labelDeskPlate(i,r)); }
+async function loadHandles(){
+  try{ const j=await (await fetch('/api/handles',{cache:'no-store'})).json();
+    window.__handles=(j&&j.handles)||{};
+    if(typeof SCENE!=='undefined'&&SCENE.actors) SCENE.actors.forEach(a=>{try{applyHandle(a)}catch(e){}});
+    try{ relabelPlates(); }catch(e){}
+    if(window.__lastAddr){ try{ renderFlexCard(); }catch(e){} }
+  }catch(e){}
+}
+loadHandles(); setInterval(loadHandles, 600000);
+const actQ=[];
+setInterval(()=>{ if(!sceneLive())return; const d=actQ.shift(); if(d)performAction(d,d.__live); },1800);
+setInterval(()=>{ // ambient life: wander, cooler trips, quiet replays of recent actions
+  if(!SCENE.inited||SCENE.static||!sceneLive())return;
+  const as=[...SCENE.actors.values()].filter(a=>!a.tx);
+  if(as.length&&Math.random()<0.75){ const a=as[Math.floor(Math.random()*as.length)];
+    if(Math.random()<0.22) actorWalk(a,ST.cooler.x+16,0,()=>setTimeout(()=>goHome(a),2600));
+    else if(!a.regular||Math.random()<0.4) actorWalk(a,Math.max(180,Math.min(940,a.x+(Math.random()*160-80))),Math.random()<0.5?0:1,()=>{ if(a.regular)setTimeout(()=>goHome(a),4000); });
+  }
+  if(!actQ.length&&window.__feed&&window.__feed.length&&Math.random()<0.5){
+    const d=window.__feed[Math.floor(Math.random()*Math.min(20,window.__feed.length))];
+    if(d)actQ.push({...d,__live:false});
+  }
+},7000);
+/* live on-chain actions -> avatar animations + ticker */
+const ACT_META={
+  collect:{e:'💰',v:'collected',amtSuffix:' FLOOR'},
+  claim:{e:'📈',v:'claimed',amtSuffix:' FLOOR'},
+  seat:{e:'🪑',v:'seated an operator'},
+  recruit:{e:'🤝',v:'recruited an operator'},
+  starter:{e:'🌱',v:'recruited a starter'},
+  unseat:{e:'📤',v:'unseated an operator'},
+  upgrade:{e:'⬆️',v:'upgraded their desk'},
+  newdesk:{e:'🆕',v:'opened a desk'},
+  referral:{e:'💸',v:'earned',amtSuffix:' FLOOR referral'},
+  firmburn:{e:'🔥',v:'burned',amtSuffix:' FLOOR to their firm',cls:'burn'}
+};
+const __seenActs=new Set(); let __actsPrimed=false;
+function tickerLine(d){
+  const m=ACT_META[d.t]||{e:'◎',v:d.t};
+  const amt=(d.amt&&m.amtSuffix)?` <span class="amt">${d.amt>=1000?(d.amt/1000).toFixed(1)+'K':d.amt}${m.amtSuffix}</span>`:'';
+  return `<span class="ti ${m.cls||''}">${m.e} <b>${d.a.slice(0,6)}</b> ${m.v}${amt}</span>`;
+}
+async function loadLiveActions(){
+  let j=null; try{ j=await (await fetch('/api/live-actions',{cache:'no-store'})).json(); }catch(e){ return; }
+  if(!j||!j.ok||!Array.isArray(j.actions)||!j.actions.length)return;
+  window.__feed=j.actions;
+  const tape=$('#boardTape');
+  if(tape){ tape.textContent=j.actions.slice(0,12).map(d=>{const m=ACT_META[d.t]||{e:'◎',v:d.t};const amt=(d.amt&&m.amtSuffix)?' '+fmtAmt(d.amt)+m.amtSuffix:'';return m.e+' '+d.a.slice(0,6)+' '+m.v+amt;}).join('   ···   '); }
+  const tick=$('#officeTicker');
+  if(tick&&SCENE.static){ tick.innerHTML=j.actions.slice(0,10).map(tickerLine).join('<span style="color:#37301f">·</span>'); tick.style.display='flex'; }
+  const fresh=[];
+  j.actions.forEach(d=>{ const k=d.t+':'+d.a+':'+d.blk; if(!__seenActs.has(k)){ __seenActs.add(k); fresh.push(d); } });
+  if(!__actsPrimed){ __actsPrimed=true; return; }        // don't act out the prefill backlog on first load
+  fresh.slice(0,8).forEach(d=>actQ.push({...d,__live:true}));   // live events queue bright
+}
+sceneInit();
+loadLiveActions(); setInterval(loadLiveActions, 30000);
+loadOffice(); setInterval(loadOffice, 240000);
+
+/* ---- pop-out floating office (picture-in-picture style, in-page) ---- */
+let PIP_OUT=false;
+function popOut(){
+  if(PIP_OUT)return; const scene=$('#officeScene'); if(!scene)return;
+  const ph=document.createElement('div'); ph.id='officePH'; ph.className='pip-ph';
+  ph.innerHTML='▸ The floor is playing in the detached panel.<button class="pd" id="phDock">Dock it back</button>';
+  scene.parentNode.insertBefore(ph, scene);
+  $('#pipBody').appendChild(scene);
+  $('#pipDock').style.display='block';
+  // honest label: this is an in-page panel, not an OS window. Say so on the devices (iPhone/Firefox)
+  // where the browser refuses real picture-in-picture, so we never promise floating over other apps.
+  const hint=$('#pipHint');
+  if(hint){ if(pvCanSee()){ hint.style.display='none'; }
+    else { hint.textContent='in-page · stays inside Safari'; hint.style.display='block'; } }
+  $('#pipBtn') && ($('#pipBtn').textContent=pvCanSee()?'⧉ In pop-out':'⧉ Docked here');
+  PIP_OUT=true;
+  $('#phDock').onclick=dockIn;
+  requestAnimationFrame(()=>{ try{sceneScale();}catch(e){} });
+}
+function dockIn(){
+  if(!PIP_OUT)return; const scene=$('#officeScene'), ph=$('#officePH');
+  if(ph){ ph.parentNode.insertBefore(scene, ph); ph.remove(); }
+  $('#pipDock').style.display='none';
+  const hint=$('#pipHint'); if(hint) hint.style.display='none';
+  $('#pipBtn') && ($('#pipBtn').textContent=pvCanSee()?'⧉ Pop out':'⧉ Detach');
+  PIP_OUT=false;
+  requestAnimationFrame(()=>{ try{sceneScale();}catch(e){} });
+}
+/* ---- REAL picture-in-picture: mirror the live office onto a <canvas>, stream it, and hand the
+       browser a <video> so it opens an OS-level PiP window that floats over other apps.
+       Works on Chrome/Edge (desktop + Android). iOS/Firefox reject canvas-stream PiP -> we
+       fall back to the in-page floating player above. ---- */
+const PV={canvas:null,ctx:null,video:null,stream:null,bg:null,fg:null,op:{},raf:0,last:0,worker:null,timer:null};
+function pvCanSee(){ return !!(document.pictureInPictureEnabled && HTMLVideoElement.prototype.requestPictureInPicture); }
+function pvSvgToImg(el){ if(!el)return null; try{ const c=el.cloneNode(true);
+    c.setAttribute('width',SCN.W); c.setAttribute('height',SCN.H);       // give it intrinsic size so canvas draws it
+    const s=new XMLSerializer().serializeToString(c);
+    const im=new Image(); im.decoding='async'; im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s); return im; }catch(e){ return null; } }
+function pvActorSlug(a){ const im=a.el&&a.el.querySelector('.body'); const m=im&&/operator-([a-z0-9-]+)\.svg/.exec(im.getAttribute('src')||''); return m?m[1]:'retail-analyst'; }
+function pvOpImg(slug){ if(!PV.op[slug]){ const im=new Image(); im.decoding='async'; im.__ok=false;
+    im.onload=()=>im.__ok=true; im.onerror=()=>im.__ok=false; im.src='/opart/'+slug+'.svg'; PV.op[slug]=im; } return PV.op[slug]; }
+function pvInit(){
+  if(PV.canvas)return;
+  const c=document.createElement('canvas'); c.width=SCN.W; c.height=SCN.H; PV.canvas=c; PV.ctx=c.getContext('2d');
+  const v=document.createElement('video'); v.muted=true; v.playsInline=true; v.setAttribute('playsinline','');
+  v.setAttribute('autoplay',''); v.style.cssText='position:fixed;left:-9999px;width:2px;height:2px;opacity:0;pointer-events:none';
+  document.body.appendChild(v); PV.video=v;
+  v.addEventListener('leavepictureinpicture',()=>{ PV_ON=false; $('#pipBtn')&&($('#pipBtn').textContent='⧉ Pop out'); pvStopLoop(); try{v.pause();}catch(_){} });
+  PV.stream=c.captureStream(30); v.srcObject=PV.stream;
+}
+function pvRefreshArt(){ PV.bg=pvSvgToImg($('#sceneBg')); PV.fg=pvSvgToImg($('#sceneFgSvg')); }
+function pvDraw(){
+  const ctx=PV.ctx; if(!ctx)return;
+  ctx.fillStyle='#0d0a06'; ctx.fillRect(0,0,SCN.W,SCN.H);
+  if(PV.bg&&PV.bg.complete&&PV.bg.naturalWidth) ctx.drawImage(PV.bg,0,0,SCN.W,SCN.H);
+  const acts=[...SCENE.actors.values()].sort((a,b)=>a.y-b.y);
+  for(const a of acts){ const im=pvOpImg(pvActorSlug(a)); if(im&&im.__ok){
+    const s=a.s||1,w=48*s,h=48*s; try{ ctx.drawImage(im,a.x-w/2,a.y-h,w,h); }catch(_){}
+  } }
+  if(PV.fg&&PV.fg.complete&&PV.fg.naturalWidth) ctx.drawImage(PV.fg,0,0,SCN.W,SCN.H);
+  // light nameplates for wallets with a linked X handle
+  ctx.font='600 15px "IBM Plex Mono",ui-monospace,monospace'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  for(const a of acts){ const hh=handleOf(a.addr); if(!hh)continue;
+    const label='𝕏 '+(hh.name||('@'+hh.handle)); const tw=ctx.measureText(label).width+14, ty=a.y-48*(a.s||1)-10;
+    ctx.fillStyle='rgba(9,6,3,.82)'; ctx.fillRect(a.x-tw/2,ty-14,tw,18);
+    ctx.fillStyle='#f2e8d5'; ctx.fillText(label,a.x,ty); }
+  // live watermark
+  ctx.textAlign='left'; ctx.font='600 16px "IBM Plex Mono",monospace';
+  ctx.fillStyle='rgba(212,175,90,.9)'; ctx.fillText('▸ THE FLOOR · LIVE',18,28);
+}
+function pvTick(dtMs){
+  const dt=Math.min(0.05,(dtMs||0)/1000);
+  // Drive the sim here whenever the in-page loop isn't. The old check was `!SCENE.visible && !document.hidden`,
+  // which excluded the hidden case — i.e. it deliberately stopped animating the moment you switched tabs,
+  // which is the only time the PiP window is what you're looking at.
+  if(!sceneLive()) SCENE.actors.forEach(a=>actorStep(a,dt));
+  pvDraw();
+}
+/* The PiP feed must NOT be rAF-driven: browsers suspend requestAnimationFrame in a hidden document, so
+   the canvas stopped being drawn the instant you left the tab and the floating window froze on its last
+   frame. Main-thread setInterval is throttled to ~1Hz in background tabs, so that's no good either — a
+   worker timer keeps ticking at full rate and just tells the main thread when to draw. */
+function pvStartLoop(){
+  pvStopLoop(); PV.last=0;
+  const tick=()=>{ const now=performance.now(); const dt=PV.last?now-PV.last:33; PV.last=now; try{ pvTick(dt); }catch(_){} };
+  try{
+    const src='let i;onmessage=function(e){clearInterval(i);if(e.data>0)i=setInterval(function(){postMessage(0)},e.data)}';
+    PV.worker=new Worker(URL.createObjectURL(new Blob([src],{type:'application/javascript'})));
+    PV.worker.onmessage=tick; PV.worker.postMessage(33); return;
+  }catch(e){}
+  PV.timer=setInterval(tick,33);                   // fallback: throttled in background, but better than frozen
+}
+function pvStopLoop(){
+  if(PV.worker){ try{ PV.worker.postMessage(0); PV.worker.terminate(); }catch(_){} PV.worker=null; }
+  if(PV.timer){ clearInterval(PV.timer); PV.timer=null; }
+  if(PV.raf){ cancelAnimationFrame(PV.raf); PV.raf=0; }
+}
+function pvWarm(){                                 // prime the video with flowing frames BEFORE the click, so PiP is ready
+  if(!pvCanSee()||PV.canvas)return;
+  pvInit(); pvRefreshArt(); SCENE.actors.forEach(a=>pvOpImg(pvActorSlug(a)));
+  pvDraw(); try{ PV.video.play().catch(()=>{}); }catch(_){}
+}
+async function enterPiP(){
+  pvWarm(); pvInit(); pvRefreshArt();
+  SCENE.actors.forEach(a=>pvOpImg(pvActorSlug(a)));
+  PV_ON=true; $('#pipBtn')&&($('#pipBtn').textContent='⧉ In pop-out');
+  pvDraw(); pvStartLoop();
+  const v=PV.video;
+  try{ if(v.paused) v.play().catch(()=>{});     // no await -> keep the user gesture alive for requestPictureInPicture
+    await v.requestPictureInPicture(); return true; }
+  catch(e){ // PiP denied (iOS/Firefox) or not-ready -> in-page floating player instead
+    PV_ON=false; pvStopLoop(); $('#pipBtn')&&($('#pipBtn').textContent='⧉ Pop out');
+    popOut(); return false; }
+}
+async function exitPiP(){ try{ if(document.pictureInPictureElement) await document.exitPictureInPicture(); }catch(_){}
+  PV_ON=false; pvStopLoop(); }
+function togglePop(){
+  if(PIP_OUT){ dockIn(); return; }
+  if(document.pictureInPictureElement){ exitPiP(); return; }
+  if(pvCanSee()) enterPiP(); else popOut();   // real OS PiP where supported, in-page floater elsewhere
+}
+(function(){
+  const btn=$('#pipBtn');
+  if(btn){
+    if(!pvCanSee()){                                // iPhone Safari / Firefox: no OS-level PiP, only an in-page panel
+      btn.textContent='⧉ Detach';
+      btn.title='Floats within the page — Safari on iPhone can’t float it over other apps';
+    }
+    btn.onclick=togglePop; btn.addEventListener('pointerdown',pvWarm);
+  }
+  const close=$('#pipClose'); if(close) close.onclick=dockIn;
+  const bar=$('#pipBar'), dock=$('#pipDock'); let drag=null;
+  if(bar&&dock){
+    bar.addEventListener('pointerdown',e=>{ if(e.target.closest('.pip-ctl'))return;
+      const r=dock.getBoundingClientRect(); drag={sx:e.clientX,sy:e.clientY,l:r.left,t:r.top};
+      dock.style.right='auto';dock.style.bottom='auto';dock.style.left=r.left+'px';dock.style.top=r.top+'px';
+      try{bar.setPointerCapture(e.pointerId);}catch(_){}} );
+    bar.addEventListener('pointermove',e=>{ if(!drag)return;
+      let l=drag.l+(e.clientX-drag.sx), t=drag.t+(e.clientY-drag.sy);
+      l=Math.max(4,Math.min(innerWidth-dock.offsetWidth-4,l)); t=Math.max(4,Math.min(innerHeight-dock.offsetHeight-4,t));
+      dock.style.left=l+'px';dock.style.top=t+'px'; });
+    bar.addEventListener('pointerup',()=>{drag=null;});
+  }
+})();
+
+/* ---------------- Players vs Traders behavior ---------------- */
+function renderBehavior(b){
+  const M=n=>{const a=Math.abs(n); return (n<0?'-':'')+(a>=1e6?(a/1e6).toFixed(2)+'M':a>=1e3?Math.round(a/1e3)+'K':Math.round(a));};
+  const usd=n=>{const p=window.__price||0; if(!p||!n)return ''; const d=Math.abs(n)*p; return ' <small style="color:var(--muted);font-weight:400">$'+(d>=1e6?(d/1e6).toFixed(2)+'M':d>=1e3?(d/1e3).toFixed(0)+'K':d.toFixed(0))+'</small>';};
+  const pShare=Math.round(b.playerSellShare||0), tShare=100-pShare;
+  const split=$('#behSplit'); if(split){ const g=split.children[0], r=split.children[1];
+    g.style.width=Math.max(6,pShare)+'%'; g.textContent=pShare+'%';
+    r.style.width=Math.max(6,tShare)+'%'; r.textContent=tShare+'%'; }
+  const head=$('#behHead');
+  if(head){
+    // "trackable" is load-bearing: liquidity moves are excluded, and swaps routed through an
+    // aggregator/bot arrive from the contract, so they can't be tied to a person either way.
+    let h='<b style="color:var(--paper)">desk owners drive just '+pShare+'% of trackable sell volume.</b> the other '+tShare+'% is wallets that never opened a desk';
+    const att=Math.round(b.attributableShare||0), lp=(b.liquidity&&b.liquidity.added)||0;
+    if(att>0&&att<100) h+='<small style="display:block;margin-top:6px;color:var(--muted)">only '+att+'% of pool sells can be tied to a wallet — the rest route through aggregators/bots'+(lp?'. '+M(lp)+' FLOOR of liquidity provision is excluded, not counted as selling':'')+'</small>';
+    head.innerHTML=h;
+  }
+  const ph=$('#behPlayersH'); if(ph) ph.textContent='Players · '+fmt(b.players)+' desk owners';
+  const pl=b.player||{}, tr=b.trader||{};
+  const netP = pl.net>=0 ? '<span style="color:var(--green)">+'+M(pl.net)+' · net buyers</span>' : (Math.abs(pl.net) < pl.sold*0.05 ? '<span style="color:var(--amber)">'+M(pl.net)+' · basically flat</span>' : '<span style="color:var(--red)">'+M(pl.net)+'</span>');
+  $('#behPlayers').innerHTML=`
+    <div class="out"><span class="k">🔥 Reinvested into desks</span><span class="v" style="color:var(--amber)">${M(pl.reinvested)}${usd(pl.reinvested)}</span></div>
+    <div class="out"><span class="k">Sold to pool</span><span class="v">${M(pl.sold)}</span></div>
+    <div class="out"><span class="k">Bought from pool</span><span class="v">${M(pl.bought)}</span></div>
+    <div class="out"><span class="k">Net trading</span><span class="v" style="font-size:15px">${netP}</span></div>`;
+  const netT = tr.net>=0 ? '<span style="color:var(--green)">+'+M(tr.net)+'</span>' : '<span style="color:var(--red)">'+M(tr.net)+' · net sellers</span>';
+  $('#behTraders').innerHTML=`
+    <div class="out"><span class="k">Reinvested into desks</span><span class="v" style="color:var(--muted)">none</span></div>
+    <div class="out"><span class="k">Sold to pool</span><span class="v">${M(tr.sold)}</span></div>
+    <div class="out"><span class="k">Bought from pool</span><span class="v">${M(tr.bought)}</span></div>
+    <div class="out"><span class="k">Net trading</span><span class="v" style="font-size:15px">${netT}</span></div>`;
+  const sub=$('#behSub'); if(sub) sub.textContent=fmt(b.players)+' desk owners vs pure traders · live';
+}
+async function loadBehavior(){
+  try{ const j=await (await fetch('/api/behavior',{cache:'no-store'})).json();
+    if(j.ok && j.behavior) renderBehavior(j.behavior);
+    else { const h=$('#behHead'); if(h) h.textContent='computing player vs trader flows… (first build ~2 min)'; }
+  }catch(e){}
+}
+loadBehavior(); setInterval(loadBehavior, 300000);
+
+loadChain();
+setInterval(loadChain, 180000);   // refresh the shared strip every ~3 min from cache
+
+/* top holders leaderboard (server-cached) */
+async function loadHolders(){
+  try{
+    const d=await (await fetch('/api/holders',{cache:'no-store'})).json();
+    if(!d.ok||!d.holders||!d.holders.length) return;
+    $('#holdersTbl tbody').innerHTML=d.holders.map((h,i)=>{
+      const short=h.address.slice(0,6)+'…'+h.address.slice(-4);
+      const isDead=/dead$/i.test(h.address);
+      const name=h.name||(isDead?'🔥 Burn address':null);
+      const link=`<a href="${EXPLORER}/address/${h.address}" target="_blank" rel="noopener"${(name)?' style="color:var(--brass-light)"':''}>${name||short}</a>`;
+      const sub=name?` <span class="muted" style="font-size:11px">${short}</span>`:(h.isContract?' <span class="muted" style="font-size:10px">contract</span>':'');
+      return `<tr><td class="num muted">${i+1}</td><td class="name">${link}${sub}</td><td class="num amber">${fmt(h.value)}</td><td class="num">${h.pct.toFixed(2)}%</td></tr>`;
+    }).join('');
+  }catch(e){}
+}
+loadHolders(); setInterval(loadHolders,180000);
+
+/* engagement instrumentation */
+if($('.playbtn')) $('.playbtn').addEventListener('click',()=>TRACK('play_click'));
+(()=>{ let used=false; const mark=()=>{ if(!used){used=true;TRACK('calc_use');} };
+  ['deskSel','officeSel','epochSel','netAlpha'].forEach(id=>{ const el=$('#'+id); if(el) el.addEventListener('input',mark); });
+  const pt=$('#pickTbl'); if(pt){ pt.addEventListener('click',mark); pt.addEventListener('input',mark); }
+})();
+(()=>{ if(!('IntersectionObserver' in window))return; const seen=new Set();
+  const io=new IntersectionObserver(es=>es.forEach(en=>{ if(en.isIntersecting){ const id=en.target.id; if(id&&!seen.has(id)){ seen.add(id); TRACK('section_view',{id}); } } }),{threshold:.4});
+  document.querySelectorAll('section[id]').forEach(s=>io.observe(s)); })();
+
+/* ticker: live halving countdown (auto-rolls every 30-day epoch) */
+(function(){
+  const FALLBACK=1785635953000; const EPOCH=30*86400*1000; const el=$('#halveCd'); if(!el)return;   // exact nextHalvingTime() from chain, via window.__halveAt
+  function tick(){ const now=Date.now(); let target=window.__halveAt||FALLBACK; while(target<=now)target+=EPOCH; let s=Math.floor((target-now)/1000);
+    const d=Math.floor(s/86400); s-=d*86400; const h=Math.floor(s/3600); s-=h*3600; const m=Math.floor(s/60); s-=m*60;
+    el.textContent=d+'d '+String(h).padStart(2,'0')+'h '+String(m).padStart(2,'0')+'m '+String(s).padStart(2,'0')+'s';
+    const chip=document.getElementById('halveChip'); if(chip) chip.innerHTML=d+'d <small>'+String(h).padStart(2,'0')+'h</small>';
+    const sh=document.getElementById('stateHalve'); if(sh) sh.textContent=d+'d '+String(h).padStart(2,'0')+'h'; }
+  tick(); setInterval(tick,1000);
+})();
+/* ticker: deals broadcast (owner-controlled via POST /deals-status) */
+(function(){
+  const ind=$('#dealsInd'), msg=$('#dealsMsg'); if(!ind)return; let wasLive=false;
+  async function poll(){ try{ const r=await fetch('/deals-status',{cache:'no-store'}); if(!r.ok)return; const d=await r.json();
+    if(d.live){ ind.classList.add('live'); ind.classList.remove('off'); msg.textContent=d.msg||'Deals live — Ring the Bell'; if(!wasLive){wasLive=true;TRACK('deals_shown');} }
+    else{ ind.classList.remove('live'); ind.classList.add('off'); msg.textContent='Deals'; wasLive=false; }
+  }catch(e){} }
+  poll(); setInterval(poll,60000);
+  ind.addEventListener('click',()=>TRACK('deals_click',{live:ind.classList.contains('live')}));
+})();
+
+// events
+$('#pickTbl').addEventListener('click',e=>{
+  const inc=e.target.dataset.inc, dec=e.target.dataset.dec;
+  if(inc!==undefined){ const i=+inc; seated[i]++; $('#q'+i).value=seated[i]; recomputeUpg(); }
+  if(dec!==undefined){ const i=+dec; seated[i]=Math.max(0,seated[i]-1); $('#q'+i).value=seated[i]; recomputeUpg(); }
+});
+$('#pickTbl').addEventListener('input',e=>{
+  const m=e.target.id.match(/^q(\d+)$/); if(m){ const i=+m[1]; seated[i]=Math.max(0,parseInt(e.target.value)||0); recomputeUpg(); }
+});
+$('#clearBtn').addEventListener('click',()=>{ seated.fill(0); OPS.forEach((_,i)=>$('#q'+i).value=0); recomputeUpg(); });
+['deskSel','officeSel','internSel','principalSel','xbadgeSel','otherBoost','epochSel','netAlpha','price','fromSel','toSel']
+  .forEach(id=>$('#'+id).addEventListener('input',recomputeUpg));
+// remember if the user set their own desk/roster, so a live wallet load doesn't wipe it
+window.__builderTouched=false;
+$('#deskSel').addEventListener('change',()=>window.__builderTouched=true);
+$('#pickTbl').addEventListener('click',()=>window.__builderTouched=true);
+$('#pickTbl').addEventListener('input',()=>window.__builderTouched=true);
+
+// start blank — the report + trading floor stay empty until a wallet is loaded (or the builder is used)
+$('#fromSel').value=0;
+recomputeUpg();
+
+/* ---------------- tabbed navigation ---------------- */
+(function(){
+  const panels=[...document.querySelectorAll('#tabpanels>section')];
+  const btns=[...document.querySelectorAll('.tabx')];
+  const secTab=id=>{const s=document.getElementById(id);return s?s.getAttribute('data-tab'):null;};
+  function onShow(name){
+    if(name==='floor'){ try{sceneScale();}catch(e){} try{sceneCast();}catch(e){} }
+    if(name==='markets'){ try{drawTrend();}catch(e){} }
+    if(name==='league'){ try{if(window.__lb)renderLeaderboard(window.__lb);}catch(e){} }
+  }
+  function showTab(name,opts){
+    opts=opts||{};
+    if(!btns.some(b=>b.dataset.tab===name)) name='floor';
+    panels.forEach(s=>{ s.style.display=(s.getAttribute('data-tab')===name)?'':'none'; });
+    btns.forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
+    window.__tab=name; onShow(name);
+    if(!opts.noScroll){ const tp=document.getElementById('tabpanels'); if(tp) window.scrollTo({top:Math.max(0,tp.offsetTop-72),behavior:'smooth'}); }
+    try{ if(name!=='floor') history.replaceState(null,'','#'+name); else history.replaceState(null,'',location.pathname); }catch(e){}
+  }
+  window.showTab=showTab;
+  btns.forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+  function fromHash(){
+    const h=location.hash.slice(1); if(!h) return false;
+    if(btns.some(b=>b.dataset.tab===h)){ showTab(h,{noScroll:true}); return true; }   // #league etc
+    const t=secTab(h);                                                                  // #state, #player… deep link into a tab
+    if(t){ showTab(t,{noScroll:true}); const el=document.getElementById(h); if(el) setTimeout(()=>el.scrollIntoView({behavior:'smooth',block:'start'}),80); return true; }
+    return false;
+  }
+  window.addEventListener('hashchange',fromHash);
+  if(!fromHash()) showTab('floor',{noScroll:true});
+})();
+</script>
+</body>
+</html>

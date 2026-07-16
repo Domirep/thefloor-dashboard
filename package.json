@@ -1,0 +1,12 @@
+{
+  "name": "thefloor-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Unofficial dashboard & yield calculator for thefloor.sh",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

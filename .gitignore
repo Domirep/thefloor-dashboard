@@ -1,0 +1,7 @@
+.env
+x-thread.js
+thread-floor.json
+node_modules/
+data-local/
+.claude/
+*.log
