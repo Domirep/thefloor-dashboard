@@ -1025,6 +1025,22 @@ function track(e) {
   console.log('EVT ' + JSON.stringify(e));   // -> Railway logs for live monitoring
 }
 
+// Visitors' wallet browser extensions (MetaMask/Phantom/Rabby/…) throw unhandled promise rejections as
+// they fight over window.ethereum on load. The dashboard is read-only and never touches a wallet, so a
+// promise_reject mentioning wallet/provider terms is NOT our error — it's extension noise that was
+// burying real errors in the admin panel. Filtered at ingestion so it also catches already-cached
+// clients that keep sending the old, unfiltered payload.
+const WALLET_NOISE = /metamask|ethereum|window\.ethereum|\bwallet\b|solana|web3|injected|phantom|coinbase|okx|evmask|starkey|trust|braavos|rabby|eip-1193|extension:\/\//i;
+function isWalletNoise(e) { return e && e.t === 'promise_reject' && WALLET_NOISE.test(String(e.msg || '')); }
+// One-time purge of noise older/cached clients already logged, so the panel is clean right after deploy.
+(() => {
+  let removed = 0;
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (isWalletNoise(events[i])) { counts.promise_reject = Math.max(0, (counts.promise_reject || 0) - 1); events.splice(i, 1); removed++; }
+  }
+  if (removed) { dirty = true; counts.wallet_noise = (counts.wallet_noise || 0) + removed; console.log('PURGED ' + removed + ' wallet-extension promise_reject noise events'); }
+})();
+
 // ---- MCP adoption telemetry ----
 // Its own store, NOT the page-telemetry events buffer: a popular MCP could churn 8000 events fast and
 // evict pageviews/errors. Honest about what it can and can't know — there's no auth, so `connects` counts
@@ -1683,7 +1699,10 @@ write tools return unsigned calldata for your own signer. Never send a private k
     let b = '';
     req.on('data', c => { b += c; if (b.length > 4000) req.destroy(); });
     req.on('end', () => {
-      try { const e = JSON.parse(b); e.t = String(e.t || '?').slice(0, 40); delete e.ua_full; track(e); } catch (_) {}
+      try { const e = JSON.parse(b); e.t = String(e.t || '?').slice(0, 40); delete e.ua_full;
+        if (isWalletNoise(e)) { counts.wallet_noise = (counts.wallet_noise || 0) + 1; dirty = true; }  // count it, don't store it
+        else track(e);
+      } catch (_) {}
       res.writeHead(204); res.end();
     });
     return;

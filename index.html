@@ -1187,7 +1187,10 @@ const TRACK=(()=>{
 })();
 TRACK('pageview',{path:location.pathname});
 addEventListener('error',e=>{ const fn=e.filename||''; if(fn && !fn.startsWith(location.origin)) return; /* ignore wallet-extension inpage.js/sui.js/solana.js noise */ if(!fn && e.message==='Script error.') return; /* opaque cross-origin errors (iOS Safari) — not ours */ TRACK('js_error',{msg:(e.message||'').slice(0,200),src:fn.split('/').pop(),line:e.lineno}); });
-addEventListener('unhandledrejection',e=>TRACK('promise_reject',{msg:String(e&&e.reason).slice(0,200)}));
+addEventListener('unhandledrejection',e=>{ const s=String((e&&e.reason&&(e.reason.stack||e.reason.message))||(e&&e.reason)||'');
+  /* ignore wallet browser-extension noise (MetaMask/Phantom/etc. fighting over window.ethereum). the dashboard never connects a wallet, so anything wallet-shaped isn't ours */
+  if(/metamask|ethereum|wallet|solana|web3|injected|phantom|coinbase|okx|rabby|trust|extension:\/\//i.test(s))return;
+  TRACK('promise_reject',{msg:String(e&&e.reason).slice(0,200)}); });
 document.querySelectorAll('details.faq').forEach(d=>d.addEventListener('toggle',()=>{ if(d.open) TRACK('faq_open',{q:d.querySelector('summary').textContent.slice(0,60)}); }));
 /* auto-load: /?addr=0x… share links (explicit), else the last wallet you looked up (remembered) */
 (()=>{
