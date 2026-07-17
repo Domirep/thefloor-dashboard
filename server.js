@@ -1033,7 +1033,7 @@ function track(e) {
 // Covers both flavors of extension noise: promise_reject (wallet extensions fighting over
 // window.ethereum) AND js_error (extensions injecting globals like __firefox__ into the page). None of
 // these reference the dashboard's own code — it never touches a wallet — so they're not our errors.
-const EXT_NOISE = /metamask|ethereum|window\.ethereum|\bwallet\b|solana|web3|injected|phantom|coinbase|okx|evmask|starkey|trust|braavos|rabby|eip-1193|extension:\/\/|__firefox__|__reactPageState|zaloJSV2/i;
+const EXT_NOISE = /metamask|ethereum|window\.ethereum|\bwallet\b|solana|web3|injected|phantom|coinbase|okx|evmask|starkey|trust|braavos|rabby|eip-1193|extension:\/\/|__firefox__|__reactPageState|zaloJSV2|darkreader|chrome-extension|onMessage|reading '(addListener|emit|runtime|sendMessage|onConnect)'|\bScript error\b/i;
 function isExtNoise(e) { return e && (e.t === 'promise_reject' || e.t === 'js_error') && EXT_NOISE.test(String(e.msg || '')); }
 // One-time purge of noise older/cached clients already logged, so the panel is clean right after deploy.
 (() => {
