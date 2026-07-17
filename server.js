@@ -1030,15 +1030,19 @@ function track(e) {
 // promise_reject mentioning wallet/provider terms is NOT our error — it's extension noise that was
 // burying real errors in the admin panel. Filtered at ingestion so it also catches already-cached
 // clients that keep sending the old, unfiltered payload.
-const WALLET_NOISE = /metamask|ethereum|window\.ethereum|\bwallet\b|solana|web3|injected|phantom|coinbase|okx|evmask|starkey|trust|braavos|rabby|eip-1193|extension:\/\//i;
-function isWalletNoise(e) { return e && e.t === 'promise_reject' && WALLET_NOISE.test(String(e.msg || '')); }
+// Covers both flavors of extension noise: promise_reject (wallet extensions fighting over
+// window.ethereum) AND js_error (extensions injecting globals like __firefox__ into the page). None of
+// these reference the dashboard's own code — it never touches a wallet — so they're not our errors.
+const EXT_NOISE = /metamask|ethereum|window\.ethereum|\bwallet\b|solana|web3|injected|phantom|coinbase|okx|evmask|starkey|trust|braavos|rabby|eip-1193|extension:\/\/|__firefox__|__reactPageState|zaloJSV2/i;
+function isExtNoise(e) { return e && (e.t === 'promise_reject' || e.t === 'js_error') && EXT_NOISE.test(String(e.msg || '')); }
 // One-time purge of noise older/cached clients already logged, so the panel is clean right after deploy.
 (() => {
   let removed = 0;
   for (let i = events.length - 1; i >= 0; i--) {
-    if (isWalletNoise(events[i])) { counts.promise_reject = Math.max(0, (counts.promise_reject || 0) - 1); events.splice(i, 1); removed++; }
+    const e = events[i];
+    if (isExtNoise(e)) { counts[e.t] = Math.max(0, (counts[e.t] || 0) - 1); events.splice(i, 1); removed++; }
   }
-  if (removed) { dirty = true; counts.wallet_noise = (counts.wallet_noise || 0) + removed; console.log('PURGED ' + removed + ' wallet-extension promise_reject noise events'); }
+  if (removed) { dirty = true; counts.ext_noise = (counts.ext_noise || 0) + removed; console.log('PURGED ' + removed + ' browser-extension noise events'); }
 })();
 
 // ---- MCP adoption telemetry ----
@@ -1700,7 +1704,7 @@ write tools return unsigned calldata for your own signer. Never send a private k
     req.on('data', c => { b += c; if (b.length > 4000) req.destroy(); });
     req.on('end', () => {
       try { const e = JSON.parse(b); e.t = String(e.t || '?').slice(0, 40); delete e.ua_full;
-        if (isWalletNoise(e)) { counts.wallet_noise = (counts.wallet_noise || 0) + 1; dirty = true; }  // count it, don't store it
+        if (isExtNoise(e)) { counts.ext_noise = (counts.ext_noise || 0) + 1; dirty = true; }  // count it, don't store it
         else track(e);
       } catch (_) {}
       res.writeHead(204); res.end();
