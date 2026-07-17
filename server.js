@@ -1612,7 +1612,7 @@ http.createServer(async (req, res) => {
 <h1 style="color:#d4af5a;font-size:22px;letter-spacing:1px">▸ THE FLOOR · MCP</h1>
 <p>This URL is a <b>Model Context Protocol</b> endpoint — it's for your AI agent, not your browser.
 Add it to Claude, Claude Code, or Cursor and ask the floor questions in plain language:
-live desks and alpha, who's reinvesting vs dumping, operator math — and it can even <b>play</b>
+live desks, alpha, emissions, and operator payback math — and it can even <b>play</b>
 (unsigned transactions only; your wallet signs, this server never touches keys).</p>
 <h2 style="color:#d4af5a;font-size:15px;margin-top:28px">Add it</h2>
 <pre style="background:#12100c;border:1px solid #37301f;border-radius:8px;padding:14px;overflow-x:auto;font-size:12.5px"># Claude Code
