@@ -1149,9 +1149,10 @@ const MCP_TOOLS = [
   { name: 'get_broker', description: 'One StonkBroker by id (1-4444): owner, its ERC-6551 wallet address and holdings, the stock it was seeded with, per-stock dividends received, activation tier, whether its wallet owns a Floor desk (floor.hasDesk), and its on-chain art. null means unknown, never zero.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' } }, ['id']) },
   { name: 'get_broker_activation_math', description: 'The decision math for activating a StonkBroker: per tier — activation fee in $STONKBROKER and USD, your weight share of the dividend pool after dilution, estimated dividends/day (from the observed drop rate), and payback days. Pass `id` for an exact on-chain fee quote (handles upgrade credit for already-active brokers). FACTS not advice: the drop rate tracks AMM trading volume and varies; new activations dilute everyone; token prices move.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id for an exact quoteActivation fee (optional — omit for table prices)' }, tier: { type: 'integer', description: 'Tier 1-5 to analyze (optional — omit for all five)' } }) },
   { name: 'prepare_activate_broker', description: 'Build the UNSIGNED transaction(s) to activate a StonkBroker\'s dividend drops at a tier (or upgrade an active one — the on-chain quote credits what was already paid). Fee is paid in $STONKBROKER by the SIGNING wallet (50% burned, 50% treasury) and needs an ERC20 approve first — the response includes `approveFirst` when the allowance is short. Only the broker\'s owner meaningfully does this.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, tier: { type: 'integer', description: 'Target tier 1-5 (5 = 3.33x dividend weight)' }, from: { type: 'string', description: 'Signing wallet — enables the allowance check and exact approveFirst amount.' } }, ['id', 'tier']) },
-  { name: 'get_broker_floor_status', description: 'Cross-game: does this StonkBroker\'s ERC-6551 wallet play The Floor? Returns the wallet, whether it owns a desk, and if so its live desk state (alpha, share, pending PnL, FLOOR balance). A broker that plays The Floor is a portfolio-in-one-NFT: sell the broker and the desk + earnings go with it.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' } }, ['id']) },
-  { name: 'prepare_broker_floor_desk', description: 'THE cross-game move, and as of 2026-07-19 nobody on the chain has done it: build the UNSIGNED transaction that makes a StonkBroker\'s OWN ERC-6551 wallet open a desk on The Floor. You sign as the broker\'s owner; the tx calls the broker wallet\'s executeCall (owner-gated), which forwards 0.01 ETH into createDesk. The desk then belongs to the BROKER WALLET, not you — desk, alpha and future FLOOR earnings travel with the NFT if it ever sells. The 0.01 ETH rides along with your signature (the broker wallet needs no prior funding). Referrer semantics are identical to prepare_create_desk: on-chain, permanent, defaults to this dashboard\'s address, overridable — always tell the user who it is before signing.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, referrer: { type: 'string', description: 'Referrer to credit (permanent). Omit for this dashboard\'s default; 0x0…0 for none.' }, from: { type: 'string', description: 'Signing wallet — MUST be the broker\'s current owner (executeCall is owner-gated; anyone else reverts). Checked when given.' } }, ['id']) },
+  { name: 'get_broker_floor_status', description: 'Cross-game: does this StonkBroker\'s ERC-6551 wallet play The Floor? Returns the wallet, whether it owns a desk, and if so its live desk state (alpha, share, pending PnL, FLOOR balance). Binding rule: the desk itself (level/alpha) is permanently bound to the NFT and transfers on sale; liquid contents (FLOOR balance, operator NFTs, tokens) remain removable by the current owner until the sale lands.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' } }, ['id']) },
+  { name: 'prepare_broker_floor_desk', description: 'THE cross-game move, and as of 2026-07-19 nobody on the chain has done it: build the UNSIGNED transaction that makes a StonkBroker\'s OWN ERC-6551 wallet open a desk on The Floor. You sign as the broker\'s owner; the tx calls the broker wallet\'s executeCall (owner-gated), which forwards 0.01 ETH into createDesk. The desk then belongs to the BROKER WALLET, not you — the desk and its alpha are permanently bound to the NFT and transfer with it on sale (liquid wallet contents remain owner-removable until a sale; never promise a buyer the wallet\'s tokens). The 0.01 ETH rides along with your signature (the broker wallet needs no prior funding). Referrer semantics are identical to prepare_create_desk: on-chain, permanent, defaults to this dashboard\'s address, overridable — always tell the user who it is before signing.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, referrer: { type: 'string', description: 'Referrer to credit (permanent). Omit for this dashboard\'s default; 0x0…0 for none.' }, from: { type: 'string', description: 'Signing wallet — MUST be the broker\'s current owner (executeCall is owner-gated; anyone else reverts). Checked when given.' } }, ['id']) },
   { name: 'prepare_broker_floor_collect', description: 'Build the UNSIGNED transaction that makes a StonkBroker\'s wallet collect its Floor desk\'s pending PnL. Sign as the broker\'s owner. The collected FLOOR lands IN the broker\'s wallet (it belongs to the NFT, not to you — use the wallet\'s executeCall for anything further).', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, from: { type: 'string', description: 'Signing wallet — MUST be the broker\'s current owner. Checked when given.' } }, ['id']) },
+  { name: 'get_broker_leaderboard', description: 'Activated StonkBrokers ranked by the USD value of their wallet CONTENTS right now (the 3 dividend stocks + $STONKBROKER + ETH, priced from their on-chain pools). IMPORTANT framing: contents are a removable snapshot — the current owner can move everything out before a sale; only the activation tier and any Floor desk are permanently bound to the NFT. Report this as data, never as an appraisal or a promise of value.', inputSchema: obj({ limit: { type: 'integer', description: 'Max ranked rows to return (1-50, default 20)' } }) },
 ];
 // Client hints (MCP ToolAnnotations). readOnlyHint = safe to call without a confirmation prompt. The
 // get_*/list_* tools only read, and this server never writes anything regardless — so they're read-only.
@@ -1506,6 +1507,12 @@ async function mcpCall(name, args) {
       if (!(id >= 1 && id <= 4444)) return { error: 'id must be an integer 1-4444' };
       return await selfGet('/api/broker?id=' + id);
     }
+    case 'get_broker_leaderboard': {
+      const j = await selfGet('/api/broker-leaderboard');
+      const n = clampInt(args.limit, 1, 50, 20);
+      if (j && Array.isArray(j.top)) j.top = j.top.slice(0, n);
+      return j;
+    }
     case 'get_broker_activation_math': {
       const d = sbStats && sbStats.dividends, act = sbStats && sbStats.activation;
       if (!d || !act || !act.totalWeight) return { error: 'broker stats still warming — call get_brokers first and retry shortly' };
@@ -1584,7 +1591,7 @@ async function mcpCall(name, args) {
       const hd = await ethCall(GAME_CONTRACT, SEL_HAS_DESK + wAddr(wo.wallet));
       const hasDesk = hd == null ? null : /[1-9a-f]/.test(String(hd).slice(2));
       const base = { id, owner: wo.owner, brokerWallet: wo.wallet, hasDesk,
-        crossGameNote: 'The desk (and any FLOOR it earns) belongs to the broker WALLET — it travels with the NFT on sale.' };
+        crossGameNote: 'The desk (level/alpha) is bound to the broker WALLET and travels with the NFT on sale. Liquid contents — FLOOR balance, operator NFTs, tokens — stay removable by the current owner until a sale lands; verify at purchase time.' };
       if (!hasDesk) return Object.assign(base, { deskState: null,
         hint: hasDesk === false ? 'No desk yet. prepare_broker_floor_desk builds the tx that makes this broker open one.' : 'hasDesk unknown (RPC throttled) — retry.' });
       let state = null; try { state = await rpcState(wo.wallet); } catch (_) {}
@@ -1616,7 +1623,7 @@ async function mcpCall(name, args) {
       return {
         unsigned: true, chainId: CHAIN_ID, to: wo.wallet, value: DESK_PRICE_WEI, valueEth: '0.01',
         data: sbExecuteCall(GAME_CONTRACT, toWei(0.01), SEL_CREATE_DESK + wAddr(referrer)),
-        how: 'You (the broker\'s owner) sign a 0.01 ETH tx to the broker\'s ERC-6551 wallet; its executeCall forwards the ETH into FloorGameV2.createDesk. The DESK BELONGS TO THE BROKER WALLET — the desk, its alpha, and its future FLOOR travel with the NFT if it ever sells.',
+        how: 'You (the broker\'s owner) sign a 0.01 ETH tx to the broker\'s ERC-6551 wallet; its executeCall forwards the ETH into FloorGameV2.createDesk. The DESK BELONGS TO THE BROKER WALLET — desk level and alpha are bound to the NFT and transfer on sale. (Liquid contents of the wallet stay owner-removable until a sale — never promise a buyer the tokens inside.)',
         brokerWallet: wo.wallet, brokerOwner: wo.owner, referrer, referrerSource,
         referrerNote: 'Recorded on-chain at creation, permanent, earns 5% of what the broker wallet later spends (paid from the game treasury, costing the player nothing). Tell the user who the referrer is before they sign. Pass `referrer` to override, or 0x0000000000000000000000000000000000000000 for none.',
         warnings,
@@ -1693,16 +1700,18 @@ let sbStats = null, sbStatsAt = 0, sbBusy = false;
 const sbOwners = {};        // tokenId -> current owner (lowercase), replayed from Transfer logs
 let sbScannedTo = 0;        // last block folded into sbOwners — scan resumes here across refreshes/deploys
 const sbSymbols = {};       // stock token addr -> symbol (fetched once each)
+let sbTierByToken = {};     // tokenId -> tier0 for ACTIVE brokers (replayed census; feeds the leaderboard)
 try {
   const p = JSON.parse(fs.readFileSync(SB_FILE, 'utf8'));
   if (p && p.stats) { sbStats = p.stats; sbStatsAt = p.at || 0; }
   if (p && p.owners) Object.assign(sbOwners, p.owners);
   if (p && p.scannedTo) sbScannedTo = p.scannedTo;
   if (p && p.symbols) Object.assign(sbSymbols, p.symbols);
+  if (p && p.tiers) sbTierByToken = p.tiers;
   console.log('LOADED brokers from volume (scannedTo=' + sbScannedTo + ', owners=' + Object.keys(sbOwners).length + ')');
 } catch (_) { console.log('No prior brokers data (fresh)'); }
 function sbSave() {
-  try { fs.writeFile(SB_FILE, JSON.stringify({ stats: sbStats, at: sbStatsAt, owners: sbOwners, scannedTo: sbScannedTo, symbols: sbSymbols }), () => {}); } catch (_) {}
+  try { fs.writeFile(SB_FILE, JSON.stringify({ stats: sbStats, at: sbStatsAt, owners: sbOwners, scannedTo: sbScannedTo, symbols: sbSymbols, tiers: sbTierByToken }), () => {}); } catch (_) {}
 }
 const sbPad = a => '0x' + a.toLowerCase().replace(/^0x/, '').padStart(64, '0');
 const sbAddrOf = t => (t && t.length === 66) ? ('0x' + t.slice(26)).toLowerCase() : null;
@@ -1793,6 +1802,7 @@ async function refreshBrokers() {
       if (replayCount === active && replayWeight === totalWeight) {
         tiersOut = SB_TIERS.map((t, i) => Object.assign({}, t, { active: counts0[i] }));
         tiersPartial = false;
+        sbTierByToken = tierByToken;               // conserved census — the leaderboard ranks over this set
       } else {
         console.log('SB tier replay mismatch (replay ' + replayCount + '/' + replayWeight + ' vs chain ' + active + '/' + totalWeight + ') — serving last-good tiers');
         tiersPartial = !tiersOut;
@@ -1937,10 +1947,105 @@ async function fetchBroker(id) {
     holdings, stonkbrokerBalance: sbBal, ethBalance: ethBal,
     dividends: { byStock, note: 'transfers from the StockBooster to this broker wallet; other inflows not counted' },
     // the broker's wallet is a first-class address — it can hold a Floor desk of its own (null = unknown)
-    floor: { hasDesk: floorDesk, note: floorDesk ? 'This broker\'s wallet owns a desk on The Floor — the desk travels with the NFT if it sells.' : null },
+    floor: { hasDesk: floorDesk, note: floorDesk ? 'This broker\'s wallet owns a desk on The Floor. The desk (level/alpha) is bound to the NFT and transfers on sale; liquid contents remain owner-removable until then.' : null },
+    rank: (sbLeader && sbLeader.byId && sbLeader.byId[id]) ? { contentsRank: sbLeader.byId[id].rank, ofActivated: sbLeader.scanned,
+      contentsUsd: sbLeader.byId[id].contentsUsd, note: 'contents snapshot — owner-removable before a sale; not an appraisal' } : null,
     links: { wallet: EXPLORER + '/address/' + wallet, nft: EXPLORER + '/token/' + SB_NFT + '/instance/' + id },
   };
 }
+
+// ---- broker leaderboard: activated brokers ranked by wallet CONTENTS (a removable snapshot).
+// The ranking is deliberately split from what's BOUND to the NFT (activation tier, Floor desk):
+// an owner can strip stocks/tokens/operator NFTs out of the wallet right before a sale, so
+// contents are shown as "now", never promised. Slow scan: ~1.4k wallets x 6 calls, batched and
+// resumable across ticks/redeploys; publishes only when a full pass completes.
+const SB_LEADER_FILE = path.join(DATA_DIR, 'broker-leader.json');
+let sbLeader = null, sbLeaderAt = 0, sbLeaderBusy = false, sbLeaderScan = null;
+const sbWalletById = {};    // id -> 6551 wallet (CREATE2-deterministic, immutable — cached forever)
+const sbStockPrices = {};   // stock addr -> {usd, at} (GeckoTerminal, hourly)
+try {
+  const p = JSON.parse(fs.readFileSync(SB_LEADER_FILE, 'utf8'));
+  if (p && p.leader) { sbLeader = p.leader; sbLeaderAt = p.at || 0; }
+  if (p && p.wallets) Object.assign(sbWalletById, p.wallets);
+  if (p && p.scan) sbLeaderScan = p.scan;
+  console.log('LOADED broker leaderboard from volume (' + (sbLeader ? sbLeader.scanned + ' ranked' : 'no pass yet') + ')');
+} catch (_) {}
+function sbLeaderSave() {
+  try { fs.writeFile(SB_LEADER_FILE, JSON.stringify({ leader: sbLeader, at: sbLeaderAt, wallets: sbWalletById, scan: sbLeaderScan }), () => {}); } catch (_) {}
+}
+const SB_LEADER_DISCLAIMER = 'Contents are a live snapshot the current owner can move out of the wallet at any time before a sale. Only the activation tier and any Floor desk are permanently bound to the NFT. Rankings are data, not an appraisal, and nothing here is financial advice.';
+async function refreshBrokerLeaderboard() {
+  if (sbLeaderBusy) return; sbLeaderBusy = true;
+  try {
+    const tiers = sbTierByToken;
+    const ids = Object.keys(tiers).map(Number);
+    if (!ids.length || !sbStats || !sbStats.dividends) return;               // needs the tier census warm
+    if (!sbLeaderScan && sbLeaderAt && Date.now() - sbLeaderAt < 21600000) return;   // fresh pass every ~6h
+    if (!sbLeaderScan) sbLeaderScan = { pending: ids.slice(), rows: {}, startedAt: Date.now() };
+    const stocks = (sbStats.dividends.stocks || []).map(s => s.address).filter(Boolean);
+    if (stocks.length !== 3) return;
+    // prices: the three stocks via GeckoTerminal (their on-chain pools), STONKBROKER + ETH from existing caches
+    for (const a of stocks) {
+      if (!sbStockPrices[a] || Date.now() - sbStockPrices[a].at > 3600000) {
+        const gm = await geckoMarket(a);
+        if (gm && gm.price > 0) sbStockPrices[a] = { usd: gm.price, at: Date.now() };
+      }
+    }
+    const stonkUsd = (sbStats.token && sbStats.token.price) || null;
+    const eUsd = await ethUsd();
+    // resolve missing wallets (immutable — only ever fetched once per id)
+    const needW = sbLeaderScan.pending.filter(id => !sbWalletById[id]);
+    for (let i = 0; i < needW.length; i += 60) {
+      const chunk = needW.slice(i, i + 60);
+      const b = await rpcBatch(chunk.map((id, k) => ({ jsonrpc: '2.0', id: k + 1, method: 'eth_call', params: [{ to: SB_NFT, data: SB_SEL.tokenWallet + BigInt(id).toString(16).padStart(64, '0') }, 'latest'] })));
+      if (!b) { console.log('SB leader: wallet batch throttled — resuming next tick'); sbLeaderSave(); return; }
+      chunk.forEach((id, k) => { const w = sbAddrOf(sbWord(b[k + 1], 0)); if (w && w !== ZERO_ADDR) sbWalletById[id] = w; });
+      await new Promise(s => setTimeout(s, 600));
+    }
+    // balance sweep: 10 wallets x 6 calls per batch
+    while (sbLeaderScan.pending.length) {
+      const chunk = sbLeaderScan.pending.slice(0, 10).filter(id => sbWalletById[id]);
+      if (!chunk.length) { sbLeaderScan.pending = sbLeaderScan.pending.slice(10); continue; }
+      const calls = [];
+      chunk.forEach((id, ci) => {
+        const w = sbWalletById[id], base = ci * 6;
+        stocks.forEach((t, si) => calls.push({ jsonrpc: '2.0', id: base + si + 1, method: 'eth_call', params: [{ to: t, data: SB_SEL.balanceOf + sbPad(w).slice(2) }, 'latest'] }));
+        calls.push({ jsonrpc: '2.0', id: base + 4, method: 'eth_call', params: [{ to: SB_TOKEN, data: SB_SEL.balanceOf + sbPad(w).slice(2) }, 'latest'] });
+        calls.push({ jsonrpc: '2.0', id: base + 5, method: 'eth_getBalance', params: [w, 'latest'] });
+        calls.push({ jsonrpc: '2.0', id: base + 6, method: 'eth_call', params: [{ to: GAME_CONTRACT, data: SEL_HAS_DESK + sbPad(w).slice(2) }, 'latest'] });
+      });
+      const b = await rpcBatch(calls);
+      if (!b) { console.log('SB leader: balance batch throttled, ' + sbLeaderScan.pending.length + ' ids left — resuming next tick'); sbLeaderSave(); return; }
+      chunk.forEach((id, ci) => {
+        const base = ci * 6; let usd = 0; const hold = {}; const unpriced = [];
+        stocks.forEach((t, si) => {
+          const v = sbNum(b[base + si + 1]) / 1e18;
+          if (v > 0) { hold[sbSymbols[t] || t] = +v.toFixed(9); const p = sbStockPrices[t]; if (p) usd += v * p.usd; else unpriced.push(sbSymbols[t] || t); }
+        });
+        const sbv = sbNum(b[base + 4]) / 1e18;
+        if (sbv > 0) { if (stonkUsd != null) usd += sbv * stonkUsd; else unpriced.push('STONKBROKER'); }
+        const ev = sbNum(b[base + 5]) / 1e18;
+        if (ev > 0) { if (eUsd != null) usd += ev * eUsd; else unpriced.push('ETH'); }
+        sbLeaderScan.rows[id] = { id, tier: (tiers[id] || 0) + 1, contentsUsd: +usd.toFixed(2), holdings: hold,
+          stonkbroker: sbv > 0 ? +sbv.toFixed(0) : 0, eth: ev > 0 ? +ev.toFixed(6) : 0,
+          hasDesk: /[1-9a-f]/.test(String(b[base + 6] || '0x0').slice(2)), unpriced: unpriced.length ? unpriced : undefined };
+      });
+      sbLeaderScan.pending = sbLeaderScan.pending.slice(10);
+      await new Promise(s => setTimeout(s, 600));
+    }
+    // full pass done — rank and publish
+    const rows = Object.values(sbLeaderScan.rows).sort((a, b) => b.contentsUsd - a.contentsUsd);
+    rows.forEach((r, i) => { r.rank = i + 1; });
+    const byId = {}; rows.forEach(r => { byId[r.id] = r; });
+    sbLeader = { rows, byId, scanned: rows.length, activated: ids.length,
+      prices: { stocks: stocks.map(a => ({ symbol: sbSymbols[a] || null, usd: sbStockPrices[a] ? +sbStockPrices[a].usd.toFixed(4) : null })), stonkbrokerUsd: stonkUsd, ethUsd: eUsd } };
+    sbLeaderAt = Date.now(); sbLeaderScan = null; sbLeaderSave();
+    console.log('SB leader ok: ' + rows.length + ' activated brokers ranked; top contents $' + (rows[0] ? rows[0].contentsUsd : 0));
+  } catch (e) { console.log('SB leader failed (resumes next tick): ' + e.message); }
+  finally { sbLeaderBusy = false; }
+}
+setTimeout(refreshBrokerLeaderboard, 180000);     // first attempt 3 min after boot (tier census warms first)
+setInterval(refreshBrokerLeaderboard, 1200000);   // resume/refresh tick; a new full pass starts only ~6-hourly
 
 // resolve a broker id to its 6551 wallet + current owner (both needed by every cross-game tool)
 async function sbIdWallet(id) {
@@ -1993,7 +2098,8 @@ const API_INDEX = {
     { path: '/api/live-actions', desc: 'Recent on-chain game actions (collect/claim/seat/recruit/upgrade/newdesk/referral/firmburn).' },
     { path: '/api/history', desc: 'Daily snapshots for trends. Rows before tracking began are reconstructed and marked seeded:true.' },
     { path: '/api/brokers', desc: 'StonkBrokers (same chain, different game): mint/holders, activation tiers, dividend rounds, $STONKBROKER burns + price.' },
-    { path: '/api/broker?id=1-4444', desc: 'One StonkBroker: owner, ERC-6551 wallet holdings, dividends received, activation tier, on-chain art.' },
+    { path: '/api/broker?id=1-4444', desc: 'One StonkBroker: owner, ERC-6551 wallet holdings, dividends received, activation tier, Floor-desk status, on-chain art.' },
+    { path: '/api/broker-leaderboard', desc: 'Activated brokers ranked by current wallet contents (a removable snapshot — only activation tier + any Floor desk are bound to the NFT). Not an appraisal.' },
   ],
 };
 const LLMS_TXT = () => `# The Floor — companion dashboard for $FLOOR (Robinhood Chain)
@@ -2052,14 +2158,18 @@ ${API_INDEX.endpoints.map(e => `- ${'`'}${e.path}${'`'} — ${e.desc}`).join('\n
 ## StonkBrokers (second game covered, same chain)
 - Clutch Markets' 4444 ERC-6551 broker NFTs: each owns a wallet seeded with a tokenized stock and
   earns stock dividends when activated. ${'`'}/api/brokers${'`'} = collection stats, ${'`'}/api/broker?id=N${'`'} = one broker.
-- MCP tools: get_brokers, get_broker, get_broker_activation_math (fee/share/payback facts),
+- MCP tools: get_brokers, get_broker, get_broker_leaderboard (contents ranking — removable
+  snapshot, not an appraisal), get_broker_activation_math (fee/share/payback facts),
   prepare_activate_broker (approve + activate, unsigned).
 - **Cross-game:** a broker's ERC-6551 wallet can PLAY THE FLOOR — get_broker_floor_status,
-  prepare_broker_floor_desk (the wallet opens its own desk; desk + earnings travel with the NFT on
-  sale), prepare_broker_floor_collect. Why it matters: Floor desks are permanently bound to their
-  wallet (there is NO other way to transfer or sell a position) — so a broker-desk is the only
-  sellable Floor position, and the broker gains a second income stream. Verified against both
-  games' contracts; no broker has a desk yet as of 2026-07-19 — the first is a first.
+  prepare_broker_floor_desk (the wallet opens its own desk), prepare_broker_floor_collect. Why it
+  matters: Floor desks are permanently bound to their wallet (there is NO other way to transfer or
+  sell a position) — so a broker-desk is the only sellable Floor position, and the broker gains a
+  second income stream. BINDING RULE (state this whenever value comes up): only the activation
+  tier and desk state (level/alpha) are permanently bound to the NFT; liquid wallet contents —
+  stocks, tokens, operator NFTs, ETH — remain removable by the current owner right up to a sale.
+  Verify contents at purchase time. Verified against both games' contracts; no broker has a desk
+  yet as of 2026-07-19 — the first is a first.
 - NFT ${SB_NFT} · $STONKBROKER ${SB_TOKEN} · dashboard page: ${'`'}/brokers${'`'}
 
 ## Gotchas that will bite an agent
@@ -2154,7 +2264,7 @@ write tools return unsigned calldata for your own signer. Never send a private k
                 // JSON-RPC + tools), so refusing a newer client would be gatekeeping for no reason.
                 protocolVersion: (m.params && typeof m.params.protocolVersion === 'string') ? m.params.protocolVersion : MCP_VERSION,
                 capabilities: { tools: { listChanged: false } },
-                serverInfo: { name: 'the-floor', version: '1.1.0' },
+                serverInfo: { name: 'the-floor', version: '1.2.0' },
                 instructions: MCP_INSTRUCTIONS,
               } };
             case 'ping': return { jsonrpc: '2.0', id, result: {} };
@@ -2431,6 +2541,18 @@ write tools return unsigned calldata for your own signer. Never send a private k
     } catch (e) {
       res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'lookup failed' }));
     }
+    return;
+  }
+
+  // ---- StonkBrokers: leaderboard (contents = removable snapshot; tier/desk = bound) ----
+  if (p === '/api/broker-leaderboard' && req.method === 'GET') {
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=300' });
+    if (!sbLeader) {
+      const prog = sbLeaderScan ? { scanned: Object.keys(sbLeaderScan.rows).length, total: Object.keys(sbLeaderScan.rows).length + sbLeaderScan.pending.length } : null;
+      res.end(JSON.stringify({ ok: false, building: true, progress: prog, disclaimer: SB_LEADER_DISCLAIMER })); return;
+    }
+    res.end(JSON.stringify({ ok: true, ageMs: Date.now() - sbLeaderAt, scanned: sbLeader.scanned, activated: sbLeader.activated,
+      prices: sbLeader.prices, top: sbLeader.rows.slice(0, 50), disclaimer: SB_LEADER_DISCLAIMER }));
     return;
   }
 

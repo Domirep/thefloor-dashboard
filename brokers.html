@@ -53,6 +53,13 @@
   .out .v{font-size:13px;color:var(--paper);text-align:right}
   .pill{display:inline-block;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:3px;border:1px solid var(--brass-dark);color:var(--brass-light)}
   .pill.on{background:var(--green);border-color:var(--green);color:#0c0906;font-weight:700}
+  .stk{display:inline-block;padding:1px 7px;border:1px solid var(--brass-dark);border-radius:3px;font-size:10.5px;letter-spacing:1px;font-weight:600;color:var(--brass-light)}
+  .stk.aapl{color:#c9ccce;border-color:#5f6569}
+  .stk.amzn{color:#ff9900;border-color:#8a5c10}
+  .stk.nvda{color:#76b900;border-color:#4b7410}
+  .stk.stonk{color:#e6c96b;border-color:#8a6d16}
+  .grp{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:12px 0 2px;border-bottom:1px solid #2a2419;padding-bottom:3px}
+  .grp b{color:var(--brass-light)}
   .foot{color:var(--muted);font-size:11px;text-align:center;padding:26px 0 40px;line-height:1.8}
   .err{color:var(--red)}
 </style>
@@ -79,7 +86,7 @@
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <input type="number" id="bk-id" min="1" max="4444" placeholder="1–4444" />
       <button class="btn" id="bk-go">Look up</button>
-      <span class="note" style="margin:0;flex:1;min-width:200px">Every broker owns a real wallet (ERC-6551) seeded with tokenized stock. This reads it straight from the chain — art included. A broker's wallet can even <b>run its own desk on <a href="/">The Floor</a></b> — a second income stream inside the NFT, and because Floor desks are welded to their wallet forever, a broker-desk is <b>the only sellable Floor position in existence</b> (sell the broker, the desk and its earnings go with it). Point an agent at <a href="/mcp">/mcp</a>; no broker has done it yet.</span>
+      <span class="note" style="margin:0;flex:1;min-width:200px">Every broker owns a real wallet (ERC-6551) seeded with tokenized stock. This reads it straight from the chain — art included. A broker's wallet can even <b>run its own desk on <a href="/">The Floor</a></b> — a second income stream inside the NFT, and because Floor desks are welded to their wallet forever, a broker-desk is <b>the only sellable Floor position in existence</b>. Point an agent at <a href="/mcp">/mcp</a>; no broker has done it yet. <b>Buying a broker?</b> Only the activation tier and any Floor desk are permanently bound to the NFT — everything simply sitting in the wallet (stocks, tokens, operator NFTs, ETH) can be moved out by the seller before your purchase lands. Verify contents at sale time; nothing here is an appraisal or financial advice.</span>
     </div>
     <div id="bk-out" style="margin-top:14px"></div>
   </div>
@@ -90,6 +97,9 @@
     <div class="card"><h3>Stock dividends</h3><div id="divs"><p style="color:var(--muted)">—</p></div>
       <p class="note">The StockBooster swaps accumulated fees into tokenized stocks and drops them into activated brokers' wallets, weighted by tier. ETH-in is the value entering each round; round times are interpolated from block numbers (approx).</p></div>
   </div>
+
+  <div class="card"><h3>Broker leaderboard · wallet contents</h3><div id="leader"><p style="color:var(--muted)">—</p></div>
+    <p class="note" id="leader-note"></p></div>
 
   <div class="grid g2">
     <div class="card"><h3>Top holders</h3><div id="holders"><p style="color:var(--muted)">—</p></div></div>
@@ -119,6 +129,7 @@ const M=n=>{if(n==null)return '?';const a=Math.abs(n);return a>=1e9?(a/1e9).toFi
 const shrt=a=>a?a.slice(0,6)+'…'+a.slice(-4):'?';
 const ago=ms=>{if(ms==null)return '?';const s=(Date.now()-ms)/1000;return s<90?Math.round(s)+'s ago':s<5400?Math.round(s/60)+'m ago':s<172800?(s/3600).toFixed(1)+'h ago':Math.round(s/86400)+'d ago';};
 const price6=p=>p==null?'?':'$'+(p>=0.01?p.toFixed(3):p.toFixed(6));
+const chip=s=>{if(!s)return '?';const c={AAPL:'aapl',AMZN:'amzn',NVDA:'nvda',STONKBROKER:'stonk'}[s]||'';return '<span class="stk'+(c?' '+c:'')+'">'+s+'</span>';};
 const EXPL='https://robinhoodchain.blockscout.com';
 
 function render(j){
@@ -136,7 +147,7 @@ function render(j){
   }
   if(j.dividends){
     const d=j.dividends;
-    const stocks=(d.stocks||[]).map(s=>s.symbol||shrt(s.address)).join(' · ');
+    const stocks=(d.stocks||[]).map(s=>s.symbol?chip(s.symbol):shrt(s.address)).join(' ');
     $('#divs').innerHTML=
       '<div class="out"><span class="k">Total value dropped</span><span class="v">Ξ '+fmt(d.totalEthIn,4)+'</span></div>'+
       '<div class="out"><span class="k">Pending (next round)</span><span class="v">Ξ '+fmt(d.pendingEth,4)+'</span></div>'+
@@ -188,18 +199,38 @@ async function lookup(){
         '</div>'+
         '<div class="out"><span class="k">Owner</span><span class="v"><a href="'+EXPL+'/address/'+j.owner+'" target="_blank" rel="noopener">'+shrt(j.owner)+'</a></span></div>'+
         '<div class="out"><span class="k">Broker wallet (ERC-6551)</span><span class="v"><a href="'+(j.links&&j.links.wallet||'#')+'" target="_blank" rel="noopener">'+shrt(j.wallet)+'</a></span></div>'+
+        (j.rank?'<div class="out"><span class="k">Contents rank</span><span class="v">#'+j.rank.contentsRank+' of '+fmt(j.rank.ofActivated)+' · ~$'+Number(j.rank.contentsUsd).toLocaleString()+'</span></div>':'')+
+        '<div class="grp"><b>Bound to the NFT</b> · transfers with a sale, cannot be removed</div>'+
+        '<div class="out"><span class="k">Activation</span><span class="v">'+(act.active?'Tier '+act.tier+' · '+(act.weightBps/10000).toFixed(2)+'× dividend weight':'not activated')+'</span></div>'+
         '<div class="out"><span class="k">The Floor</span><span class="v">'+(j.floor&&j.floor.hasDesk===true?'<span class="pill on">runs a desk</span> <a href="/?addr='+j.wallet+'">view →</a>':(j.floor&&j.floor.hasDesk===false?'no desk yet':'?'))+'</span></div>'+
-        '<div class="out"><span class="k">Seeded at mint</span><span class="v">'+fmt(j.seed&&j.seed.amount,9)+' '+((j.seed&&j.seed.symbol)||'?')+'</span></div>'+
-        (j.holdings||[]).map(h=>'<div class="out"><span class="k">Holds</span><span class="v">'+fmt(h.amount,9)+' '+(h.symbol||shrt(h.token))+'</span></div>').join('')+
-        (j.stonkbrokerBalance>0?'<div class="out"><span class="k">$STONKBROKER</span><span class="v">'+M(j.stonkbrokerBalance)+'</span></div>':'')+
+        '<div class="grp"><b>In the wallet</b> · owner can move these out before a sale</div>'+
+        '<div class="out"><span class="k">Seeded at mint</span><span class="v">'+fmt(j.seed&&j.seed.amount,9)+' '+((j.seed&&j.seed.symbol)?chip(j.seed.symbol):'?')+'</span></div>'+
+        (j.holdings||[]).map(h=>'<div class="out"><span class="k">Holds</span><span class="v">'+fmt(h.amount,9)+' '+(h.symbol?chip(h.symbol):shrt(h.token))+'</span></div>').join('')+
+        (j.stonkbrokerBalance>0?'<div class="out"><span class="k">'+chip('STONKBROKER')+'</span><span class="v">'+M(j.stonkbrokerBalance)+'</span></div>':'')+
         (j.ethBalance>0?'<div class="out"><span class="k">ETH</span><span class="v">'+fmt(j.ethBalance,6)+'</span></div>':'')+
-        (divs.length?divs.map(d=>'<div class="out"><span class="k">Dividends ('+(d.symbol||shrt(d.token))+')</span><span class="v">'+(d.count===null?'unknown (throttled)':fmt(d.amount,9)+' over '+d.count+' drops')+'</span></div>').join(''):
+        (divs.length?divs.map(d=>'<div class="out"><span class="k">Dividends '+(d.symbol?chip(d.symbol):shrt(d.token))+'</span><span class="v">'+(d.count===null?'unknown (throttled)':fmt(d.amount,9)+' over '+d.count+' drops')+'</span></div>').join(''):
           '<div class="out"><span class="k">Dividends received</span><span class="v">'+(act.active?'none recorded yet':'none — broker not activated')+'</span></div>')+
       '</div></div>';
   }catch(e){ $('#bk-out').innerHTML='<p class="err">lookup failed — retry shortly</p>'; }
 }
 $('#bk-go').addEventListener('click',lookup);
 $('#bk-id').addEventListener('keydown',e=>{if(e.key==='Enter')lookup();});
+
+/* ---- broker leaderboard (contents = removable snapshot; tier/desk = bound) ---- */
+async function loadLeader(){
+  try{
+    const j=await (await fetch('/api/broker-leaderboard',{cache:'no-store'})).json();
+    $('#leader-note').textContent=j.disclaimer||'';
+    if(!j.ok){
+      $('#leader').innerHTML='<p style="color:var(--muted)">contents census '+(j.progress?'running — '+fmt(j.progress.scanned)+'/'+fmt(j.progress.total)+' brokers scanned':'queued')+' · first full pass takes a few minutes</p>';
+      return;
+    }
+    $('#leader').innerHTML='<table><tr><th>#</th><th>Broker</th><th>Tier</th><th class="num">Contents (USD)</th><th>Floor desk</th></tr>'+
+      j.top.slice(0,15).map(r=>'<tr><td>'+r.rank+'</td><td><a href="#" data-bk="'+r.id+'">Stonk Broker #'+r.id+'</a></td><td>T'+r.tier+'</td><td class="num">$'+Number(r.contentsUsd).toLocaleString('en-US',{maximumFractionDigits:2})+'</td><td>'+(r.hasDesk?'🟢 desk':'—')+'</td></tr>').join('')+'</table>';
+    document.querySelectorAll('#leader a[data-bk]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();$('#bk-id').value=a.dataset.bk;lookup();window.scrollTo({top:0,behavior:'smooth'});}));
+  }catch(e){}
+}
+loadLeader(); setInterval(loadLeader,300000);
 </script>
 </body>
 </html>
