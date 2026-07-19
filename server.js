@@ -1889,16 +1889,47 @@ setInterval(refreshBrokers, 300000);
 const sbBrokerCache = new Map();
 const SB_BROKER_TTL = 600000;
 async function fetchBroker(id) {
+  sbUserActive++;
+  try { return await fetchBrokerInner(id); } finally { sbUserActive--; }
+}
+// When live reads are throttled out, answer from the censuses we already hold (owners, tiers,
+// wallets, last leaderboard pass, cached art) — clearly labeled — instead of a dead error.
+function sbBrokerLite(id) {
+  const owner = sbOwners[id] || null;
+  const wallet = sbWalletById[id] || null;
+  const tier0 = sbTierByToken[id];
+  const lr = sbLeader && sbLeader.byId && sbLeader.byId[id];
+  if (!owner && !wallet && tier0 == null && !lr) return null;
+  const holdings = lr ? Object.entries(lr.holdings || {}).map(([sym, amt]) => ({ token: null, symbol: sym, amount: amt })) : null;
+  return {
+    id, owner, wallet, art: sbArtCache[id] || null,
+    live: false, partial: true,
+    sourceNote: 'Live chain reads are throttled right now — this is the cached census' + (lr ? ' + the last leaderboard pass' : '') + '. Retry shortly for fresh numbers.',
+    ageMs: lr ? Date.now() - sbLeaderAt : (sbStatsAt ? Date.now() - sbStatsAt : null),
+    unknownFields: ['seed', 'dividends'].concat(lr ? [] : ['holdings', 'stonkbrokerBalance', 'ethBalance', 'floor']),
+    activation: { active: tier0 != null, tier: tier0 != null ? tier0 + 1 : null, weightBps: tier0 != null && SB_TIERS[tier0] ? SB_TIERS[tier0].weightBps : null },
+    seed: { token: null, symbol: null, amount: null },
+    holdings, stonkbrokerBalance: lr ? lr.stonkbroker : null, ethBalance: lr ? lr.eth : null,
+    dividends: { byStock: null, note: 'unavailable while the RPC is throttled' },
+    floor: { hasDesk: lr ? lr.hasDesk : null, note: null },
+    rank: lr ? { contentsRank: lr.rank, ofActivated: sbLeader.scanned, contentsUsd: lr.contentsUsd, note: 'contents snapshot — owner-removable before a sale; not an appraisal' } : null,
+    links: { wallet: wallet ? EXPLORER + '/address/' + wallet : null, nft: EXPLORER + '/token/' + SB_NFT + '/instance/' + id },
+  };
+}
+async function fetchBrokerInner(id) {
   const C = (cid, to, data) => ({ jsonrpc: '2.0', id: cid, method: 'eth_call', params: [{ to, data }, 'latest'] });
   const w256 = n => n.toString(16).padStart(64, '0');
-  const a = await rpcBatch([
+  const cachedArt = sbArtCache[id] || null;
+  const headCalls = [
     C(1, SB_NFT, SB_SEL.ownerOf + w256(id)), C(2, SB_NFT, SB_SEL.tokenWallet + w256(id)),
     C(3, SB_NFT, SB_SEL.fundedToken + w256(id)), C(4, SB_NFT, SB_SEL.initialGrant + w256(id)),
-    C(5, SB_ACT, SB_SEL.activationOf + w256(id)), C(6, SB_NFT, SB_SEL.tokenURI + w256(id)),
-  ]);
-  if (!a || !a[1] || a[1] === '0x') {              // unknown id or throttled — caller answers "unknown", not zeros
-    console.log('SB broker lookup failed id=' + id + ' (' + (a ? 'bad ownerOf' : 'RPC batch exhausted retries') + ')');
-    return null;
+    C(5, SB_ACT, SB_SEL.activationOf + w256(id)),
+  ];
+  if (!cachedArt) headCalls.push(C(6, SB_NFT, SB_SEL.tokenURI + w256(id)));   // art is immutable — fetched once ever
+  const a = await rpcBatch(headCalls);
+  if (!a || !a[1] || a[1] === '0x') {              // unknown id or throttled — serve the labeled cache, never fake zeros
+    console.log('SB broker lookup live-path failed id=' + id + ' (' + (a ? 'bad ownerOf' : 'RPC throttled') + ') — trying cached census');
+    return sbBrokerLite(id);
   }
   const owner = sbAddrOf(sbWord(a[1], 0));
   const wallet = sbAddrOf(sbWord(a[2], 0));
@@ -1907,12 +1938,15 @@ async function fetchBroker(id) {
   const isActive = sbNum(sbWord(a[5], 0)) === 1;
   const tier0 = sbNum(sbWord(a[5], 1));   // contract tiers are 0-indexed; UI speaks 1-indexed
   // on-chain art: tokenURI is data:application/json;base64,{name, image(svg data uri), attributes}
-  let art = null;
-  try {
-    const uri = Buffer.from(String(a[6]).slice(2 + 128, 2 + 128 + sbNum(sbWord(a[6], 1)) * 2), 'hex').toString('utf8');
-    const j = JSON.parse(Buffer.from(uri.split('base64,')[1], 'base64').toString('utf8'));
-    art = { name: j.name || ('Stonk Broker #' + id), image: j.image || null, attributes: j.attributes || [] };
-  } catch (_) {}
+  let art = cachedArt;
+  if (!art) {
+    try {
+      const uri = Buffer.from(String(a[6]).slice(2 + 128, 2 + 128 + sbNum(sbWord(a[6], 1)) * 2), 'hex').toString('utf8');
+      const j = JSON.parse(Buffer.from(uri.split('base64,')[1], 'base64').toString('utf8'));
+      art = { name: j.name || ('Stonk Broker #' + id), image: j.image || null, attributes: j.attributes || [] };
+      if (art.image) sbArtPut(id, art);
+    } catch (_) {}
+  }
   // wallet holdings: the 3 current dividend stocks + the seed stock + $STONKBROKER + native ETH
   const stockList = [];
   const seen = new Set();
@@ -1962,6 +1996,23 @@ async function fetchBroker(id) {
 // resumable across ticks/redeploys; publishes only when a full pass completes.
 const SB_LEADER_FILE = path.join(DATA_DIR, 'broker-leader.json');
 let sbLeader = null, sbLeaderAt = 0, sbLeaderBusy = false, sbLeaderScan = null;
+// A live user lookup outranks the background census for the shared RPC budget: the scan loops
+// check this counter between batches and step aside, resuming on their next tick.
+let sbUserActive = 0;
+// Broker art is immutable after reveal (trait-seed tokenURI), and it's the heaviest RPC read in a
+// lookup — cache it forever, capped, in its own volume file so the hot brokers.json stays small.
+const SB_ART_FILE = path.join(DATA_DIR, 'broker-art.json');
+const sbArtCache = {}; const sbArtOrder = []; let sbArtDirty = false;
+try {
+  const p = JSON.parse(fs.readFileSync(SB_ART_FILE, 'utf8'));
+  if (p && p.art) { Object.assign(sbArtCache, p.art); sbArtOrder.push(...Object.keys(p.art)); }
+  console.log('LOADED broker art cache (' + sbArtOrder.length + ')');
+} catch (_) {}
+function sbArtPut(id, art) {
+  if (!sbArtCache[id]) { sbArtOrder.push(String(id)); if (sbArtOrder.length > 800) delete sbArtCache[sbArtOrder.shift()]; }
+  sbArtCache[id] = art; sbArtDirty = true;
+}
+setInterval(() => { if (!sbArtDirty) return; sbArtDirty = false; try { fs.writeFile(SB_ART_FILE, JSON.stringify({ art: sbArtCache }), () => {}); } catch (_) {} }, 120000);
 const sbWalletById = {};    // id -> 6551 wallet (CREATE2-deterministic, immutable — cached forever)
 const sbStockPrices = {};   // stock addr -> {usd, at} (GeckoTerminal, hourly)
 try {
@@ -1997,6 +2048,7 @@ async function refreshBrokerLeaderboard() {
     // resolve missing wallets (immutable — only ever fetched once per id)
     const needW = sbLeaderScan.pending.filter(id => !sbWalletById[id]);
     for (let i = 0; i < needW.length; i += 60) {
+      if (sbUserActive > 0) { console.log('SB leader: yielding to a live lookup — resuming next tick'); sbLeaderSave(); return; }
       const chunk = needW.slice(i, i + 60);
       const b = await rpcBatch(chunk.map((id, k) => ({ jsonrpc: '2.0', id: k + 1, method: 'eth_call', params: [{ to: SB_NFT, data: SB_SEL.tokenWallet + BigInt(id).toString(16).padStart(64, '0') }, 'latest'] })));
       if (!b) { console.log('SB leader: wallet batch throttled — resuming next tick'); sbLeaderSave(); return; }
@@ -2005,6 +2057,7 @@ async function refreshBrokerLeaderboard() {
     }
     // balance sweep: 10 wallets x 6 calls per batch
     while (sbLeaderScan.pending.length) {
+      if (sbUserActive > 0) { console.log('SB leader: yielding to a live lookup — resuming next tick'); sbLeaderSave(); return; }
       const chunk = sbLeaderScan.pending.slice(0, 10).filter(id => sbWalletById[id]);
       if (!chunk.length) { sbLeaderScan.pending = sbLeaderScan.pending.slice(10); continue; }
       const calls = [];
@@ -2162,6 +2215,9 @@ ${API_INDEX.endpoints.map(e => `- ${'`'}${e.path}${'`'} — ${e.desc}`).join('\n
 - MCP tools: get_brokers, get_broker, get_broker_leaderboard (contents ranking — removable
   snapshot, not an appraisal), get_broker_activation_math (fee/share/payback facts),
   prepare_activate_broker (approve + activate, unsigned).
+- **The 6551 wallet is a general on-chain account** — any asset it holds or position it takes on
+  this chain travels with the NFT when it changes hands. The Floor desk below is the worked
+  example, not the limit.
 - **Cross-game:** a broker's ERC-6551 wallet can PLAY THE FLOOR — get_broker_floor_status,
   prepare_broker_floor_desk (the wallet opens its own desk), prepare_broker_floor_collect. Why it
   matters: Floor desks are permanently bound to their wallet (there is NO other way to transfer or
@@ -2535,8 +2591,10 @@ write tools return unsigned calldata for your own signer. Never send a private k
     try {
       const data = await fetchBroker(id);
       if (!data) { res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify({ ok: false, error: 'lookup failed (RPC throttled or unknown id) — retry shortly' })); return; }
-      sbBrokerCache.set(id, { data, ts: Date.now() });
-      if (sbBrokerCache.size > 300) { const k = sbBrokerCache.keys().next().value; sbBrokerCache.delete(k); }
+      if (data.live !== false) {                     // a labeled cache-fallback answer must not pin the cache
+        sbBrokerCache.set(id, { data, ts: Date.now() });
+        if (sbBrokerCache.size > 300) { const k = sbBrokerCache.keys().next().value; sbBrokerCache.delete(k); }
+      }
       track({ t: 'broker_lookup', id, sid: 'server' });
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=120' });
       res.end(JSON.stringify(Object.assign({ ok: true, cached: false }, data)));

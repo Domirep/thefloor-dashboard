@@ -87,7 +87,7 @@
       <input type="number" id="bk-id" min="1" max="4444" placeholder="1–4444" />
       <button class="btn" id="bk-go">Look up</button>
       <span class="note" style="margin:0;flex:1;min-width:200px">Each broker has its own on-chain wallet (ERC-6551). Enter an id to see what's inside: the stock it was seeded with, dividends received, activation tier, and the art — read live from the chain.<br><br>
-      A broker's wallet can also hold a desk on <a href="/">The Floor</a>. Desks normally can't be sold or transferred at all, so holding one inside a broker is the one way a Floor position can change hands. Agent tools for this are at <a href="/mcp">/mcp</a>.<br><br>
+      The wallet is a full on-chain account, not just a vault: it can hold any token or NFT and use any app on Robinhood Chain, and whatever it accumulates travels with the broker when it changes hands. One example: it can hold a desk on <a href="/">The Floor</a> — positions there normally can't be sold or transferred at all. Agent tools are at <a href="/mcp">/mcp</a>.<br><br>
       If you're buying a broker: any Floor desk lives on the broker's wallet and survives the sale. A paid activation does not — the contract clears it on every transfer, so you'll re-activate. Anything else in the wallet — stocks, tokens, operator NFTs, ETH — can be moved out by the seller before your purchase lands, so check the wallet at sale time. Not an appraisal, not financial advice.</span>
     </div>
     <div id="bk-out" style="margin-top:14px"></div>
@@ -197,11 +197,16 @@ async function lookup(){
   $('#bk-out').innerHTML='<p style="color:var(--muted)">reading broker #'+id+' from the chain… (up to ~20s when the RPC is throttled)</p>';
   TRACK('broker_lookup_ui',{id});
   try{
-    const j=await (await fetch('/api/broker?id='+id,{cache:'no-store'})).json();
-    if(!j.ok){ $('#bk-out').innerHTML='<p class="err">'+(j.error||'lookup failed')+'</p>'; return; }
+    let j=null;
+    for(let t=1;t<=3;t++){
+      try{ j=await (await fetch('/api/broker?id='+id,{cache:'no-store'})).json(); }catch(e){ j=null; }
+      if(j&&j.ok) break;
+      if(t<3){ $('#bk-out').innerHTML='<p style="color:var(--muted)">chain is busy — retrying ('+t+'/3)…</p>'; await new Promise(r=>setTimeout(r,4000*t)); }
+    }
+    if(!j||!j.ok){ $('#bk-out').innerHTML='<p class="err">'+((j&&j.error)||'lookup failed')+'</p>'; return; }
     const act=j.activation||{};
     const divs=(j.dividends&&j.dividends.byStock||[]).filter(d=>d.count===null||d.count>0);
-    $('#bk-out').innerHTML='<div class="bk">'+
+    $('#bk-out').innerHTML=(j.live===false?'<p class="note" style="color:var(--red);margin:0 0 10px">'+(j.sourceNote||'cached snapshot — live reads throttled; retry shortly')+'</p>':'')+'<div class="bk">'+
       (j.art&&j.art.image?'<img src="'+j.art.image+'" alt="'+(j.art.name||('Broker #'+id))+'" />':'<div></div>')+
       '<div>'+
         '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'+
@@ -220,7 +225,7 @@ async function lookup(){
         (j.stonkbrokerBalance>0?'<div class="out"><span class="k">'+chip('STONKBROKER')+'</span><span class="v">'+M(j.stonkbrokerBalance)+'</span></div>':'')+
         (j.ethBalance>0?'<div class="out"><span class="k">ETH</span><span class="v">'+fmt(j.ethBalance,6)+'</span></div>':'')+
         (divs.length?divs.map(d=>'<div class="out"><span class="k">Dividends '+(d.symbol?chip(d.symbol):shrt(d.token))+'</span><span class="v">'+(d.count===null?'unknown (throttled)':fmt(d.amount,9)+' over '+d.count+' drops')+'</span></div>').join(''):
-          '<div class="out"><span class="k">Dividends received</span><span class="v">'+(act.active?'none recorded yet':'none — broker not activated')+'</span></div>')+
+          '<div class="out"><span class="k">Dividends received</span><span class="v">'+(j.dividends&&j.dividends.byStock===null?'unavailable (throttled)':(act.active?'none recorded yet':'none — broker not activated'))+'</span></div>')+
       '</div></div>';
   }catch(e){ $('#bk-out').innerHTML='<p class="err">lookup failed — retry shortly</p>'; }
 }
