@@ -84,7 +84,7 @@
     </div>
       <ol>
         <li>Add the agent endpoint to Claude, Claude Code, or Cursor: <a href="/mcp">/mcp</a>. This flow is <b>MCP-only by design</b> — no website here builds or submits these transactions.</li>
-        <li>Ask it to <b>prepare_broker_floor_desk</b> for your broker's id. The tool verifies everything on-chain first — that you own the broker, that its wallet has no desk, the exact cost, the referrer (changeable) — and <b>refuses with an error if any check fails</b>. Only a fully verified request gets a transaction back.</li>
+        <li>Ask it to <b>prepare_broker_floor_desk</b> for your broker's id. The tool verifies everything on-chain first — that the broker is <b>activated</b> (a desk is a perk of activated brokers; activate first if it isn't), that you own it, that its wallet has no desk, the exact cost, the referrer (changeable) — and <b>refuses with an error if any check fails</b>. Only a fully verified request gets a transaction back.</li>
         <li>Sign in your own wallet as the broker's owner. The 0.01 ETH rides along with your signature; the broker's wallet needs no prior funding.</li>
         <li>The desk now belongs to the broker's wallet. Collect its earnings the same way (<b>prepare_broker_floor_collect</b>, same verification) — the $FLOOR lands in the broker's wallet.</li>
       </ol>
