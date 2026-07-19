@@ -1718,6 +1718,7 @@ const sbOwners = {};        // tokenId -> current owner (lowercase), replayed fr
 let sbScannedTo = 0;        // last block folded into sbOwners — scan resumes here across refreshes/deploys
 const sbSymbols = {};       // stock token addr -> symbol (fetched once each)
 let sbTierByToken = {};     // tokenId -> tier0 for ACTIVE brokers (replayed census; feeds the leaderboard)
+const sbImmut = {};         // tokenId -> {wallet, seedToken, seedAmount} — set at mint, never changes; fetched once ever
 try {
   const p = JSON.parse(fs.readFileSync(SB_FILE, 'utf8'));
   if (p && p.stats) { sbStats = p.stats; sbStatsAt = p.at || 0; }
@@ -1725,10 +1726,11 @@ try {
   if (p && p.scannedTo) sbScannedTo = p.scannedTo;
   if (p && p.symbols) Object.assign(sbSymbols, p.symbols);
   if (p && p.tiers) sbTierByToken = p.tiers;
-  console.log('LOADED brokers from volume (scannedTo=' + sbScannedTo + ', owners=' + Object.keys(sbOwners).length + ')');
+  if (p && p.immut) Object.assign(sbImmut, p.immut);
+  console.log('LOADED brokers from volume (scannedTo=' + sbScannedTo + ', owners=' + Object.keys(sbOwners).length + ', immut=' + Object.keys(sbImmut).length + ')');
 } catch (_) { console.log('No prior brokers data (fresh)'); }
 function sbSave() {
-  try { fs.writeFile(SB_FILE, JSON.stringify({ stats: sbStats, at: sbStatsAt, owners: sbOwners, scannedTo: sbScannedTo, symbols: sbSymbols, tiers: sbTierByToken }), () => {}); } catch (_) {}
+  try { fs.writeFile(SB_FILE, JSON.stringify({ stats: sbStats, at: sbStatsAt, owners: sbOwners, scannedTo: sbScannedTo, symbols: sbSymbols, tiers: sbTierByToken, immut: sbImmut }), () => {}); } catch (_) {}
 }
 const sbPad = a => '0x' + a.toLowerCase().replace(/^0x/, '').padStart(64, '0');
 const sbAddrOf = t => (t && t.length === 66) ? ('0x' + t.slice(26)).toLowerCase() : null;
@@ -1904,6 +1906,36 @@ setInterval(refreshBrokers, 300000);
 // ---- per-broker lookup (id -> owner, 6551 wallet, holdings, dividends, on-chain art) ----
 const sbBrokerCache = new Map();
 const SB_BROKER_TTL = 600000;
+// Event-aware freshness: broker state only changes on known events, so a cached result stays EXACT
+// until one happens — a new dividend round (active brokers' balances/dividends move ~10-min), or a
+// transfer seen by the owner census. Inactive brokers change only on transfer. 6h hard cap.
+function sbBrokerFresh(entry) {
+  if (!entry) return false;
+  const d = entry.data, age = Date.now() - entry.ts;
+  if (age < SB_BROKER_TTL) return true;
+  if (age > 21600000 || d.live === false) return false;
+  const ownerNow = sbOwners[d.id];
+  if (ownerNow && d.owner && ownerNow !== d.owner) return false;               // census saw a transfer
+  if (d.activation && d.activation.active) {
+    const lastDrop = sbStats && sbStats.dividends && sbStats.dividends.lastRound && sbStats.dividends.lastRound.at;
+    return lastDrop != null && entry.ts > lastDrop;                            // no drop landed since caching
+  }
+  return true;
+}
+// One refresh per broker at a time; used by the route (blocking + stale-while-revalidate) and the warmer.
+const sbBrokerInflight2 = new Map();
+function sbBrokerRefresh(id) {
+  if (sbBrokerInflight2.has(id)) return sbBrokerInflight2.get(id);
+  const p = fetchBroker(id).then(d => {
+    if (d && d.live !== false) {
+      sbBrokerCache.set(id, { data: d, ts: Date.now() });
+      if (sbBrokerCache.size > 300) { const k = sbBrokerCache.keys().next().value; sbBrokerCache.delete(k); }
+    }
+    return d;
+  }).finally(() => sbBrokerInflight2.delete(id));
+  sbBrokerInflight2.set(id, p);
+  return p;
+}
 async function fetchBroker(id) {
   sbUserActive++;
   try { return await fetchBrokerInner(id); } finally { sbUserActive--; }
@@ -1937,11 +1969,12 @@ async function fetchBrokerInner(id) {
   const C = (cid, to, data) => ({ jsonrpc: '2.0', id: cid, method: 'eth_call', params: [{ to, data }, 'latest'] });
   const w256 = n => n.toString(16).padStart(64, '0');
   const cachedArt = sbArtCache[id] || null;
+  const im = sbImmut[id] || null;                  // wallet/seed never change — skip those reads when known
   const headCalls = [
-    C(1, SB_NFT, SB_SEL.ownerOf + w256(id)), C(2, SB_NFT, SB_SEL.tokenWallet + w256(id)),
-    C(3, SB_NFT, SB_SEL.fundedToken + w256(id)), C(4, SB_NFT, SB_SEL.initialGrant + w256(id)),
+    C(1, SB_NFT, SB_SEL.ownerOf + w256(id)),
     C(5, SB_ACT, SB_SEL.activationOf + w256(id)),
   ];
+  if (!im) headCalls.push(C(2, SB_NFT, SB_SEL.tokenWallet + w256(id)), C(3, SB_NFT, SB_SEL.fundedToken + w256(id)), C(4, SB_NFT, SB_SEL.initialGrant + w256(id)));
   if (!cachedArt) headCalls.push(C(6, SB_NFT, SB_SEL.tokenURI + w256(id)));   // art is immutable — fetched once ever
   const a = await rpcBatch(headCalls);
   if (!a || !a[1] || a[1] === '0x') {              // unknown id or throttled — serve the labeled cache, never fake zeros
@@ -1949,9 +1982,10 @@ async function fetchBrokerInner(id) {
     return sbBrokerLite(id);
   }
   const owner = sbAddrOf(sbWord(a[1], 0));
-  const wallet = sbAddrOf(sbWord(a[2], 0));
-  const seedToken = sbAddrOf(sbWord(a[3], 0));
-  const seedAmount = sbNum(a[4]) / 1e18;
+  const wallet = im ? im.wallet : sbAddrOf(sbWord(a[2], 0));
+  const seedToken = im ? im.seedToken : sbAddrOf(sbWord(a[3], 0));
+  const seedAmount = im ? im.seedAmount : sbNum(a[4]) / 1e18;
+  if (!im && wallet) { sbImmut[id] = { wallet, seedToken, seedAmount }; sbWalletById[id] = wallet; }   // persisted by the periodic saves
   const isActive = sbNum(sbWord(a[5], 0)) === 1;
   const tier0 = sbNum(sbWord(a[5], 1));   // contract tiers are 0-indexed; UI speaks 1-indexed
   // on-chain art: tokenURI is data:application/json;base64,{name, image(svg data uri), attributes}
@@ -2173,11 +2207,28 @@ async function refreshBrokerLeaderboard() {
       prices: { stocks: stocks.map(a => ({ symbol: sbSymbols[a] || null, usd: sbStockPrices[a] ? +sbStockPrices[a].usd.toFixed(4) : null })), stonkbrokerUsd: stonkUsd, ethUsd: eUsd } };
     sbLeaderAt = Date.now(); sbLeaderScan = null; sbLeaderSave();
     console.log('SB leader ok: ' + rows.length + ' activated brokers ranked; top contents $' + (rows[0] ? rows[0].contentsUsd : 0));
+    sbWarmTop();   // the leaderboard's top rows are the likely next clicks — pre-fill their lookups
   } catch (e) { console.log('SB leader failed (resumes next tick): ' + e.message); }
   finally { sbLeaderBusy = false; }
 }
 setTimeout(refreshBrokerLeaderboard, 180000);    // first attempt 3 min after boot (tier census warms first)
 setInterval(refreshBrokerLeaderboard, 300000);   // resume tick every 5 min; a NEW full pass still only starts ~6-hourly
+// Cache warmer: after a census publish, pre-fetch the top rows (the clicks the leaderboard drives).
+// Runs detached at low priority — steps aside whenever a real user lookup is in flight.
+let sbWarming = false;
+async function sbWarmTop() {
+  if (sbWarming || !sbLeader) return; sbWarming = true;
+  try {
+    let warmed = 0;
+    for (const r of sbLeader.rows.slice(0, 50)) {
+      while (sbUserActive > 0) await new Promise(s => setTimeout(s, 4000));
+      if (sbBrokerFresh(sbBrokerCache.get(r.id))) continue;
+      try { await sbBrokerRefresh(r.id); warmed++; } catch (_) {}
+      await new Promise(s => setTimeout(s, 1500));
+    }
+    console.log('SB cache warmed (' + warmed + ' of top 50)');
+  } finally { sbWarming = false; }
+}
 
 // resolve a broker id to its 6551 wallet + current owner (both needed by every cross-game tool)
 async function sbIdWallet(id) {
@@ -2671,19 +2722,23 @@ write tools return unsigned calldata for your own signer. Never send a private k
     const id = Math.floor(Number(u.searchParams.get('id')));
     if (!(id >= 1 && id <= 4444)) { res.writeHead(400, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'id must be 1-4444' })); return; }
     const cached = sbBrokerCache.get(id);
-    if (cached && Date.now() - cached.ts < SB_BROKER_TTL) {
-      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=120' });
-      res.end(JSON.stringify(Object.assign({ ok: true, cached: true }, cached.data))); return;
+    // Event-aware cache: serve EXACT results for as long as no drop/transfer touched this broker;
+    // beyond that, serve the stale copy instantly and revalidate in the background (SWR) — the page
+    // re-fetches once and swaps in the fresh numbers.
+    if (cached && sbBrokerFresh(cached)) {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=60' });
+      res.end(JSON.stringify(Object.assign({ ok: true, cached: true, ageMs: Date.now() - cached.ts }, cached.data))); return;
+    }
+    if (cached && cached.data.live !== false) {
+      sbBrokerRefresh(id);                            // fire-and-forget revalidation (deduped)
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(Object.assign({ ok: true, cached: true, stale: true, refreshing: true, ageMs: Date.now() - cached.ts }, cached.data))); return;
     }
     try {
-      const data = await fetchBroker(id);
+      const data = await sbBrokerRefresh(id);
       if (!data) { res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify({ ok: false, error: 'lookup failed (RPC throttled or unknown id) — retry shortly' })); return; }
-      if (data.live !== false) {                     // a labeled cache-fallback answer must not pin the cache
-        sbBrokerCache.set(id, { data, ts: Date.now() });
-        if (sbBrokerCache.size > 300) { const k = sbBrokerCache.keys().next().value; sbBrokerCache.delete(k); }
-      }
       track({ t: 'broker_lookup', id, sid: 'server' });
-      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=120' });
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': data.live === false ? 'no-store' : 'public, max-age=60' });
       res.end(JSON.stringify(Object.assign({ ok: true, cached: false }, data)));
     } catch (e) {
       res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'lookup failed' }));

@@ -205,9 +205,14 @@ async function lookup(){
       if(t<3){ $('#bk-out').innerHTML='<p style="color:var(--muted)">chain is busy — retrying ('+t+'/3)…</p>'; await new Promise(r=>setTimeout(r,4000*t)); }
     }
     if(!j||!j.ok){ $('#bk-out').innerHTML='<p class="err">'+((j&&j.error)||'lookup failed')+'</p>'; return; }
+    bkRender(id,j);
+    if(j.refreshing){ setTimeout(async()=>{ try{ const f=await (await fetch('/api/broker?id='+id,{cache:'no-store'})).json(); if(f&&f.ok&&!f.stale&&Number($('#bk-id').value)===id) bkRender(id,f); }catch(e){} }, 9000); }
+  }catch(e){ $('#bk-out').innerHTML='<p class="err">lookup failed — retry shortly</p>'; }
+}
+function bkRender(id,j){
     const act=j.activation||{};
     const divs=(j.dividends&&j.dividends.byStock||[]).filter(d=>d.count===null||d.count>0);
-    $('#bk-out').innerHTML=(j.live===false?'<p class="note" style="color:var(--red);margin:0 0 10px">'+(j.sourceNote||'cached snapshot — live reads throttled; retry shortly')+'</p>':'')+'<div class="bk">'+
+    $('#bk-out').innerHTML=(j.live===false?'<p class="note" style="color:var(--red);margin:0 0 10px">'+(j.sourceNote||'cached snapshot — live reads throttled; retry shortly')+'</p>':(j.stale?'<p class="note" style="margin:0 0 10px">cached snapshot ('+Math.round((j.ageMs||0)/60000)+'m old) · updating…</p>':''))+'<div class="bk">'+
       (j.art&&j.art.image?'<img src="'+j.art.image+'" alt="'+(j.art.name||('Broker #'+id))+'" />':'<div></div>')+
       '<div>'+
         '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'+
@@ -229,7 +234,6 @@ async function lookup(){
         (divs.length?divs.map(d=>'<div class="out"><span class="k">Dividends '+(d.symbol?chip(d.symbol):shrt(d.token))+'</span><span class="v">'+(d.count===null?'unknown (throttled)':fmt(d.amount,9)+' over '+d.count+' drops')+'</span></div>').join(''):
           '<div class="out"><span class="k">Dividends received</span><span class="v">'+(j.dividends&&j.dividends.byStock===null?'unavailable (throttled)':(act.active?'none recorded yet':'none — broker not activated'))+'</span></div>')+
       '</div></div>';
-  }catch(e){ $('#bk-out').innerHTML='<p class="err">lookup failed — retry shortly</p>'; }
 }
 $('#bk-go').addEventListener('click',lookup);
 $('#bk-id').addEventListener('keydown',e=>{if(e.key==='Enter')lookup();});
