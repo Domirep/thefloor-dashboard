@@ -88,7 +88,7 @@
       <button class="btn" id="bk-go">Look up</button>
       <span class="note" style="margin:0;flex:1;min-width:200px">Each broker has its own on-chain wallet (ERC-6551). Enter an id to see what's inside: the stock it was seeded with, dividends received, activation tier, and the art — read live from the chain.<br><br>
       A broker's wallet can also hold a desk on <a href="/">The Floor</a>. Desks normally can't be sold or transferred at all, so holding one inside a broker is the one way a Floor position can change hands. Agent tools for this are at <a href="/mcp">/mcp</a>.<br><br>
-      If you're buying a broker: the activation tier and any desk stay with the NFT. Anything else in the wallet — stocks, tokens, operator NFTs, ETH — can be moved out by the seller before your purchase lands, so check the wallet at sale time. Not an appraisal, not financial advice.</span>
+      If you're buying a broker: any Floor desk lives on the broker's wallet and survives the sale. A paid activation does not — the contract clears it on every transfer, so you'll re-activate. Anything else in the wallet — stocks, tokens, operator NFTs, ETH — can be moved out by the seller before your purchase lands, so check the wallet at sale time. Not an appraisal, not financial advice.</span>
     </div>
     <div id="bk-out" style="margin-top:14px"></div>
   </div>
@@ -131,7 +131,16 @@ const M=n=>{if(n==null)return '?';const a=Math.abs(n);return a>=1e9?(a/1e9).toFi
 const shrt=a=>a?a.slice(0,6)+'…'+a.slice(-4):'?';
 const ago=ms=>{if(ms==null)return '?';const s=(Date.now()-ms)/1000;return s<90?Math.round(s)+'s ago':s<5400?Math.round(s/60)+'m ago':s<172800?(s/3600).toFixed(1)+'h ago':Math.round(s/86400)+'d ago';};
 const price6=p=>p==null?'?':'$'+(p>=0.01?p.toFixed(3):p.toFixed(6));
-const chip=s=>{if(!s)return '?';const c={AAPL:'aapl',AMZN:'amzn',NVDA:'nvda',STONKBROKER:'stonk'}[s]||'';return '<span class="stk'+(c?' '+c:'')+'">'+s+'</span>';};
+/* pixel glyphs, drawn here (no trademarked logo files): apple / smile-arrow / eye / chart-up */
+const GLYPH={
+  AAPL:'<rect x="4" y="0" width="1" height="1"/><rect x="3" y="1" width="1" height="1"/><rect x="2" y="2" width="4" height="1"/><rect x="1" y="3" width="6" height="2"/><rect x="2" y="5" width="4" height="1"/>',
+  AMZN:'<rect x="0" y="3" width="1" height="1"/><rect x="1" y="4" width="1" height="1"/><rect x="2" y="4" width="2" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="5" y="3" width="1" height="1"/><rect x="5" y="1" width="2" height="1"/><rect x="6" y="2" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/>',
+  NVDA:'<rect x="1" y="1" width="5" height="1"/><rect x="1" y="2" width="1" height="3"/><rect x="1" y="5" width="5" height="1"/><rect x="3" y="3" width="2" height="1"/><rect x="6" y="1" width="1" height="2"/>',
+  STONKBROKER:'<rect x="0" y="5" width="1" height="1"/><rect x="1" y="4" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="3" y="2" width="1" height="1"/><rect x="4" y="1" width="3" height="1"/><rect x="6" y="2" width="1" height="2"/>'
+};
+const chip=s=>{if(!s)return '?';const c={AAPL:'aapl',AMZN:'amzn',NVDA:'nvda',STONKBROKER:'stonk'}[s]||'';
+  const g=GLYPH[s]?'<svg viewBox="0 0 7 7" width="11" height="11" fill="currentColor" shape-rendering="crispEdges" style="vertical-align:-1px;margin-right:4px">'+GLYPH[s]+'</svg>':'';
+  return '<span class="stk'+(c?' '+c:'')+'">'+g+s+'</span>';};
 const EXPL='https://robinhoodchain.blockscout.com';
 
 function render(j){
@@ -202,9 +211,9 @@ async function lookup(){
         '<div class="out"><span class="k">Owner</span><span class="v"><a href="'+EXPL+'/address/'+j.owner+'" target="_blank" rel="noopener">'+shrt(j.owner)+'</a></span></div>'+
         '<div class="out"><span class="k">Broker wallet (ERC-6551)</span><span class="v"><a href="'+(j.links&&j.links.wallet||'#')+'" target="_blank" rel="noopener">'+shrt(j.wallet)+'</a></span></div>'+
         (j.rank?'<div class="out"><span class="k">Contents rank</span><span class="v">#'+j.rank.contentsRank+' of '+fmt(j.rank.ofActivated)+' · ~$'+Number(j.rank.contentsUsd).toLocaleString()+'</span></div>':'')+
-        '<div class="grp"><b>Bound to the NFT</b> · transfers with a sale, cannot be removed</div>'+
-        '<div class="out"><span class="k">Activation</span><span class="v">'+(act.active?'Tier '+act.tier+' · '+(act.weightBps/10000).toFixed(2)+'× dividend weight':'not activated')+'</span></div>'+
-        '<div class="out"><span class="k">The Floor</span><span class="v">'+(j.floor&&j.floor.hasDesk===true?'<span class="pill on">runs a desk</span> <a href="/?addr='+j.wallet+'">view →</a>':(j.floor&&j.floor.hasDesk===false?'no desk yet':'?'))+'</span></div>'+
+        '<div class="grp"><b>Game state</b> · a desk survives a sale; activation resets on transfer</div>'+
+        '<div class="out"><span class="k">Activation</span><span class="v">'+(act.active?'Tier '+act.tier+' · '+(act.weightBps/10000).toFixed(2)+'× <small style="color:var(--muted)">resets if transferred</small>':'not activated')+'</span></div>'+
+        '<div class="out"><span class="k">The Floor</span><span class="v">'+(j.floor&&j.floor.hasDesk===true?'<span class="pill on">runs a desk</span> <small style="color:var(--muted)">survives transfer</small> <a href="/?addr='+j.wallet+'">view →</a>':(j.floor&&j.floor.hasDesk===false?'no desk yet':'?'))+'</span></div>'+
         '<div class="grp"><b>In the wallet</b> · owner can move these out before a sale</div>'+
         '<div class="out"><span class="k">Seeded at mint</span><span class="v">'+fmt(j.seed&&j.seed.amount,9)+' '+((j.seed&&j.seed.symbol)?chip(j.seed.symbol):'?')+'</span></div>'+
         (j.holdings||[]).map(h=>'<div class="out"><span class="k">Holds</span><span class="v">'+fmt(h.amount,9)+' '+(h.symbol?chip(h.symbol):shrt(h.token))+'</span></div>').join('')+
