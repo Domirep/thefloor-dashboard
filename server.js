@@ -2056,8 +2056,10 @@ ${API_INDEX.endpoints.map(e => `- ${'`'}${e.path}${'`'} — ${e.desc}`).join('\n
   prepare_activate_broker (approve + activate, unsigned).
 - **Cross-game:** a broker's ERC-6551 wallet can PLAY THE FLOOR — get_broker_floor_status,
   prepare_broker_floor_desk (the wallet opens its own desk; desk + earnings travel with the NFT on
-  sale), prepare_broker_floor_collect. Verified against both games' contracts; no broker has a desk
-  yet as of 2026-07-19 — the first is a first.
+  sale), prepare_broker_floor_collect. Why it matters: Floor desks are permanently bound to their
+  wallet (there is NO other way to transfer or sell a position) — so a broker-desk is the only
+  sellable Floor position, and the broker gains a second income stream. Verified against both
+  games' contracts; no broker has a desk yet as of 2026-07-19 — the first is a first.
 - NFT ${SB_NFT} · $STONKBROKER ${SB_TOKEN} · dashboard page: ${'`'}/brokers${'`'}
 
 ## Gotchas that will bite an agent
