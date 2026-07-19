@@ -79,7 +79,7 @@
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <input type="number" id="bk-id" min="1" max="4444" placeholder="1–4444" />
       <button class="btn" id="bk-go">Look up</button>
-      <span class="note" style="margin:0;flex:1;min-width:200px">Every broker owns a real wallet (ERC-6551) seeded with tokenized stock. This reads it straight from the chain — art included.</span>
+      <span class="note" style="margin:0;flex:1;min-width:200px">Every broker owns a real wallet (ERC-6551) seeded with tokenized stock. This reads it straight from the chain — art included. A broker's wallet can even <b>run its own desk on <a href="/">The Floor</a></b> (point an agent at <a href="/mcp">/mcp</a> — no broker has done it yet; the first is a first).</span>
     </div>
     <div id="bk-out" style="margin-top:14px"></div>
   </div>
@@ -188,6 +188,7 @@ async function lookup(){
         '</div>'+
         '<div class="out"><span class="k">Owner</span><span class="v"><a href="'+EXPL+'/address/'+j.owner+'" target="_blank" rel="noopener">'+shrt(j.owner)+'</a></span></div>'+
         '<div class="out"><span class="k">Broker wallet (ERC-6551)</span><span class="v"><a href="'+(j.links&&j.links.wallet||'#')+'" target="_blank" rel="noopener">'+shrt(j.wallet)+'</a></span></div>'+
+        '<div class="out"><span class="k">The Floor</span><span class="v">'+(j.floor&&j.floor.hasDesk===true?'<span class="pill on">runs a desk</span> <a href="/?addr='+j.wallet+'">view →</a>':(j.floor&&j.floor.hasDesk===false?'no desk yet':'?'))+'</span></div>'+
         '<div class="out"><span class="k">Seeded at mint</span><span class="v">'+fmt(j.seed&&j.seed.amount,9)+' '+((j.seed&&j.seed.symbol)||'?')+'</span></div>'+
         (j.holdings||[]).map(h=>'<div class="out"><span class="k">Holds</span><span class="v">'+fmt(h.amount,9)+' '+(h.symbol||shrt(h.token))+'</span></div>').join('')+
         (j.stonkbrokerBalance>0?'<div class="out"><span class="k">$STONKBROKER</span><span class="v">'+M(j.stonkbrokerBalance)+'</span></div>':'')+

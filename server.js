@@ -1113,6 +1113,11 @@ const MCP_INSTRUCTIONS = [
   'next-upgrade cost, per-operator payback days, and the halving countdown. To buy FLOOR, get_swap_info +',
   'prepare_wrap_eth then prepare_swap_eth_for_floor (Uniswap V3, thin pool, minOut quoted live). All',
   'prepare_* tools return UNSIGNED calldata for your own signer — this server never holds or asks for keys.',
+  'SECOND GAME: StonkBrokers (get_brokers / get_broker / get_broker_activation_math / prepare_activate_broker)',
+  '— 4444 ERC-6551 broker NFTs whose wallets hold tokenized stock and earn ~10-min dividend drops. CROSS-GAME:',
+  'a broker\'s wallet can itself play The Floor (get_broker_floor_status, prepare_broker_floor_desk/collect) —',
+  'the desk then belongs to the NFT\'s wallet and travels with it on sale. As of 2026-07-19 no broker on the',
+  'chain has a desk yet; the first one makes history.',
 ].join(' ');
 const obj = (props, required) => ({ type: 'object', properties: props || {}, required: required || [], additionalProperties: false });
 const MCP_TOOLS = [
@@ -1138,6 +1143,15 @@ const MCP_TOOLS = [
   { name: 'get_swap_info', description: 'Everything needed to swap ETH↔FLOOR on Robinhood Chain: the Uniswap V3 router, WETH address, the FLOOR/WETH pool and its 1% fee tier, and the LIVE spot price (FLOOR per ETH) read from the pool. Note the pool is thin (~tens of $k liquidity) so large buys move the price hard — size accordingly. Read this before prepare_swap_eth_for_floor, or to construct/verify a swap yourself.', inputSchema: obj() },
   { name: 'prepare_wrap_eth', description: 'Build the UNSIGNED transaction to wrap native ETH into WETH (step 1 of buying FLOOR — the router swaps WETH, not raw ETH). Returns a WETH.deposit() call carrying your ETH as value.', inputSchema: obj({ amountEth: { type: 'number', description: 'How much ETH to wrap (whole ETH, e.g. 0.05).' } }, ['amountEth']) },
   { name: 'prepare_swap_eth_for_floor', description: 'Build the UNSIGNED Uniswap V3 swap that buys FLOOR with WETH (exactInputSingle). Full buy flow is 3 signed steps: (1) prepare_wrap_eth, (2) approve WETH to the router [included as approveWeth when `from` is given and allowance is short], (3) this swap. amountOutMinimum is computed from the LIVE pool price minus your slippage, so you are protected from a bad fill — but VERIFY the numbers before signing; this spends real money and the pool is thin. Selling FLOOR for ETH is the reverse and not built here.', inputSchema: obj({ amountEth: { type: 'number', description: 'WETH to spend (whole ETH). You must already hold this much WETH — see prepare_wrap_eth.' }, recipient: { type: 'string', description: 'Address to receive the FLOOR (the signing wallet).' }, slippagePct: { type: 'number', description: 'Max slippage tolerance in percent (default 2). amountOutMinimum = live quote × (1 − this).' }, from: { type: 'string', description: 'Signing wallet, used to check WETH allowance and include an approve if needed.' } }, ['amountEth', 'recipient']) },
+
+  // ---- StonkBrokers (second game on the same chain: 4444 ERC-6551 broker NFTs earning stock dividends) ----
+  { name: 'get_brokers', description: 'StonkBrokers collection state in one call: minted/holders, activation tier census, stock-dividend rounds (~10-min cadence, ETH value per round), $STONKBROKER price + burns, and the Floor-crossover count. Different game, same chain — each broker NFT owns a real ERC-6551 wallet seeded with tokenized stock.', inputSchema: obj() },
+  { name: 'get_broker', description: 'One StonkBroker by id (1-4444): owner, its ERC-6551 wallet address and holdings, the stock it was seeded with, per-stock dividends received, activation tier, whether its wallet owns a Floor desk (floor.hasDesk), and its on-chain art. null means unknown, never zero.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' } }, ['id']) },
+  { name: 'get_broker_activation_math', description: 'The decision math for activating a StonkBroker: per tier — activation fee in $STONKBROKER and USD, your weight share of the dividend pool after dilution, estimated dividends/day (from the observed drop rate), and payback days. Pass `id` for an exact on-chain fee quote (handles upgrade credit for already-active brokers). FACTS not advice: the drop rate tracks AMM trading volume and varies; new activations dilute everyone; token prices move.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id for an exact quoteActivation fee (optional — omit for table prices)' }, tier: { type: 'integer', description: 'Tier 1-5 to analyze (optional — omit for all five)' } }) },
+  { name: 'prepare_activate_broker', description: 'Build the UNSIGNED transaction(s) to activate a StonkBroker\'s dividend drops at a tier (or upgrade an active one — the on-chain quote credits what was already paid). Fee is paid in $STONKBROKER by the SIGNING wallet (50% burned, 50% treasury) and needs an ERC20 approve first — the response includes `approveFirst` when the allowance is short. Only the broker\'s owner meaningfully does this.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, tier: { type: 'integer', description: 'Target tier 1-5 (5 = 3.33x dividend weight)' }, from: { type: 'string', description: 'Signing wallet — enables the allowance check and exact approveFirst amount.' } }, ['id', 'tier']) },
+  { name: 'get_broker_floor_status', description: 'Cross-game: does this StonkBroker\'s ERC-6551 wallet play The Floor? Returns the wallet, whether it owns a desk, and if so its live desk state (alpha, share, pending PnL, FLOOR balance). A broker that plays The Floor is a portfolio-in-one-NFT: sell the broker and the desk + earnings go with it.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' } }, ['id']) },
+  { name: 'prepare_broker_floor_desk', description: 'THE cross-game move, and as of 2026-07-19 nobody on the chain has done it: build the UNSIGNED transaction that makes a StonkBroker\'s OWN ERC-6551 wallet open a desk on The Floor. You sign as the broker\'s owner; the tx calls the broker wallet\'s executeCall (owner-gated), which forwards 0.01 ETH into createDesk. The desk then belongs to the BROKER WALLET, not you — desk, alpha and future FLOOR earnings travel with the NFT if it ever sells. The 0.01 ETH rides along with your signature (the broker wallet needs no prior funding). Referrer semantics are identical to prepare_create_desk: on-chain, permanent, defaults to this dashboard\'s address, overridable — always tell the user who it is before signing.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, referrer: { type: 'string', description: 'Referrer to credit (permanent). Omit for this dashboard\'s default; 0x0…0 for none.' }, from: { type: 'string', description: 'Signing wallet — MUST be the broker\'s current owner (executeCall is owner-gated; anyone else reverts). Checked when given.' } }, ['id']) },
+  { name: 'prepare_broker_floor_collect', description: 'Build the UNSIGNED transaction that makes a StonkBroker\'s wallet collect its Floor desk\'s pending PnL. Sign as the broker\'s owner. The collected FLOOR lands IN the broker\'s wallet (it belongs to the NFT, not to you — use the wallet\'s executeCall for anything further).', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, from: { type: 'string', description: 'Signing wallet — MUST be the broker\'s current owner. Checked when given.' } }, ['id']) },
 ];
 // Client hints (MCP ToolAnnotations). readOnlyHint = safe to call without a confirmation prompt. The
 // get_*/list_* tools only read, and this server never writes anything regardless — so they're read-only.
@@ -1209,6 +1223,15 @@ async function floorPerWeth() {
   if (!res) return null;
   try { const sqrt = BigInt('0x' + res.slice(2, 66)); return Number(sqrt * sqrt) / (2 ** 192); }
   catch (_) { return null; }
+}
+// ETH/USD via the chain's WETH on GeckoTerminal, cached 10 min. Used to express activation math in one
+// currency. null on failure — callers must degrade, not assume.
+let _ethUsd = null, _ethUsdAt = 0;
+async function ethUsd() {
+  if (_ethUsd && Date.now() - _ethUsdAt < 600000) return _ethUsd;
+  const gm = await geckoMarket(WETH_ADDR);
+  if (gm && gm.price > 0) { _ethUsd = gm.price; _ethUsdAt = Date.now(); }
+  return _ethUsd;
 }
 // Shared shape for every prepare_* tool: unsigned, self-describing, and loud about the fact that the
 // caller signs. Nothing here ever touches a key or broadcasts.
@@ -1476,6 +1499,148 @@ async function mcpCall(name, args) {
       } else out.warnings.push('No `from` given — could not check WETH allowance. The router needs WETH approved or the swap reverts.');
       return out;
     }
+    // ---- StonkBrokers tools (cross-game; see the SB section below for the contract map) ----
+    case 'get_brokers': return await selfGet('/api/brokers');
+    case 'get_broker': {
+      const id = Math.floor(Number(args.id));
+      if (!(id >= 1 && id <= 4444)) return { error: 'id must be an integer 1-4444' };
+      return await selfGet('/api/broker?id=' + id);
+    }
+    case 'get_broker_activation_math': {
+      const d = sbStats && sbStats.dividends, act = sbStats && sbStats.activation;
+      if (!d || !act || !act.totalWeight) return { error: 'broker stats still warming — call get_brokers first and retry shortly' };
+      const stonkUsd = (sbStats.token && sbStats.token.price) || null;
+      const eUsd = await ethUsd();
+      const recent = d.recent || [];
+      const avgEth = recent.length ? recent.reduce((s, r) => s + r.ethIn, 0) / recent.length : null;
+      // rate from the RECENT window's own timespan (recent is newest-first) — mixing recent round sizes
+      // with the lifetime round frequency overstated the rate ~3x when activity was accelerating.
+      let ethPerDay = null;
+      if (recent.length >= 2 && recent[0].at && recent[recent.length - 1].at) {
+        const spanMs = recent[0].at - recent[recent.length - 1].at;
+        if (spanMs > 600000) ethPerDay = recent.reduce((s, r) => s + r.ethIn, 0) / (spanMs / 86400000);
+      }
+      if (ethPerDay == null && d.roundsPerDay && avgEth != null) ethPerDay = d.roundsPerDay * avgEth;
+      const tierArg = args.tier != null ? Math.floor(Number(args.tier)) : null;
+      if (tierArg != null && !(tierArg >= 1 && tierArg <= 5)) return { error: 'tier must be 1-5' };
+      const id = args.id != null ? Math.floor(Number(args.id)) : null;
+      if (id != null && !(id >= 1 && id <= 4444)) return { error: 'id must be 1-4444' };
+      const rows = [];
+      for (const t of SB_TIERS) {
+        if (tierArg && t.tier !== tierArg) continue;
+        let fee = t.price, feeSource = 'tier table';
+        if (id != null) {
+          const q = await ethCall(SB_ACT, SB_SEL_QUOTE_ACT + w256(BigInt(id)) + w256(BigInt(t.tier - 1)));
+          if (q && q !== '0x') { fee = Number(BigInt(q)) / 1e18; feeSource = 'quoteActivation (exact — credits any tier already paid)'; }
+          else feeSource = 'tier table (live quote unavailable)';
+        }
+        const share = t.weightBps / (act.totalWeight + t.weightBps);
+        const dailyEth = ethPerDay != null ? ethPerDay * share : null;
+        const costUsd = stonkUsd != null ? fee * stonkUsd : null;
+        const dailyUsd = (dailyEth != null && eUsd != null) ? dailyEth * eUsd : null;
+        rows.push({ tier: t.tier, weightBps: t.weightBps, feeStonkbroker: fee, feeSource,
+          feeUsd: costUsd != null ? +costUsd.toFixed(2) : null,
+          shareOfDropsAfterJoiningPct: +(share * 100).toFixed(4),
+          estDividendsEthPerDay: dailyEth != null ? +dailyEth.toFixed(6) : null,
+          estDividendsUsdPerDay: dailyUsd != null ? +dailyUsd.toFixed(2) : null,
+          estPaybackDays: (costUsd != null && dailyUsd) ? +(costUsd / dailyUsd).toFixed(1) : null });
+      }
+      return {
+        observed: { roundsPerDay: d.roundsPerDay, avgEthPerRound: avgEth != null ? +avgEth.toFixed(6) : null,
+          ethPerDayIntoDrops: ethPerDay != null ? +ethPerDay.toFixed(4) : null, totalActiveWeight: act.totalWeight,
+          activeBrokers: act.active, stonkbrokerUsd: stonkUsd, ethUsd: eUsd, ageMs: Date.now() - sbStatsAt },
+        tiers: rows,
+        caveats: ['Drop rate tracks Anvil AMM trading fees — it varies with volume and can stop entirely.',
+          'Every new activation dilutes all shares; payback assumes today\'s weights and prices hold.',
+          'The fee is 50% burned / 50% treasury. These are facts, not financial advice.'],
+      };
+    }
+    case 'prepare_activate_broker': {
+      const id = Math.floor(Number(args.id)), tier = Math.floor(Number(args.tier));
+      if (!(id >= 1 && id <= 4444)) return { error: 'id must be 1-4444' };
+      if (!(tier >= 1 && tier <= 5)) return { error: 'tier must be 1-5' };
+      const q = await ethCall(SB_ACT, SB_SEL_QUOTE_ACT + w256(BigInt(id)) + w256(BigInt(tier - 1)));
+      if (!q || q === '0x') return { error: 'could not quote the activation fee (RPC throttled) — retry shortly; never sign without a live quote' };
+      const feeWei = BigInt(q), fee = Number(feeWei) / 1e18;
+      const out = unsignedTx(SB_ACT, SB_SEL_ACTIVATE + w256(BigInt(id)) + w256(BigInt(tier - 1)), {
+        what: 'Activate StonkBroker #' + id + ' at tier ' + tier + ' (' + (SB_TIERS[tier - 1].weightBps / 10000) + 'x dividend weight)',
+        feeStonkbroker: fee,
+        feeNote: 'Quoted live on-chain; an already-active broker is only charged the difference. 50% of the fee is burned. Paid in $STONKBROKER by the signer via transferFrom — the approve must clear first.',
+        tierArgNote: 'On-chain tiers are ZERO-BASED: tier ' + tier + ' is encoded as ' + (tier - 1) + ' in the calldata.',
+      });
+      const from = String(args.from || '').trim();
+      if (/^0x[0-9a-fA-F]{40}$/.test(from)) {
+        const res = await ethCall(SB_TOKEN, SEL_ALLOWANCE + wAddr(from) + wAddr(SB_ACT));
+        let allowed = 0n; if (res) { try { allowed = BigInt(res); } catch (_) {} }
+        if (allowed < feeWei) out.approveFirst = unsignedTx(SB_TOKEN, SEL_APPROVE + wAddr(SB_ACT) + w256(feeWei), { what: 'Approve ' + fee + ' $STONKBROKER to the ActivationManager (sign before activating)' });
+      } else out.warnings = ['No `from` given — allowance not checked. The ActivationManager pulls $STONKBROKER via transferFrom; without an approve this reverts.'];
+      return out;
+    }
+    case 'get_broker_floor_status': {
+      const id = Math.floor(Number(args.id));
+      if (!(id >= 1 && id <= 4444)) return { error: 'id must be 1-4444' };
+      const wo = await sbIdWallet(id);
+      if (!wo) return { error: 'could not resolve the broker wallet (RPC throttled) — retry shortly' };
+      const hd = await ethCall(GAME_CONTRACT, SEL_HAS_DESK + wAddr(wo.wallet));
+      const hasDesk = hd == null ? null : /[1-9a-f]/.test(String(hd).slice(2));
+      const base = { id, owner: wo.owner, brokerWallet: wo.wallet, hasDesk,
+        crossGameNote: 'The desk (and any FLOOR it earns) belongs to the broker WALLET — it travels with the NFT on sale.' };
+      if (!hasDesk) return Object.assign(base, { deskState: null,
+        hint: hasDesk === false ? 'No desk yet. prepare_broker_floor_desk builds the tx that makes this broker open one.' : 'hasDesk unknown (RPC throttled) — retry.' });
+      let state = null; try { state = await rpcState(wo.wallet); } catch (_) {}
+      return Object.assign(base, { deskState: state, partial: !state });
+    }
+    case 'prepare_broker_floor_desk': {
+      const id = Math.floor(Number(args.id));
+      if (!(id >= 1 && id <= 4444)) return { error: 'id must be 1-4444' };
+      const hex40 = v => /^0x[0-9a-fA-F]{40}$/.test(v);
+      const raw = String(args.referrer || '').trim();
+      let referrer, referrerSource;
+      if (raw) {
+        if (!hex40(raw)) return { error: 'referrer must be a 0x-prefixed 40-hex address (or 0x0…0 for none)' };
+        referrer = raw.toLowerCase();
+        referrerSource = referrer === ZERO_ADDR ? 'none (caller opted out)' : 'caller-supplied';
+      } else { referrer = REF_WALLET; referrerSource = "default — this dashboard's referrer"; }
+      const wo = await sbIdWallet(id);
+      if (!wo) return { error: 'could not resolve the broker wallet (RPC throttled) — retry shortly' };
+      if (wo.wallet === referrer) return { error: 'the broker wallet cannot be its own referrer' };
+      const warnings = [];
+      const from = String(args.from || '').trim();
+      if (from) {
+        if (!hex40(from)) return { error: 'from must be a 0x-prefixed 40-hex address' };
+        if (from.toLowerCase() !== wo.owner) return { error: 'from is not the broker\'s current owner (' + wo.owner + ') — executeCall is owner-gated and this would revert' };
+      } else warnings.push('No `from` given — only the broker\'s CURRENT OWNER (' + wo.owner + ') can sign this; anyone else reverts.');
+      const hd = await ethCall(GAME_CONTRACT, SEL_HAS_DESK + wAddr(wo.wallet));
+      if (hd == null) warnings.push('Could not check whether the broker wallet already has a desk (RPC throttled) — verify before signing.');
+      else if (/[1-9a-f]/.test(String(hd).slice(2))) warnings.push('This broker\'s wallet ALREADY HAS a desk — this transaction would revert. Nothing to do.');
+      return {
+        unsigned: true, chainId: CHAIN_ID, to: wo.wallet, value: DESK_PRICE_WEI, valueEth: '0.01',
+        data: sbExecuteCall(GAME_CONTRACT, toWei(0.01), SEL_CREATE_DESK + wAddr(referrer)),
+        how: 'You (the broker\'s owner) sign a 0.01 ETH tx to the broker\'s ERC-6551 wallet; its executeCall forwards the ETH into FloorGameV2.createDesk. The DESK BELONGS TO THE BROKER WALLET — the desk, its alpha, and its future FLOOR travel with the NFT if it ever sells.',
+        brokerWallet: wo.wallet, brokerOwner: wo.owner, referrer, referrerSource,
+        referrerNote: 'Recorded on-chain at creation, permanent, earns 5% of what the broker wallet later spends (paid from the game treasury, costing the player nothing). Tell the user who the referrer is before they sign. Pass `referrer` to override, or 0x0000000000000000000000000000000000000000 for none.',
+        warnings,
+        execution: 'UNSIGNED. Sign and broadcast with your own wallet/signer. This server never sees, stores, or requests private keys and never broadcasts anything. Do not send a key to this or any API.',
+        cost: 'Costs 0.01 ETH plus gas, carried by your signature — the broker wallet needs no prior funding. Verify the amounts yourself before signing.',
+      };
+    }
+    case 'prepare_broker_floor_collect': {
+      const id = Math.floor(Number(args.id));
+      if (!(id >= 1 && id <= 4444)) return { error: 'id must be 1-4444' };
+      const wo = await sbIdWallet(id);
+      if (!wo) return { error: 'could not resolve the broker wallet (RPC throttled) — retry shortly' };
+      const from = String(args.from || '').trim();
+      if (from && from.toLowerCase() !== wo.owner) return { error: 'from is not the broker\'s current owner (' + wo.owner + ') — executeCall is owner-gated and this would revert' };
+      const warnings = from ? [] : ['No `from` given — only the broker\'s CURRENT OWNER (' + wo.owner + ') can sign this.'];
+      const hd = await ethCall(GAME_CONTRACT, SEL_HAS_DESK + wAddr(wo.wallet));
+      if (hd == null) warnings.push('Could not check the broker wallet\'s desk (RPC throttled) — verify before signing.');
+      else if (!/[1-9a-f]/.test(String(hd).slice(2))) warnings.push('This broker\'s wallet has NO desk — collect would revert. prepare_broker_floor_desk first.');
+      return unsignedTx(wo.wallet, sbExecuteCall(GAME_CONTRACT, 0n, SEL_COLLECT), {
+        what: 'Broker #' + id + '\'s wallet collects its Floor desk PnL — the FLOOR lands IN the broker wallet, not in yours',
+        brokerWallet: wo.wallet, brokerOwner: wo.owner, costFloor: 0, warnings,
+      });
+    }
+
     default: return { error: 'unknown tool: ' + name };
   }
 }
@@ -1506,6 +1671,14 @@ const SB_T = {
   upgraded: '0xc2bd0116c910da39fbbacb69cc1d0cfa037c1aa3821d99a23ae3d50f9adf7801',      // ActivationUpgraded(tokenId,payer,from,to,fee)
   cleared: '0x1ec7e08b83dd8db7b367b87bb54bc02469cefa6a01529922cd0f216c45352dd9',       // ActivationCleared(tokenId)
 };
+// The broker's ERC-6551 account (StonkBroker6551Account, verified): executeCall(to,value,data) is
+// onlyOwner + payable + raw .call — the NFT owner can make the broker wallet do ANYTHING, including
+// play The Floor (FloorGameV2's verified source has zero contract-caller gating: no tx.origin, no
+// extcodesize, no code.length). Probed 2026-07-19: none of the 250 Floor players is a broker wallet
+// yet — the cross-game mechanic is real and unexploited.
+const SB_SEL_EXECUTE_CALL = '0x9e5d4c49';   // executeCall(address,uint256,bytes) — onlyOwner, payable
+const SB_SEL_ACTIVATE = '0x4578f5f0';       // ActivationManager.activate(uint256 tokenId, uint8 tier) — pulls $STONKBROKER from msg.sender
+const SB_SEL_QUOTE_ACT = '0xd5166f45';      // quoteActivation(uint256,uint8) -> fee (handles upgrade credit)
 // Tier table is constructor-set (no setter in the ABI) — read from chain 2026-07-19. Weights are the
 // dividend share multiplier; a tier-5 broker earns 3.33x a tier-1 per drop. Prices in $STONKBROKER.
 const SB_TIERS = [
@@ -1737,12 +1910,14 @@ async function fetchBroker(id) {
   const calls = stockList.map((t, i) => C(i + 1, t, SB_SEL.balanceOf + sbPad(wallet).slice(2)));
   calls.push(C(90, SB_TOKEN, SB_SEL.balanceOf + sbPad(wallet).slice(2)));
   calls.push({ jsonrpc: '2.0', id: 91, method: 'eth_getBalance', params: [wallet, 'latest'] });
+  calls.push(C(92, GAME_CONTRACT, SEL_HAS_DESK + sbPad(wallet).slice(2)));   // cross-game: does this broker play The Floor?
   const b = await rpcBatch(calls, 4);
   const holdings = [];
-  let sbBal = null, ethBal = null;
+  let sbBal = null, ethBal = null, floorDesk = null;
   if (b) {
     stockList.forEach((t, i) => { const v = sbNum(b[i + 1]) / 1e18; if (v > 0) holdings.push({ token: t, symbol: sbSymbols[t] || null, amount: v }); });
     sbBal = sbNum(b[90]) / 1e18; ethBal = sbNum(b[91]) / 1e18;
+    floorDesk = /[1-9a-f]/.test(String(b[92] || '0x0').slice(2));
   }
   // dividends received = stock-token transfers Booster -> this broker's wallet (per current stock; small
   // per-wallet). Only activated brokers can receive drops, so inactive ones skip the log scans entirely —
@@ -1761,8 +1936,28 @@ async function fetchBroker(id) {
     seed: { token: seedToken, symbol: (seedToken && sbSymbols[seedToken]) || null, amount: seedAmount },
     holdings, stonkbrokerBalance: sbBal, ethBalance: ethBal,
     dividends: { byStock, note: 'transfers from the StockBooster to this broker wallet; other inflows not counted' },
+    // the broker's wallet is a first-class address — it can hold a Floor desk of its own (null = unknown)
+    floor: { hasDesk: floorDesk, note: floorDesk ? 'This broker\'s wallet owns a desk on The Floor — the desk travels with the NFT if it sells.' : null },
     links: { wallet: EXPLORER + '/address/' + wallet, nft: EXPLORER + '/token/' + SB_NFT + '/instance/' + id },
   };
+}
+
+// resolve a broker id to its 6551 wallet + current owner (both needed by every cross-game tool)
+async function sbIdWallet(id) {
+  const pad = BigInt(id).toString(16).padStart(64, '0');
+  const b = await rpcBatch([
+    { jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: SB_NFT, data: SB_SEL.tokenWallet + pad }, 'latest'] },
+    { jsonrpc: '2.0', id: 2, method: 'eth_call', params: [{ to: SB_NFT, data: SB_SEL.ownerOf + pad }, 'latest'] },
+  ], 4);
+  if (!b || !b[1] || b[1] === '0x' || !b[2] || b[2] === '0x') return null;
+  return { wallet: sbAddrOf(sbWord(b[1], 0)), owner: sbAddrOf(sbWord(b[2], 0)) };
+}
+// abi-encode StonkBroker6551Account.executeCall(address to, uint256 value, bytes data):
+// head = target, forwarded value, bytes offset (0x60 — three head words), then length + right-padded data.
+function sbExecuteCall(target, valueWei, innerHex) {
+  const inner = String(innerHex).replace(/^0x/, '');
+  const padded = inner.padEnd(Math.ceil(inner.length / 64) * 64, '0');
+  return SB_SEL_EXECUTE_CALL + wAddr(target) + w256(valueWei) + w256(0x60) + w256(inner.length / 2) + padded;
 }
 
 // ---- machine-readable surface (see /llms.txt) ----
@@ -1857,6 +2052,12 @@ ${API_INDEX.endpoints.map(e => `- ${'`'}${e.path}${'`'} — ${e.desc}`).join('\n
 ## StonkBrokers (second game covered, same chain)
 - Clutch Markets' 4444 ERC-6551 broker NFTs: each owns a wallet seeded with a tokenized stock and
   earns stock dividends when activated. ${'`'}/api/brokers${'`'} = collection stats, ${'`'}/api/broker?id=N${'`'} = one broker.
+- MCP tools: get_brokers, get_broker, get_broker_activation_math (fee/share/payback facts),
+  prepare_activate_broker (approve + activate, unsigned).
+- **Cross-game:** a broker's ERC-6551 wallet can PLAY THE FLOOR — get_broker_floor_status,
+  prepare_broker_floor_desk (the wallet opens its own desk; desk + earnings travel with the NFT on
+  sale), prepare_broker_floor_collect. Verified against both games' contracts; no broker has a desk
+  yet as of 2026-07-19 — the first is a first.
 - NFT ${SB_NFT} · $STONKBROKER ${SB_TOKEN} · dashboard page: ${'`'}/brokers${'`'}
 
 ## Gotchas that will bite an agent
@@ -1904,9 +2105,11 @@ http.createServer(async (req, res) => {
 <div style="max-width:720px;margin:0 auto;padding:48px 20px">
 <h1 style="color:#d4af5a;font-size:22px;letter-spacing:1px">▸ THE FLOOR · MCP</h1>
 <p>This URL is a <b>Model Context Protocol</b> endpoint — it's for your AI agent, not your browser.
-Add it to Claude, Claude Code, or Cursor and ask the floor questions in plain language:
-live desks, alpha, emissions, and operator payback math — and it can even <b>play</b>
-(unsigned transactions only; your wallet signs, this server never touches keys).</p>
+Add it to Claude, Claude Code, or Cursor and ask about Robinhood Chain's games in plain language:
+The Floor (desks, alpha, emissions, operator payback math) and StonkBrokers (broker wallets,
+activation math, stock dividends) — and it can even <b>play</b>, including making a StonkBroker's
+own ERC-6551 wallet open a desk on The Floor (unsigned transactions only; your wallet signs,
+this server never touches keys).</p>
 <h2 style="color:#d4af5a;font-size:15px;margin-top:28px">Add it</h2>
 <pre style="background:#12100c;border:1px solid #37301f;border-radius:8px;padding:14px;overflow-x:auto;font-size:12.5px"># Claude Code
 claude mcp add --transport http the-floor ${base}/mcp
@@ -1949,7 +2152,7 @@ write tools return unsigned calldata for your own signer. Never send a private k
                 // JSON-RPC + tools), so refusing a newer client would be gatekeeping for no reason.
                 protocolVersion: (m.params && typeof m.params.protocolVersion === 'string') ? m.params.protocolVersion : MCP_VERSION,
                 capabilities: { tools: { listChanged: false } },
-                serverInfo: { name: 'the-floor', version: '1.0.0' },
+                serverInfo: { name: 'the-floor', version: '1.1.0' },
                 instructions: MCP_INSTRUCTIONS,
               } };
             case 'ping': return { jsonrpc: '2.0', id, result: {} };
