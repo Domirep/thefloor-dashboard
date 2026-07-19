@@ -247,8 +247,10 @@ async function loadLeader(){
       $('#leader').innerHTML='<p style="color:var(--muted)">contents census '+(j.progress?'running — '+fmt(j.progress.scanned)+'/'+fmt(j.progress.total)+' brokers scanned':'queued')+' · first full pass takes a few minutes</p>';
       return;
     }
-    $('#leader').innerHTML='<table><tr><th>#</th><th>Broker</th><th>Tier</th><th class="num">Contents (USD)</th><th>Floor desk</th></tr>'+
-      j.top.slice(0,15).map(r=>'<tr><td>'+r.rank+'</td><td><a href="#" data-bk="'+r.id+'">Stonk Broker #'+r.id+'</a></td><td>T'+r.tier+'</td><td class="num">$'+Number(r.contentsUsd).toLocaleString('en-US',{maximumFractionDigits:2})+'</td><td>'+(r.hasDesk?'🟢 desk':'—')+'</td></tr>').join('')+'</table>';
+    $('#leader').innerHTML=(j.partialPass?'<p class="note" style="margin:0 0 8px">first sweep still running — high-tier brokers measured first, ranks refine as the rest come in</p>':'')+
+      '<div style="max-height:520px;overflow-y:auto"><table><tr><th>#</th><th>Broker</th><th>Tier</th><th class="num">Contents (USD)</th><th>Floor desk</th></tr>'+
+      j.top.map(r=>'<tr><td>'+r.rank+'</td><td><a href="#" data-bk="'+r.id+'">Stonk Broker #'+r.id+'</a></td><td>T'+r.tier+'</td><td class="num">$'+Number(r.contentsUsd).toLocaleString('en-US',{maximumFractionDigits:2})+'</td><td>'+(r.hasDesk?'🟢 desk':'—')+'</td></tr>').join('')+'</table></div>'+
+      '<p class="note" style="margin-top:8px">top 50 of '+fmt(j.scanned)+' measured ('+fmt(j.activated)+' activated)</p>';
     document.querySelectorAll('#leader a[data-bk]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();$('#bk-id').value=a.dataset.bk;lookup();window.scrollTo({top:0,behavior:'smooth'});}));
   }catch(e){}
 }

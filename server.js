@@ -2059,7 +2059,7 @@ async function fetchBrokerInner(id) {
 // contents are shown as "now", never promised. Slow scan: ~1.4k wallets x 6 calls, batched and
 // resumable across ticks/redeploys; publishes only when a full pass completes.
 const SB_LEADER_FILE = path.join(DATA_DIR, 'broker-leader.json');
-let sbLeader = null, sbLeaderAt = 0, sbLeaderBusy = false, sbLeaderScan = null;
+let sbLeader = null, sbLeaderAt = 0, sbLeaderBusy = false, sbLeaderScan = null, sbLeaderRot = 0;
 // A live user lookup outranks the background census for the shared RPC budget: the scan loops
 // check this counter between batches and step aside, resuming on their next tick.
 let sbUserActive = 0;
@@ -2084,10 +2084,11 @@ try {
   if (p && p.leader) { sbLeader = p.leader; sbLeaderAt = p.at || 0; }
   if (p && p.wallets) Object.assign(sbWalletById, p.wallets);
   if (p && p.scan) sbLeaderScan = p.scan;
+  if (p && p.rot) sbLeaderRot = p.rot;
   console.log('LOADED broker leaderboard from volume (' + (sbLeader ? sbLeader.scanned + ' ranked' : 'no pass yet') + ')');
 } catch (_) {}
 function sbLeaderSave() {
-  try { fs.writeFile(SB_LEADER_FILE, JSON.stringify({ leader: sbLeader, at: sbLeaderAt, wallets: sbWalletById, scan: sbLeaderScan }), () => {}); } catch (_) {}
+  try { fs.writeFile(SB_LEADER_FILE, JSON.stringify({ leader: sbLeader, at: sbLeaderAt, wallets: sbWalletById, scan: sbLeaderScan, rot: sbLeaderRot }), () => {}); } catch (_) {}
 }
 const SB_LEADER_DISCLAIMER = 'Contents are a live snapshot the current owner can move out of the wallet at any time before a sale. A paid activation does NOT survive a transfer — the NFT contract clears it on every ownership change, so buyers re-activate. A Floor desk lives on the broker\'s wallet and DOES survive transfers. Rankings are data, not an appraisal, and nothing here is financial advice.';
 // Loose batch: one POST, harvest whatever succeeded. The throttler fails random SUBSETS of a big
@@ -2124,7 +2125,26 @@ async function refreshBrokerLeaderboard() {
     const ids = Object.keys(tiers).map(Number);
     if (!ids.length || !sbStats || !sbStats.dividends) return;               // needs the tier census warm
     if (!sbLeaderScan && sbLeaderAt && Date.now() - sbLeaderAt < 21600000) return;   // fresh pass every ~6h
-    if (!sbLeaderScan) sbLeaderScan = { pending: ids.slice(), rows: {}, startedAt: Date.now() };
+    if (!sbLeaderScan) {
+      // The board only ever SHOWS top 50 — so after the first full pass, refresh passes are cheap:
+      // rescan last pass's top 150 (the plausible top-50 pool) + anything newly activated + a
+      // rotating slice of the rest so every broker still gets remeasured over a few passes.
+      if (sbLeader && sbLeader.rows && sbLeader.rows.length) {
+        const prev = new Map(sbLeader.rows.map(r => [r.id, r.rank]));
+        const top = sbLeader.rows.slice(0, 150).map(r => r.id).filter(i => tiers[i] != null);
+        const fresh = ids.filter(i => !prev.has(i));
+        const rest = ids.filter(i => prev.has(i) && prev.get(i) > 150);
+        const rot = rest.length ? sbLeaderRot % rest.length : 0;
+        const slice = rest.slice(rot, rot + 250).concat(rot + 250 > rest.length ? rest.slice(0, (rot + 250) - rest.length) : []);
+        sbLeaderRot = rest.length ? (rot + 250) % rest.length : 0;
+        sbLeaderScan = { pending: [...new Set([...top, ...fresh, ...slice])], rows: {}, startedAt: Date.now(), partial: true };
+        console.log('SB leader: refresh pass over ' + sbLeaderScan.pending.length + ' brokers (top150 + new + rotation)');
+      } else {
+        sbLeaderScan = { pending: ids.slice(), rows: {}, startedAt: Date.now() };
+      }
+    }
+    // highest tier weight first — the best free predictor of big wallets, so the top-50 firms up earliest
+    sbLeaderScan.pending.sort((a, b) => ((SB_TIERS[tiers[b]] || {}).weightBps || 0) - ((SB_TIERS[tiers[a]] || {}).weightBps || 0));
     const stocks = (sbStats.dividends.stocks || []).map(s => s.address).filter(Boolean);
     if (stocks.length !== 3) return;
     await sbEnsurePrices(stocks);
@@ -2196,20 +2216,37 @@ async function refreshBrokerLeaderboard() {
         emptyStreak = 0;
         const n = Object.keys(sbLeaderScan.rows).length;
         if (n % 50 === 0) { sbLeaderSave(); console.log('SB leader: ' + n + '/' + (n + sbLeaderScan.pending.length) + ' rows'); }
+        // early interim publish: pending is weight-ordered, so once the high-tier pool is measured
+        // the top-50 is already meaningful — show it (marked partial) instead of a spinner for hours
+        if (n >= 400 && (!sbLeader || sbLeaderAt < sbLeaderScan.startedAt)) sbLeaderPublish(false);
         await new Promise(s => setTimeout(s, 400));
       }
     }
-    // full pass done — rank and publish
-    const rows = Object.values(sbLeaderScan.rows).sort((a, b) => b.contentsUsd - a.contentsUsd);
-    rows.forEach((r, i) => { r.rank = i + 1; });
-    const byId = {}; rows.forEach(r => { byId[r.id] = r; });
-    sbLeader = { rows, byId, scanned: rows.length, activated: ids.length,
-      prices: { stocks: stocks.map(a => ({ symbol: sbSymbols[a] || null, usd: sbStockPrices[a] ? +sbStockPrices[a].usd.toFixed(4) : null })), stonkbrokerUsd: stonkUsd, ethUsd: eUsd } };
-    sbLeaderAt = Date.now(); sbLeaderScan = null; sbLeaderSave();
-    console.log('SB leader ok: ' + rows.length + ' activated brokers ranked; top contents $' + (rows[0] ? rows[0].contentsUsd : 0));
+    // pass done — rank and publish (final)
+    sbLeaderPublish(true);
     sbWarmTop();   // the leaderboard's top rows are the likely next clicks — pre-fill their lookups
   } catch (e) { console.log('SB leader failed (resumes next tick): ' + e.message); }
   finally { sbLeaderBusy = false; }
+}
+// Rank + publish the current scan. Refresh passes only rescan a subset, so unscanned brokers carry
+// forward their last-pass row (stamped asOf) rather than vanishing; deactivated ones drop out.
+function sbLeaderPublish(final) {
+  if (!sbLeaderScan) return;
+  const tiers = sbTierByToken;
+  const merged = {};
+  if (sbLeader && sbLeader.rows) for (const r of sbLeader.rows) { if (tiers[r.id] != null && !(r.id in sbLeaderScan.rows)) merged[r.id] = Object.assign({}, r, { asOf: r.asOf || sbLeaderAt }); }
+  for (const k of Object.keys(sbLeaderScan.rows)) merged[k] = sbLeaderScan.rows[k];
+  const rows = Object.values(merged).sort((a, b) => b.contentsUsd - a.contentsUsd);
+  rows.forEach((r, i) => { r.rank = i + 1; });
+  const byId = {}; rows.forEach(r => { byId[r.id] = r; });
+  const stocks = ((sbStats && sbStats.dividends && sbStats.dividends.stocks) || []).map(s => s.address).filter(Boolean);
+  sbLeader = { rows, byId, scanned: rows.length, activated: Object.keys(tiers).length,
+    partialPass: !final || undefined,
+    prices: { stocks: stocks.map(a => ({ symbol: sbSymbols[a] || null, usd: sbStockPrices[a] ? +sbStockPrices[a].usd.toFixed(4) : null })), stonkbrokerUsd: (sbStats && sbStats.token && sbStats.token.price) || null, ethUsd: _ethUsd } };
+  sbLeaderAt = Date.now();
+  if (final) sbLeaderScan = null;
+  sbLeaderSave();
+  console.log('SB leader ' + (final ? 'ok (final)' : 'interim') + ': ' + rows.length + ' ranked; top contents $' + (rows[0] ? rows[0].contentsUsd : 0));
 }
 setTimeout(refreshBrokerLeaderboard, 180000);    // first attempt 3 min after boot (tier census warms first)
 setInterval(refreshBrokerLeaderboard, 300000);   // resume tick every 5 min; a NEW full pass still only starts ~6-hourly
@@ -2754,7 +2791,7 @@ write tools return unsigned calldata for your own signer. Never send a private k
       res.end(JSON.stringify({ ok: false, building: true, progress: prog, disclaimer: SB_LEADER_DISCLAIMER })); return;
     }
     res.end(JSON.stringify({ ok: true, ageMs: Date.now() - sbLeaderAt, scanned: sbLeader.scanned, activated: sbLeader.activated,
-      prices: sbLeader.prices, top: sbLeader.rows.slice(0, 50), disclaimer: SB_LEADER_DISCLAIMER }));
+      partialPass: sbLeader.partialPass, prices: sbLeader.prices, top: sbLeader.rows.slice(0, 50), disclaimer: SB_LEADER_DISCLAIMER }));
     return;
   }
 
