@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>How to play · The Floor & StonkBrokers</title>
+<meta name="description" content="Plain-language guide to both games on Robinhood Chain: The Floor (desks, operators, emissions) and StonkBrokers (broker NFTs, stock dividends), and how one broker wallet can play both." />
+<link rel="icon" href="/assets/favicon.ico" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{--ink:#1a150e;--paper:#f0e6d2;--amber:#c9a227;--brass-dark:#8a6d16;--brass-light:#e6c96b;--muted-cream:#b3a88f;--muted:#6f6249;--navy-950:#0d0b08;--navy-900:#13100c;--navy-800:#26201a;--green:#2fbf71;--red:#d9534f;--font-display:'DM Serif Display',serif;--font-mono:'IBM Plex Mono',monospace}
+  *{box-sizing:border-box;min-width:0}
+  html,body{margin:0;padding:0;overflow-x:clip}
+  body{background:radial-gradient(1200px 600px at 50% -10%,#1c1710,#0d0b08 60%);color:var(--paper);font-family:var(--font-mono);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+  header{border-bottom:2px solid var(--brass-dark);padding:22px 0;margin-bottom:22px;background:rgba(13,11,8,.6)}
+  header .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  h1{font-family:var(--font-display);font-size:30px;margin:0;color:var(--paper)}
+  h1 .b{color:var(--amber)}
+  .sub{color:var(--muted-cream);font-size:12px}
+  .card{background:var(--navy-900);border:1px solid #37301f;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:18px;margin-bottom:14px}
+  .card h3{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;font-size:13px;color:var(--brass-light);margin:0 0 10px}
+  .grid{display:grid;gap:14px}
+  .g2{grid-template-columns:1fr 1fr}
+  @media(max-width:820px){.g2{grid-template-columns:1fr}}
+  ol{margin:0;padding-left:22px}
+  ol li{margin-bottom:10px}
+  .note{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6}
+  a{color:var(--amber)}
+  .btn{display:inline-block;background:#12100c;color:var(--brass-light);border:2px solid var(--amber);padding:9px 15px;border-radius:4px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1.5px;font-size:11.5px;text-decoration:none;font-weight:600;white-space:nowrap;margin:8px 8px 0 0}
+  .btn:hover{background:#1c1710}
+  .btn.alt{border-color:var(--brass-dark);color:var(--muted-cream)}
+  .foot{color:var(--muted);font-size:11px;text-align:center;padding:26px 0 40px;line-height:1.8}
+  b{color:var(--paper)}
+  .facts{border-left:2px solid var(--brass-dark);padding-left:12px;margin-top:12px;font-size:12.5px;color:var(--muted-cream)}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>HOW TO <span class="b">PLAY</span></h1>
+  <span class="sub" style="margin-left:auto"><a href="/">The Floor dashboard</a> · <a href="/brokers">brokers</a></span>
+</div></header>
+
+<div class="wrap">
+  <div class="grid g2">
+    <div class="card">
+      <h3>The Floor · desks &amp; operators</h3>
+      <p style="margin-top:0">An idle strategy game: your desk holds operators, operators produce <b>alpha</b>, and your alpha is your share of the game's $FLOOR emissions.</p>
+      <ol>
+        <li>Get a wallet on <b>Robinhood Chain</b> with a little ETH.</li>
+        <li>On the official site, connect and <b>create a desk</b> (0.01 ETH). The recruiter shown at creation is written on-chain and can never change — it's shown before you sign.</li>
+        <li>Recruit the <b>free starter operator</b>. It starts producing alpha immediately.</li>
+        <li><b>Collect PnL</b> when it's worth the gas. Spend $FLOOR on stronger operators (75% of in-game spend burns) and upgrade the desk when you run out of seats or bandwidth.</li>
+        <li>Emissions <b>halve roughly monthly</b>, so early compounding counts. Check your numbers on the dashboard's My Desk tab, or point an agent at <a href="/mcp">/mcp</a> and ask for <b>get_strategy</b>.</li>
+      </ol>
+      <a class="btn" href="https://thefloor.sh/?ref=0x30602250c5f1fcbA5407E99B1DFaAB992EA4fFD2" target="_blank" rel="noopener">Play The Floor ↗</a>
+      <a class="btn alt" href="https://thefloor.sh/docs" target="_blank" rel="noopener">Official docs ↗</a>
+    </div>
+
+    <div class="card">
+      <h3>StonkBrokers · broker NFTs</h3>
+      <p style="margin-top:0">4,444 pixel brokers. Each one owns a real on-chain wallet (ERC-6551) seeded with a tokenized stock, and can earn <b>stock dividends</b> from the protocol's trading fees.</p>
+      <ol>
+        <li>The mint is over — brokers trade on the official <b>Anvil AMM marketplace</b>, paid in $STONKBROKER.</li>
+        <li>Before buying one, <b>check its wallet</b> on the <a href="/brokers">broker inspector</a>: contents can be moved out by the seller until your purchase lands, and a paid activation resets on every transfer.</li>
+        <li><b>Activate a tier</b> (paid in $STONKBROKER, 50% burns) to turn on dividend drops — they land every ~10 minutes, weighted by tier (tier 5 earns 3.33× tier 1).</li>
+        <li>Dividends accrue <b>inside the broker's wallet</b>. Track any broker, and the leaderboard, on <a href="/brokers">/brokers</a>.</li>
+      </ol>
+      <a class="btn" href="https://www.stonkbrokers.cash/" target="_blank" rel="noopener">StonkBrokers site ↗</a>
+      <a class="btn alt" href="/brokers">Broker inspector</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>One wallet, both games</h3>
+    <p style="margin-top:0">A broker's wallet is a full account — it can hold any token or NFT and use any app on this chain, and whatever it holds travels with the broker when it changes hands. That includes a Floor desk: positions on The Floor normally can't be sold or moved at all, but a desk <b>inside a broker's wallet</b> goes wherever the NFT goes.</p>
+      <ol>
+        <li>Add the agent endpoint to Claude, Claude Code, or Cursor: <a href="/mcp">/mcp</a>.</li>
+        <li>Ask it to <b>prepare_broker_floor_desk</b> for your broker's id. You get back an unsigned transaction — it shows the referrer (changeable) and the exact cost before you sign.</li>
+        <li>Sign in your own wallet as the broker's owner. The 0.01 ETH rides along with your signature; the broker's wallet needs no prior funding.</li>
+        <li>The desk now belongs to the broker's wallet. Collect its earnings the same way (<b>prepare_broker_floor_collect</b>) — the $FLOOR lands in the broker's wallet.</li>
+      </ol>
+    <div class="facts">
+      Three facts to keep straight before you rely on any of this:<br>
+      · a Floor desk lives on the broker's wallet and <b>survives transfers</b><br>
+      · a paid activation <b>resets on every transfer</b> — activate after moving a broker, not before<br>
+      · everything else in the wallet is <b>removable by the owner</b> until a sale lands — verify contents at sale time
+    </div>
+    <p class="note">There is deliberately no "connect wallet" button on this site. Transactions are prepared unsigned and you sign them in your own wallet — this server never holds keys and never broadcasts. Nobody's broker wallet has opened a desk yet.</p>
+  </div>
+
+  <div class="foot">
+    Unofficial community pages — not affiliated with The Floor, Clutch Markets, StonkBrokers, or Robinhood. Official rules live on the games' own sites.<br>
+    Links to The Floor carry this dashboard's referral code: it costs you nothing, pays the dashboard a share of in-game spend, and desk creation always shows the referrer and lets you change or remove it.<br>
+    Game tokens are experimental. Nothing here is an appraisal or financial advice.
+  </div>
+</div>
+
+<script>
+const TRACK=(()=>{
+  let sid=sessionStorage.getItem('floor_sid'); if(!sid){sid=Math.random().toString(36).slice(2)+Date.now().toString(36);sessionStorage.setItem('floor_sid',sid);}
+  const base={sid,w:innerWidth,h:innerHeight,mob:innerWidth<=820,ref:document.referrer||'',ua:(navigator.userAgent||'').slice(0,120)};
+  return function(t,data){ try{ const payload=JSON.stringify(Object.assign({t},base,data||{},{ts:Date.now()}));
+    if(navigator.sendBeacon)navigator.sendBeacon('/event',payload); else fetch('/event',{method:'POST',body:payload,keepalive:true}); }catch(e){} };
+})();
+TRACK('pageview',{path:location.pathname});
+</script>
+</body>
+</html>

@@ -2653,6 +2653,7 @@ write tools return unsigned calldata for your own signer. Never send a private k
   if (fp === '/') fp = '/index.html';
   if (fp === '/firmwars') fp = '/firmwars.html';
   if (fp === '/brokers') fp = '/brokers.html';
+  if (fp === '/play') fp = '/play.html';
   const file = path.join(ROOT, path.normalize(fp).replace(/^(\.\.[\/\\])+/, ''));
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
