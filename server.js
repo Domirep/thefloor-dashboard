@@ -2080,13 +2080,15 @@ async function refreshBrokerLeaderboard() {
     await sbEnsurePrices(stocks);
     const stonkUsd = (sbStats.token && sbStats.token.price) || null;
     const eUsd = await ethUsd();
-    // resolve missing wallets (immutable — fetched once ever). Loose batches of 25: harvest whatever
-    // succeeded, leave the rest for the next tick. Progress is monotonic even when badly throttled.
+    // resolve missing wallets (immutable — fetched once ever). Prod evidence 2026-07-19: this RPC
+    // REJECTS large batch requests outright from Railway's egress (25-call batches returned zero
+    // items while 6-8 call batches pass every time) — so stay at 8, the size the core refresh has
+    // proven for weeks. Loose harvest keeps whatever lands; progress is monotonic.
     const needW = sbLeaderScan.pending.filter(id => !sbWalletById[id]);
     let emptyStreak = 0, resolved = 0;
-    for (let i = 0; i < needW.length; i += 25) {
+    for (let i = 0; i < needW.length; i += 8) {
       if (sbUserActive > 0) { console.log('SB leader: yielding to a live lookup'); sbLeaderSave(); return; }
-      const chunk = needW.slice(i, i + 25);
+      const chunk = needW.slice(i, i + 8);
       const byId = await sbBatchLoose(chunk.map((id, k) => ({ jsonrpc: '2.0', id: k + 1, method: 'eth_call', params: [{ to: SB_NFT, data: SB_SEL.tokenWallet + BigInt(id).toString(16).padStart(64, '0') }, 'latest'] })));
       if (!byId) {
         emptyStreak++;
@@ -2098,13 +2100,13 @@ async function refreshBrokerLeaderboard() {
       await new Promise(s => setTimeout(s, 700));
     }
     if (resolved) { console.log('SB leader: resolved ' + resolved + ' wallets (' + Object.keys(sbWalletById).length + ' total)'); sbLeaderSave(); }
-    // balance sweep: 8 wallets x 6 calls per loose batch. A wallet's row is written only when all
-    // six of its reads landed; otherwise the id stays pending — nothing is silently dropped.
+    // balance sweep: ONE wallet (6 calls) per request — the proven lookup-path size. A wallet's row
+    // is written only when all six reads landed; otherwise the id stays pending — nothing dropped.
     emptyStreak = 0;
     while (sbLeaderScan.pending.length) {
       if (sbUserActive > 0) { console.log('SB leader: yielding to a live lookup'); sbLeaderSave(); return; }
       const chunk = []; const rest = [];
-      for (const id of sbLeaderScan.pending) { if (chunk.length < 8 && sbWalletById[id]) chunk.push(id); else rest.push(id); }
+      for (const id of sbLeaderScan.pending) { if (chunk.length < 1 && sbWalletById[id]) chunk.push(id); else rest.push(id); }
       if (!chunk.length) { sbLeaderSave(); return; }   // remaining ids lack wallets — next tick resolves them
       const calls = [];
       chunk.forEach((id, ci) => {
@@ -2140,7 +2142,12 @@ async function refreshBrokerLeaderboard() {
         emptyStreak++;
         if (emptyStreak >= 3) { console.log('SB leader: balance phase throttled hard (' + Object.keys(sbLeaderScan.rows).length + ' rows, ' + sbLeaderScan.pending.length + ' pending) — resuming next tick'); sbLeaderSave(); return; }
         await new Promise(s => setTimeout(s, 2500));
-      } else { emptyStreak = 0; await new Promise(s => setTimeout(s, 700)); }
+      } else {
+        emptyStreak = 0;
+        const n = Object.keys(sbLeaderScan.rows).length;
+        if (n % 50 === 0) { sbLeaderSave(); console.log('SB leader: ' + n + '/' + (n + sbLeaderScan.pending.length) + ' rows'); }
+        await new Promise(s => setTimeout(s, 400));
+      }
     }
     // full pass done — rank and publish
     const rows = Object.values(sbLeaderScan.rows).sort((a, b) => b.contentsUsd - a.contentsUsd);
