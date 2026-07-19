@@ -141,6 +141,7 @@ const GLYPH={
 const chip=s=>{if(!s)return '?';const c={AAPL:'aapl',AMZN:'amzn',NVDA:'nvda',STONKBROKER:'stonk'}[s]||'';
   const g=GLYPH[s]?'<svg viewBox="0 0 7 7" width="11" height="11" fill="currentColor" shape-rendering="crispEdges" style="vertical-align:-1px;margin-right:4px">'+GLYPH[s]+'</svg>':'';
   return '<span class="stk'+(c?' '+c:'')+'">'+g+s+'</span>';};
+const usd=v=>v==null?'':' <small style="color:var(--muted-cream)">$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:2})+'</small>';
 const EXPL='https://robinhoodchain.blockscout.com';
 
 function render(j){
@@ -221,9 +222,10 @@ async function lookup(){
         '<div class="out"><span class="k">The Floor</span><span class="v">'+(j.floor&&j.floor.hasDesk===true?'<span class="pill on">runs a desk</span> <small style="color:var(--muted)">survives transfer</small> <a href="/?addr='+j.wallet+'">view →</a>':(j.floor&&j.floor.hasDesk===false?'no desk yet':'?'))+'</span></div>'+
         '<div class="grp"><b>In the wallet</b> · owner can move these out before a sale</div>'+
         '<div class="out"><span class="k">Seeded at mint</span><span class="v">'+fmt(j.seed&&j.seed.amount,9)+' '+((j.seed&&j.seed.symbol)?chip(j.seed.symbol):'?')+'</span></div>'+
-        (j.holdings||[]).map(h=>'<div class="out"><span class="k">Holds</span><span class="v">'+fmt(h.amount,9)+' '+(h.symbol?chip(h.symbol):shrt(h.token))+'</span></div>').join('')+
-        (j.stonkbrokerBalance>0?'<div class="out"><span class="k">'+chip('STONKBROKER')+'</span><span class="v">'+M(j.stonkbrokerBalance)+'</span></div>':'')+
-        (j.ethBalance>0?'<div class="out"><span class="k">ETH</span><span class="v">'+fmt(j.ethBalance,6)+'</span></div>':'')+
+        (j.holdings||[]).map(h=>'<div class="out"><span class="k">Holds</span><span class="v">'+fmt(h.amount,9)+' '+(h.symbol?chip(h.symbol):shrt(h.token))+usd(h.usd)+'</span></div>').join('')+
+        (j.stonkbrokerBalance>0?'<div class="out"><span class="k">'+chip('STONKBROKER')+'</span><span class="v">'+M(j.stonkbrokerBalance)+usd(j.stonkbrokerBalanceUsd)+'</span></div>':'')+
+        (j.ethBalance>0?'<div class="out"><span class="k">ETH</span><span class="v">'+fmt(j.ethBalance,6)+usd(j.ethBalanceUsd)+'</span></div>':'')+
+        (j.contentsUsd!=null?'<div class="out"><span class="k">Wallet value (snapshot)</span><span class="v">~$'+Number(j.contentsUsd).toLocaleString('en-US',{maximumFractionDigits:2})+(j.unpricedAssets?' <small style="color:var(--muted)">+ unpriced: '+j.unpricedAssets.join(', ')+'</small>':'')+'</span></div>':'')+
         (divs.length?divs.map(d=>'<div class="out"><span class="k">Dividends '+(d.symbol?chip(d.symbol):shrt(d.token))+'</span><span class="v">'+(d.count===null?'unknown (throttled)':fmt(d.amount,9)+' over '+d.count+' drops')+'</span></div>').join(''):
           '<div class="out"><span class="k">Dividends received</span><span class="v">'+(j.dividends&&j.dividends.byStock===null?'unavailable (throttled)':(act.active?'none recorded yet':'none — broker not activated'))+'</span></div>')+
       '</div></div>';

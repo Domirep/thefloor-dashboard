@@ -1910,6 +1910,7 @@ function sbBrokerLite(id) {
     activation: { active: tier0 != null, tier: tier0 != null ? tier0 + 1 : null, weightBps: tier0 != null && SB_TIERS[tier0] ? SB_TIERS[tier0].weightBps : null },
     seed: { token: null, symbol: null, amount: null },
     holdings, stonkbrokerBalance: lr ? lr.stonkbroker : null, ethBalance: lr ? lr.eth : null,
+    contentsUsd: lr ? lr.contentsUsd : null,
     dividends: { byStock: null, note: 'unavailable while the RPC is throttled' },
     floor: { hasDesk: lr ? lr.hasDesk : null, note: null },
     rank: lr ? { contentsRank: lr.rank, ofActivated: sbLeader.scanned, contentsUsd: lr.contentsUsd, note: 'contents snapshot — owner-removable before a sale; not an appraisal' } : null,
@@ -1964,6 +1965,18 @@ async function fetchBrokerInner(id) {
     sbBal = sbNum(b[90]) / 1e18; ethBal = sbNum(b[91]) / 1e18;
     floorDesk = /[1-9a-f]/.test(String(b[92] || '0x0').slice(2));
   }
+  // USD via the shared hourly price caches (stock pools on GeckoTerminal, STONKBROKER, WETH).
+  // A missing price shows as unpriced — never silently valued at zero.
+  await sbEnsurePrices(stockList);
+  const stonkUsdNow = (sbStats && sbStats.token && sbStats.token.price) || null;
+  const ethUsdNow = await ethUsd();
+  let contentsUsd = 0; const unpriced = [];
+  let sbBalUsd = null, ethBalUsd = null;
+  if (b) {
+    holdings.forEach(h => { const p = h.token && sbStockPrices[h.token]; if (p) { h.usd = +(h.amount * p.usd).toFixed(2); contentsUsd += h.usd; } else unpriced.push(h.symbol || h.token); });
+    if (sbBal > 0) { if (stonkUsdNow != null) { sbBalUsd = +(sbBal * stonkUsdNow).toFixed(2); contentsUsd += sbBalUsd; } else unpriced.push('STONKBROKER'); }
+    if (ethBal > 0) { if (ethUsdNow != null) { ethBalUsd = +(ethBal * ethUsdNow).toFixed(2); contentsUsd += ethBalUsd; } else unpriced.push('ETH'); }
+  }
   // dividends received = stock-token transfers Booster -> this broker's wallet (per current stock; small
   // per-wallet). Only activated brokers can receive drops, so inactive ones skip the log scans entirely —
   // that's ~68% of lookups spared 3-4 getLogs each on a throttle-prone RPC.
@@ -1979,7 +1992,8 @@ async function fetchBrokerInner(id) {
     id, owner, wallet, art,
     activation: { active: isActive, tier: isActive ? tier0 + 1 : null, weightBps: isActive && SB_TIERS[tier0] ? SB_TIERS[tier0].weightBps : null },
     seed: { token: seedToken, symbol: (seedToken && sbSymbols[seedToken]) || null, amount: seedAmount },
-    holdings, stonkbrokerBalance: sbBal, ethBalance: ethBal,
+    holdings, stonkbrokerBalance: sbBal, stonkbrokerBalanceUsd: sbBalUsd, ethBalance: ethBal, ethBalanceUsd: ethBalUsd,
+    contentsUsd: b ? +contentsUsd.toFixed(2) : null, unpricedAssets: unpriced.length ? unpriced : undefined,
     dividends: { byStock, note: 'transfers from the StockBooster to this broker wallet; other inflows not counted' },
     // the broker's wallet is a first-class address — it can hold a Floor desk of its own (null = unknown)
     floor: { hasDesk: floorDesk, note: floorDesk ? 'This broker\'s wallet owns a desk on The Floor. The desk (level/alpha) is bound to the NFT and transfers on sale; liquid contents remain owner-removable until then.' : null },
@@ -2026,6 +2040,33 @@ function sbLeaderSave() {
   try { fs.writeFile(SB_LEADER_FILE, JSON.stringify({ leader: sbLeader, at: sbLeaderAt, wallets: sbWalletById, scan: sbLeaderScan }), () => {}); } catch (_) {}
 }
 const SB_LEADER_DISCLAIMER = 'Contents are a live snapshot the current owner can move out of the wallet at any time before a sale. A paid activation does NOT survive a transfer — the NFT contract clears it on every ownership change, so buyers re-activate. A Floor desk lives on the broker\'s wallet and DOES survive transfers. Rankings are data, not an appraisal, and nothing here is financial advice.';
+// Loose batch: one POST, harvest whatever succeeded. The throttler fails random SUBSETS of a big
+// batch, so all-or-nothing batching (rpcBatch) can loop forever while loose batching always inches
+// forward — this is why the first census never converged.
+async function sbBatchLoose(calls, tries = 2) {
+  for (let t = 0; t < tries; t++) {
+    try {
+      const r = await fetch(RPC_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(calls) });
+      const j = await r.json();
+      if (Array.isArray(j)) {
+        const byId = {};
+        j.forEach(x => { if (x && ('result' in x)) byId[x.id] = x.result; });
+        if (Object.keys(byId).length) return byId;
+      }
+    } catch (_) {}
+    await new Promise(s => setTimeout(s, 1200 * (t + 1)));
+  }
+  return null;
+}
+async function sbEnsurePrices(addrs) {
+  for (const a of (addrs || [])) {
+    if (!a) continue;
+    if (!sbStockPrices[a] || Date.now() - sbStockPrices[a].at > 3600000) {
+      const gm = await geckoMarket(a);
+      if (gm && gm.price > 0) sbStockPrices[a] = { usd: gm.price, at: Date.now() };
+    }
+  }
+}
 async function refreshBrokerLeaderboard() {
   if (sbLeaderBusy) return; sbLeaderBusy = true;
   try {
@@ -2036,30 +2077,35 @@ async function refreshBrokerLeaderboard() {
     if (!sbLeaderScan) sbLeaderScan = { pending: ids.slice(), rows: {}, startedAt: Date.now() };
     const stocks = (sbStats.dividends.stocks || []).map(s => s.address).filter(Boolean);
     if (stocks.length !== 3) return;
-    // prices: the three stocks via GeckoTerminal (their on-chain pools), STONKBROKER + ETH from existing caches
-    for (const a of stocks) {
-      if (!sbStockPrices[a] || Date.now() - sbStockPrices[a].at > 3600000) {
-        const gm = await geckoMarket(a);
-        if (gm && gm.price > 0) sbStockPrices[a] = { usd: gm.price, at: Date.now() };
-      }
-    }
+    await sbEnsurePrices(stocks);
     const stonkUsd = (sbStats.token && sbStats.token.price) || null;
     const eUsd = await ethUsd();
-    // resolve missing wallets (immutable — only ever fetched once per id)
+    // resolve missing wallets (immutable — fetched once ever). Loose batches of 25: harvest whatever
+    // succeeded, leave the rest for the next tick. Progress is monotonic even when badly throttled.
     const needW = sbLeaderScan.pending.filter(id => !sbWalletById[id]);
-    for (let i = 0; i < needW.length; i += 60) {
-      if (sbUserActive > 0) { console.log('SB leader: yielding to a live lookup — resuming next tick'); sbLeaderSave(); return; }
-      const chunk = needW.slice(i, i + 60);
-      const b = await rpcBatch(chunk.map((id, k) => ({ jsonrpc: '2.0', id: k + 1, method: 'eth_call', params: [{ to: SB_NFT, data: SB_SEL.tokenWallet + BigInt(id).toString(16).padStart(64, '0') }, 'latest'] })));
-      if (!b) { console.log('SB leader: wallet batch throttled — resuming next tick'); sbLeaderSave(); return; }
-      chunk.forEach((id, k) => { const w = sbAddrOf(sbWord(b[k + 1], 0)); if (w && w !== ZERO_ADDR) sbWalletById[id] = w; });
-      await new Promise(s => setTimeout(s, 600));
+    let emptyStreak = 0, resolved = 0;
+    for (let i = 0; i < needW.length; i += 25) {
+      if (sbUserActive > 0) { console.log('SB leader: yielding to a live lookup'); sbLeaderSave(); return; }
+      const chunk = needW.slice(i, i + 25);
+      const byId = await sbBatchLoose(chunk.map((id, k) => ({ jsonrpc: '2.0', id: k + 1, method: 'eth_call', params: [{ to: SB_NFT, data: SB_SEL.tokenWallet + BigInt(id).toString(16).padStart(64, '0') }, 'latest'] })));
+      if (!byId) {
+        emptyStreak++;
+        if (emptyStreak >= 3) { console.log('SB leader: wallet phase throttled hard (' + resolved + ' resolved this tick, ' + Object.keys(sbWalletById).length + ' total) — resuming next tick'); sbLeaderSave(); return; }
+        await new Promise(s => setTimeout(s, 2500)); continue;
+      }
+      emptyStreak = 0;
+      chunk.forEach((id, k) => { const res = byId[k + 1]; if (res) { const w = sbAddrOf(sbWord(res, 0)); if (w && w !== ZERO_ADDR) { sbWalletById[id] = w; resolved++; } } });
+      await new Promise(s => setTimeout(s, 700));
     }
-    // balance sweep: 10 wallets x 6 calls per batch
+    if (resolved) { console.log('SB leader: resolved ' + resolved + ' wallets (' + Object.keys(sbWalletById).length + ' total)'); sbLeaderSave(); }
+    // balance sweep: 8 wallets x 6 calls per loose batch. A wallet's row is written only when all
+    // six of its reads landed; otherwise the id stays pending — nothing is silently dropped.
+    emptyStreak = 0;
     while (sbLeaderScan.pending.length) {
-      if (sbUserActive > 0) { console.log('SB leader: yielding to a live lookup — resuming next tick'); sbLeaderSave(); return; }
-      const chunk = sbLeaderScan.pending.slice(0, 10).filter(id => sbWalletById[id]);
-      if (!chunk.length) { sbLeaderScan.pending = sbLeaderScan.pending.slice(10); continue; }
+      if (sbUserActive > 0) { console.log('SB leader: yielding to a live lookup'); sbLeaderSave(); return; }
+      const chunk = []; const rest = [];
+      for (const id of sbLeaderScan.pending) { if (chunk.length < 8 && sbWalletById[id]) chunk.push(id); else rest.push(id); }
+      if (!chunk.length) { sbLeaderSave(); return; }   // remaining ids lack wallets — next tick resolves them
       const calls = [];
       chunk.forEach((id, ci) => {
         const w = sbWalletById[id], base = ci * 6;
@@ -2068,24 +2114,33 @@ async function refreshBrokerLeaderboard() {
         calls.push({ jsonrpc: '2.0', id: base + 5, method: 'eth_getBalance', params: [w, 'latest'] });
         calls.push({ jsonrpc: '2.0', id: base + 6, method: 'eth_call', params: [{ to: GAME_CONTRACT, data: SEL_HAS_DESK + sbPad(w).slice(2) }, 'latest'] });
       });
-      const b = await rpcBatch(calls);
-      if (!b) { console.log('SB leader: balance batch throttled, ' + sbLeaderScan.pending.length + ' ids left — resuming next tick'); sbLeaderSave(); return; }
-      chunk.forEach((id, ci) => {
-        const base = ci * 6; let usd = 0; const hold = {}; const unpriced = [];
-        stocks.forEach((t, si) => {
-          const v = sbNum(b[base + si + 1]) / 1e18;
-          if (v > 0) { hold[sbSymbols[t] || t] = +v.toFixed(9); const p = sbStockPrices[t]; if (p) usd += v * p.usd; else unpriced.push(sbSymbols[t] || t); }
+      const byId = await sbBatchLoose(calls);
+      const done = new Set();
+      if (byId) {
+        chunk.forEach((id, ci) => {
+          const base = ci * 6;
+          for (let k = 1; k <= 6; k++) if (!(base + k in byId)) return;    // partial wallet — stays pending
+          let usd = 0; const hold = {}; const unpriced = [];
+          stocks.forEach((t, si) => {
+            const v = sbNum(byId[base + si + 1]) / 1e18;
+            if (v > 0) { hold[sbSymbols[t] || t] = +v.toFixed(9); const p = sbStockPrices[t]; if (p) usd += v * p.usd; else unpriced.push(sbSymbols[t] || t); }
+          });
+          const sbv = sbNum(byId[base + 4]) / 1e18;
+          if (sbv > 0) { if (stonkUsd != null) usd += sbv * stonkUsd; else unpriced.push('STONKBROKER'); }
+          const ev = sbNum(byId[base + 5]) / 1e18;
+          if (ev > 0) { if (eUsd != null) usd += ev * eUsd; else unpriced.push('ETH'); }
+          sbLeaderScan.rows[id] = { id, tier: (tiers[id] || 0) + 1, contentsUsd: +usd.toFixed(2), holdings: hold,
+            stonkbroker: sbv > 0 ? +sbv.toFixed(0) : 0, eth: ev > 0 ? +ev.toFixed(6) : 0,
+            hasDesk: /[1-9a-f]/.test(String(byId[base + 6] || '0x0').slice(2)), unpriced: unpriced.length ? unpriced : undefined };
+          done.add(id);
         });
-        const sbv = sbNum(b[base + 4]) / 1e18;
-        if (sbv > 0) { if (stonkUsd != null) usd += sbv * stonkUsd; else unpriced.push('STONKBROKER'); }
-        const ev = sbNum(b[base + 5]) / 1e18;
-        if (ev > 0) { if (eUsd != null) usd += ev * eUsd; else unpriced.push('ETH'); }
-        sbLeaderScan.rows[id] = { id, tier: (tiers[id] || 0) + 1, contentsUsd: +usd.toFixed(2), holdings: hold,
-          stonkbroker: sbv > 0 ? +sbv.toFixed(0) : 0, eth: ev > 0 ? +ev.toFixed(6) : 0,
-          hasDesk: /[1-9a-f]/.test(String(b[base + 6] || '0x0').slice(2)), unpriced: unpriced.length ? unpriced : undefined };
-      });
-      sbLeaderScan.pending = sbLeaderScan.pending.slice(10);
-      await new Promise(s => setTimeout(s, 600));
+      }
+      sbLeaderScan.pending = rest.concat(chunk.filter(id => !done.has(id)));
+      if (!done.size) {
+        emptyStreak++;
+        if (emptyStreak >= 3) { console.log('SB leader: balance phase throttled hard (' + Object.keys(sbLeaderScan.rows).length + ' rows, ' + sbLeaderScan.pending.length + ' pending) — resuming next tick'); sbLeaderSave(); return; }
+        await new Promise(s => setTimeout(s, 2500));
+      } else { emptyStreak = 0; await new Promise(s => setTimeout(s, 700)); }
     }
     // full pass done — rank and publish
     const rows = Object.values(sbLeaderScan.rows).sort((a, b) => b.contentsUsd - a.contentsUsd);
@@ -2098,8 +2153,8 @@ async function refreshBrokerLeaderboard() {
   } catch (e) { console.log('SB leader failed (resumes next tick): ' + e.message); }
   finally { sbLeaderBusy = false; }
 }
-setTimeout(refreshBrokerLeaderboard, 180000);     // first attempt 3 min after boot (tier census warms first)
-setInterval(refreshBrokerLeaderboard, 1200000);   // resume/refresh tick; a new full pass starts only ~6-hourly
+setTimeout(refreshBrokerLeaderboard, 180000);    // first attempt 3 min after boot (tier census warms first)
+setInterval(refreshBrokerLeaderboard, 300000);   // resume tick every 5 min; a NEW full pass still only starts ~6-hourly
 
 // resolve a broker id to its 6551 wallet + current owner (both needed by every cross-game tool)
 async function sbIdWallet(id) {
