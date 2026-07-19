@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Floor · Stonk Brokers — live collection stats</title>
+<meta name="description" content="Live on-chain stats for StonkBrokers on Robinhood Chain: activations, stock dividends, burns, holders, and a per-broker wallet inspector." />
+<link rel="icon" href="/assets/favicon.ico" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{--ink:#1a150e;--paper:#f0e6d2;--amber:#c9a227;--brass-dark:#8a6d16;--brass-light:#e6c96b;--muted-cream:#b3a88f;--muted:#6f6249;--navy-950:#0d0b08;--navy-900:#13100c;--navy-800:#26201a;--green:#2fbf71;--red:#d9534f;--font-display:'DM Serif Display',serif;--font-mono:'IBM Plex Mono',monospace}
+  *{box-sizing:border-box;min-width:0}
+  html,body{margin:0;padding:0;overflow-x:clip}
+  body{background:radial-gradient(1200px 600px at 50% -10%,#1c1710,#0d0b08 60%);color:var(--paper);font-family:var(--font-mono);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+  header{border-bottom:2px solid var(--brass-dark);padding:22px 0;margin-bottom:22px;background:rgba(13,11,8,.6)}
+  header .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  h1{font-family:var(--font-display);font-size:30px;margin:0;color:var(--paper)}
+  h1 .b{color:var(--amber)}
+  .tag{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:2px;font-size:10px;color:#0c0906;background:var(--amber);padding:3px 8px;border-radius:3px}
+  .sub{color:var(--muted-cream);font-size:12px}
+  .label{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:2px;font-size:11px;color:var(--muted-cream)}
+  .card{background:var(--navy-900);border:1px solid #37301f;box-shadow:0 10px 30px rgba(0,0,0,.35);padding:16px;margin-bottom:14px}
+  .card h3{font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;font-size:13px;color:var(--brass-light);margin:0 0 10px}
+  .grid{display:grid;gap:14px}
+  .grid>*{min-width:0}
+  .g2{grid-template-columns:1fr 1fr}
+  @media(max-width:820px){.g2{grid-template-columns:1fr}}
+  .chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+  .chip{background:var(--navy-900);border:1px solid #37301f;padding:12px 14px}
+  .chip .k{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted-cream)}
+  .chip .v{font-family:var(--font-display);font-size:22px;color:var(--amber);line-height:1.15;margin-top:3px}
+  .chip .v small{font-family:var(--font-mono);font-size:11px;color:var(--muted-cream)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{background:linear-gradient(180deg,#241c10,#191308);color:var(--brass-light);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;font-size:10px;text-align:left;padding:7px 8px;border-bottom:1px solid var(--brass-dark)}
+  td{padding:7px 8px;border-bottom:1px dashed #2a2419;font-variant-numeric:tabular-nums}
+  tr:last-child td{border-bottom:none}
+  .num{text-align:right}
+  th.num{text-align:right}
+  .note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6}
+  a{color:var(--amber)}
+  .btn{display:inline-block;background:#12100c;color:var(--brass-light);border:2px solid var(--amber);padding:10px 16px;border-radius:4px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1.5px;font-size:12px;text-decoration:none;font-weight:600;white-space:nowrap;cursor:pointer}
+  .btn:hover{background:#1c1710}
+  input[type=number]{background:var(--navy-950);border:1px solid #4a3d22;color:var(--paper);font-family:var(--font-mono);font-size:15px;padding:10px 12px;border-radius:4px;width:130px}
+  input[type=number]:focus{outline:none;border-color:var(--amber)}
+  .bk{display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start}
+  @media(max-width:680px){.bk{grid-template-columns:1fr}}
+  .bk img{width:100%;image-rendering:pixelated;border:1px solid var(--brass-dark);background:#0c0906}
+  .out{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px 0;border-bottom:1px dashed #2a2419}
+  .out:last-child{border-bottom:none}
+  .out .k{color:var(--muted-cream);font-size:12px}
+  .out .v{font-size:13px;color:var(--paper);text-align:right}
+  .pill{display:inline-block;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:3px;border:1px solid var(--brass-dark);color:var(--brass-light)}
+  .pill.on{background:var(--green);border-color:var(--green);color:#0c0906;font-weight:700}
+  .foot{color:var(--muted);font-size:11px;text-align:center;padding:26px 0 40px;line-height:1.8}
+  .err{color:var(--red)}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>STONK <span class="b">BROKERS</span></h1>
+  <span class="tag">Robinhood Chain</span>
+  <span class="sub" style="margin-left:auto">live on-chain · <a href="/">← The Floor dashboard</a></span>
+</div></header>
+
+<div class="wrap">
+  <div class="chips" id="chips">
+    <div class="chip"><div class="k">Minted</div><div class="v" id="c-minted">—</div></div>
+    <div class="chip"><div class="k">Holders</div><div class="v" id="c-holders">—</div></div>
+    <div class="chip"><div class="k">Activated</div><div class="v" id="c-active">—</div></div>
+    <div class="chip"><div class="k">$STONKBROKER</div><div class="v" id="c-price">—</div></div>
+    <div class="chip"><div class="k">Burned</div><div class="v" id="c-burned">—</div></div>
+    <div class="chip"><div class="k">Dividend rounds</div><div class="v" id="c-rounds">—</div></div>
+  </div>
+
+  <div class="card">
+    <h3>Inspect a broker</h3>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <input type="number" id="bk-id" min="1" max="4444" placeholder="1–4444" />
+      <button class="btn" id="bk-go">Look up</button>
+      <span class="note" style="margin:0;flex:1;min-width:200px">Every broker owns a real wallet (ERC-6551) seeded with tokenized stock. This reads it straight from the chain — art included.</span>
+    </div>
+    <div id="bk-out" style="margin-top:14px"></div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card"><h3>Activation tiers</h3><div id="tiers"><p style="color:var(--muted)">—</p></div>
+      <p class="note">Activating a broker (paid in $STONKBROKER, 50% burned) turns on its dividend drops. Weight = share multiplier per drop: tier 5 earns 3.33× tier 1.</p></div>
+    <div class="card"><h3>Stock dividends</h3><div id="divs"><p style="color:var(--muted)">—</p></div>
+      <p class="note">The StockBooster swaps accumulated fees into tokenized stocks and drops them into activated brokers' wallets, weighted by tier. ETH-in is the value entering each round; round times are interpolated from block numbers (approx).</p></div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card"><h3>Top holders</h3><div id="holders"><p style="color:var(--muted)">—</p></div></div>
+    <div class="card"><h3>The Floor crossover</h3><div id="cross"><p style="color:var(--muted)">—</p></div>
+      <p class="note">Wallets holding a broker that have also opened a desk on <a href="/">The Floor</a>. Two games, one chain, measured on-chain.</p></div>
+  </div>
+
+  <div class="foot">
+    Unofficial community page — not affiliated with Clutch Markets, StonkBrokers, or Robinhood. Read-only on-chain data; nothing here is financial advice.<br>
+    NFT <a id="f-nft" href="#" target="_blank" rel="noopener">0x539c…abf0</a> · $STONKBROKER <a id="f-tok" href="#" target="_blank" rel="noopener">0xe934…bf50</a> · agents: <a href="/llms.txt">llms.txt</a> · <a href="/api">API</a> · <a href="/">The Floor dashboard</a>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+/* ---- anonymous, same-origin telemetry (matches the main page) ---- */
+const TRACK=(()=>{
+  let sid=sessionStorage.getItem('floor_sid'); if(!sid){sid=Math.random().toString(36).slice(2)+Date.now().toString(36);sessionStorage.setItem('floor_sid',sid);}
+  const base={sid,w:innerWidth,h:innerHeight,mob:innerWidth<=820,ref:document.referrer||'',ua:(navigator.userAgent||'').slice(0,120)};
+  return function(t,data){ try{ const payload=JSON.stringify(Object.assign({t},base,data||{},{ts:Date.now()}));
+    if(navigator.sendBeacon)navigator.sendBeacon('/event',payload); else fetch('/event',{method:'POST',body:payload,keepalive:true}); }catch(e){} };
+})();
+TRACK('pageview',{path:location.pathname});
+
+const fmt=(n,d=0)=>n==null?'?':Number(n).toLocaleString('en-US',{maximumFractionDigits:d});
+const M=n=>{if(n==null)return '?';const a=Math.abs(n);return a>=1e9?(a/1e9).toFixed(2)+'B':a>=1e6?(a/1e6).toFixed(1)+'M':a>=1e3?Math.round(a/1e3)+'K':Math.round(a);};
+const shrt=a=>a?a.slice(0,6)+'…'+a.slice(-4):'?';
+const ago=ms=>{if(ms==null)return '?';const s=(Date.now()-ms)/1000;return s<90?Math.round(s)+'s ago':s<5400?Math.round(s/60)+'m ago':s<172800?(s/3600).toFixed(1)+'h ago':Math.round(s/86400)+'d ago';};
+const price6=p=>p==null?'?':'$'+(p>=0.01?p.toFixed(3):p.toFixed(6));
+const EXPL='https://robinhoodchain.blockscout.com';
+
+function render(j){
+  $('#c-minted').innerHTML = fmt(j.minted)+' <small>/ '+fmt(j.maxSupply)+(j.mintedOut?' · out':'')+'</small>';
+  $('#c-holders').innerHTML = j.holders==null?'<small>scanning…</small>':fmt(j.holders)+' <small>wallets</small>';
+  $('#c-active').innerHTML = fmt(j.activation&&j.activation.active)+' <small>'+(j.activation&&j.activation.pctOfMinted!=null?j.activation.pctOfMinted+'%':'')+'</small>';
+  $('#c-price').innerHTML = j.token&&j.token.price!=null?price6(j.token.price):'<small>?</small>';
+  $('#c-burned').innerHTML = j.token&&j.token.burned!=null?M(j.token.burned):'<small>?</small>';
+  $('#c-rounds').innerHTML = j.dividends?fmt(j.dividends.rounds)+' <small>'+(j.dividends.roundsPerDay?'~'+j.dividends.roundsPerDay+'/day':'')+'</small>':'<small>?</small>';
+
+  if(j.activation&&j.activation.tiers){
+    $('#tiers').innerHTML='<table><tr><th>Tier</th><th class="num">Price</th><th class="num">Weight</th><th class="num">Active</th></tr>'+
+      j.activation.tiers.map(t=>'<tr><td>Tier '+t.tier+'</td><td class="num">'+M(t.price)+'</td><td class="num">'+(t.weightBps/10000).toFixed(2)+'×</td><td class="num">'+(t.active==null?'?':fmt(t.active))+'</td></tr>').join('')+'</table>'+
+      (j.activation.tiersPartial?'<p class="note err">tier census is stale (chain read throttled) — totals may lag</p>':'');
+  }
+  if(j.dividends){
+    const d=j.dividends;
+    const stocks=(d.stocks||[]).map(s=>s.symbol||shrt(s.address)).join(' · ');
+    $('#divs').innerHTML=
+      '<div class="out"><span class="k">Total value dropped</span><span class="v">Ξ '+fmt(d.totalEthIn,4)+'</span></div>'+
+      '<div class="out"><span class="k">Pending (next round)</span><span class="v">Ξ '+fmt(d.pendingEth,4)+'</span></div>'+
+      '<div class="out"><span class="k">Last round</span><span class="v">#'+fmt(d.lastRound&&d.lastRound.round)+' · Ξ '+fmt(d.lastRound&&d.lastRound.ethIn,4)+' · '+ago(d.lastRound&&d.lastRound.at)+'</span></div>'+
+      '<div class="out"><span class="k">Current stocks</span><span class="v">'+(stocks||'?')+'</span></div>'+
+      (d.recent&&d.recent.length?'<table style="margin-top:8px"><tr><th>Round</th><th class="num">ETH in</th><th class="num">When</th></tr>'+
+        d.recent.map(r=>'<tr><td>#'+r.round+'</td><td class="num">'+fmt(r.ethIn,4)+'</td><td class="num">'+ago(r.at)+'</td></tr>').join('')+'</table>':'');
+  }
+  if(j.topHolders){
+    $('#holders').innerHTML='<table><tr><th>Wallet</th><th class="num">Brokers</th></tr>'+
+      j.topHolders.map((h,i)=>'<tr><td>'+(i+1)+'. <a href="'+EXPL+'/address/'+h.addr+'" target="_blank" rel="noopener">'+shrt(h.addr)+'</a>'+(h.label?' <small style="color:var(--muted)">'+h.label+'</small>':'')+'</td><td class="num">'+fmt(h.count)+'</td></tr>').join('')+'</table>';
+  } else $('#holders').innerHTML='<p style="color:var(--muted)">ownership census in progress — the full transfer history is being replayed in chunks; check back shortly</p>';
+  if(j.crossover&&j.crossover.brokerHoldersWithFloorDesk!=null){
+    const c=j.crossover;
+    $('#cross').innerHTML='<div style="font-family:var(--font-display);font-size:34px;color:var(--amber)">'+fmt(c.brokerHoldersWithFloorDesk)+'</div>'+
+      '<div class="sub">of '+fmt(c.brokerHolders)+' broker holders also run a Floor desk ('+(c.brokerHolders?(c.brokerHoldersWithFloorDesk/c.brokerHolders*100).toFixed(1):'?')+'%)</div>';
+  } else $('#cross').innerHTML='<p style="color:var(--muted)">computing — needs both censuses (brokers + Floor players) warm</p>';
+  if(j.contracts){
+    $('#f-nft').href=EXPL+'/token/'+j.contracts.nft; $('#f-tok').href=EXPL+'/token/'+j.contracts.token;
+  }
+}
+
+async function load(){
+  try{
+    const j=await (await fetch('/api/brokers',{cache:'no-store'})).json();
+    if(j.ok) render(j);
+    else document.querySelectorAll('.chip .v').forEach(el=>{el.innerHTML='<small>warming up… first load takes ~1 min</small>';});
+  }catch(e){ TRACK('js_error',{msg:'brokers load: '+e.message}); }
+}
+load(); setInterval(load, 120000);
+
+/* ---- broker inspector ---- */
+async function lookup(){
+  const id=Math.floor(Number($('#bk-id').value));
+  if(!(id>=1&&id<=4444)){ $('#bk-out').innerHTML='<p class="err">enter an id between 1 and 4444</p>'; return; }
+  $('#bk-out').innerHTML='<p style="color:var(--muted)">reading broker #'+id+' from the chain… (up to ~20s when the RPC is throttled)</p>';
+  TRACK('broker_lookup_ui',{id});
+  try{
+    const j=await (await fetch('/api/broker?id='+id,{cache:'no-store'})).json();
+    if(!j.ok){ $('#bk-out').innerHTML='<p class="err">'+(j.error||'lookup failed')+'</p>'; return; }
+    const act=j.activation||{};
+    const divs=(j.dividends&&j.dividends.byStock||[]).filter(d=>d.count===null||d.count>0);
+    $('#bk-out').innerHTML='<div class="bk">'+
+      (j.art&&j.art.image?'<img src="'+j.art.image+'" alt="'+(j.art.name||('Broker #'+id))+'" />':'<div></div>')+
+      '<div>'+
+        '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'+
+          '<span style="font-family:var(--font-display);font-size:22px">'+((j.art&&j.art.name)||('Stonk Broker #'+id))+'</span>'+
+          (act.active?'<span class="pill on">Tier '+act.tier+' active · '+(act.weightBps/10000).toFixed(2)+'×</span>':'<span class="pill">not activated</span>')+
+        '</div>'+
+        '<div class="out"><span class="k">Owner</span><span class="v"><a href="'+EXPL+'/address/'+j.owner+'" target="_blank" rel="noopener">'+shrt(j.owner)+'</a></span></div>'+
+        '<div class="out"><span class="k">Broker wallet (ERC-6551)</span><span class="v"><a href="'+(j.links&&j.links.wallet||'#')+'" target="_blank" rel="noopener">'+shrt(j.wallet)+'</a></span></div>'+
+        '<div class="out"><span class="k">Seeded at mint</span><span class="v">'+fmt(j.seed&&j.seed.amount,9)+' '+((j.seed&&j.seed.symbol)||'?')+'</span></div>'+
+        (j.holdings||[]).map(h=>'<div class="out"><span class="k">Holds</span><span class="v">'+fmt(h.amount,9)+' '+(h.symbol||shrt(h.token))+'</span></div>').join('')+
+        (j.stonkbrokerBalance>0?'<div class="out"><span class="k">$STONKBROKER</span><span class="v">'+M(j.stonkbrokerBalance)+'</span></div>':'')+
+        (j.ethBalance>0?'<div class="out"><span class="k">ETH</span><span class="v">'+fmt(j.ethBalance,6)+'</span></div>':'')+
+        (divs.length?divs.map(d=>'<div class="out"><span class="k">Dividends ('+(d.symbol||shrt(d.token))+')</span><span class="v">'+(d.count===null?'unknown (throttled)':fmt(d.amount,9)+' over '+d.count+' drops')+'</span></div>').join(''):
+          '<div class="out"><span class="k">Dividends received</span><span class="v">'+(act.active?'none recorded yet':'none — broker not activated')+'</span></div>')+
+      '</div></div>';
+  }catch(e){ $('#bk-out').innerHTML='<p class="err">lookup failed — retry shortly</p>'; }
+}
+$('#bk-go').addEventListener('click',lookup);
+$('#bk-id').addEventListener('keydown',e=>{if(e.key==='Enter')lookup();});
+</script>
+</body>
+</html>

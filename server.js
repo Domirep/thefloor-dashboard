@@ -76,11 +76,12 @@ async function rpcBatch(body, tries = 6) {
   return null;
 }
 
-// Live DEX market data from GeckoTerminal (highest-liquidity FLOOR pool). Returns null on failure.
-async function geckoMarket() {
+// Live DEX market data from GeckoTerminal (highest-liquidity pool for the token). Returns null on failure.
+// Defaults to FLOOR; the StonkBrokers section reuses it for $STONKBROKER.
+async function geckoMarket(tokenAddr = FLOOR_ADDR) {
   try {
-    const j = await sfetch('https://api.geckoterminal.com/api/v2/search/pools?query=' + FLOOR_ADDR, 3);
-    const fa = FLOOR_ADDR.toLowerCase(); let best = null;
+    const j = await sfetch('https://api.geckoterminal.com/api/v2/search/pools?query=' + tokenAddr, 3);
+    const fa = tokenAddr.toLowerCase(); let best = null;
     for (const p of (j.data || [])) {
       const a = p.attributes || {}, rel = p.relationships || {};
       const baseId = (rel.base_token && rel.base_token.data && rel.base_token.data.id || '').toLowerCase();
@@ -1479,6 +1480,291 @@ async function mcpCall(name, args) {
   }
 }
 
+// =====================================================================================
+// StonkBrokers — cross-game coverage (Clutch Markets' ERC-6551 broker NFTs, same chain).
+// Every number here is read from the chain itself (verified contracts, discovered
+// 2026-07-19 from the official frontend bundle + Blockscout verification). Blockscout is
+// used for nothing at runtime — the gapped-index rule applies to this collection too.
+// =====================================================================================
+const SB_NFT = '0x539cdd042c2f3d93ebc5be7dfff0c79f3b4fabf0';    // StonkBrokers ERC-721 (4444, on-chain SVG, 6551 wallets)
+const SB_TOKEN = '0xe934e36a439c94017b64a3fece66af12099abf50';  // $STONKBROKER (Anvil CollectionToken)
+const SB_ACT = '0xacd5ae3c060c1137fe2ee86b0ab2ef697456f664';    // ActivationManager (tiered dividend activation)
+const SB_BOOST = '0x038a7f4e4e89448ad74e044337c9ac25c11e726b';  // StockBooster (fee -> stock-token dividend drops)
+const SB_AMM = '0xe302733accf4800146e55fc45b46b4e4ffc032d2';    // StonkNFTAMMVault (pooled brokers trade here)
+const SB_DEPLOY_BLOCK = 12493793;                               // NFT deploy block — owner-scan anchor
+const SB_SEL = {
+  totalSupply: '0x18160ddd', maxSupply: '0x32cb6b0c', transfersEnabled: '0xbef97c87',
+  tokenWallet: '0xa6e62aef', fundedToken: '0x32abb23e', initialGrant: '0x1a9db47c',
+  ownerOf: '0x6352211e', tokenURI: '0xc87b56dd',
+  activeCount: '0x4331ed1f', totalActiveWeight: '0x45ace925', activationOf: '0x0d5ea213',
+  pendingEth: '0x4c0c2be5', getStockTokens: '0x7dd5d0e5',
+  balanceOf: '0x70a08231', symbol: '0x95d89b41',
+};
+const SB_T = {
+  dropStarted: '0xa27816b3a3cb796825a7e958970e31f0836574e1eb09ddc08f3dcf2d3adb483c',   // DropStarted(round,ethIn,weight)
+  activated: '0x4e4f107f0e9557eb4a56fbc0e0697242ee73b7aa9002ceb8c344bdaf2f5d0930',     // Activated(tokenId,payer,tier,fee)
+  upgraded: '0xc2bd0116c910da39fbbacb69cc1d0cfa037c1aa3821d99a23ae3d50f9adf7801',      // ActivationUpgraded(tokenId,payer,from,to,fee)
+  cleared: '0x1ec7e08b83dd8db7b367b87bb54bc02469cefa6a01529922cd0f216c45352dd9',       // ActivationCleared(tokenId)
+};
+// Tier table is constructor-set (no setter in the ABI) — read from chain 2026-07-19. Weights are the
+// dividend share multiplier; a tier-5 broker earns 3.33x a tier-1 per drop. Prices in $STONKBROKER.
+const SB_TIERS = [
+  { tier: 1, price: 66666, weightBps: 10000 },
+  { tier: 2, price: 166666, weightBps: 12500 },
+  { tier: 3, price: 366666, weightBps: 16000 },
+  { tier: 4, price: 666666, weightBps: 20000 },
+  { tier: 5, price: 1666666, weightBps: 33300 },
+];
+const SB_FILE = path.join(DATA_DIR, 'brokers.json');
+let sbStats = null, sbStatsAt = 0, sbBusy = false;
+const sbOwners = {};        // tokenId -> current owner (lowercase), replayed from Transfer logs
+let sbScannedTo = 0;        // last block folded into sbOwners — scan resumes here across refreshes/deploys
+const sbSymbols = {};       // stock token addr -> symbol (fetched once each)
+try {
+  const p = JSON.parse(fs.readFileSync(SB_FILE, 'utf8'));
+  if (p && p.stats) { sbStats = p.stats; sbStatsAt = p.at || 0; }
+  if (p && p.owners) Object.assign(sbOwners, p.owners);
+  if (p && p.scannedTo) sbScannedTo = p.scannedTo;
+  if (p && p.symbols) Object.assign(sbSymbols, p.symbols);
+  console.log('LOADED brokers from volume (scannedTo=' + sbScannedTo + ', owners=' + Object.keys(sbOwners).length + ')');
+} catch (_) { console.log('No prior brokers data (fresh)'); }
+function sbSave() {
+  try { fs.writeFile(SB_FILE, JSON.stringify({ stats: sbStats, at: sbStatsAt, owners: sbOwners, scannedTo: sbScannedTo, symbols: sbSymbols }), () => {}); } catch (_) {}
+}
+const sbPad = a => '0x' + a.toLowerCase().replace(/^0x/, '').padStart(64, '0');
+const sbAddrOf = t => (t && t.length === 66) ? ('0x' + t.slice(26)).toLowerCase() : null;
+const sbNum = h => { try { return Number(BigInt(h)); } catch (_) { return 0; } };
+const sbWord = (data, i) => '0x' + String(data || '').slice(2 + i * 64, 66 + i * 64);
+// Ranged getLogs (the shared ethGetLogs is hardwired 0->latest; the 4444-collection transfer history
+// is too big for one response, so the owner scan walks the chain in windows instead).
+async function sbGetLogsRange(filter, fromBlock, toBlock) {
+  for (let i = 0; i < 5; i++) {
+    try {
+      const r = await fetch(RPC_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getLogs', params: [{ ...filter, fromBlock: '0x' + fromBlock.toString(16), toBlock: '0x' + toBlock.toString(16) }] }) });
+      const j = await r.json();
+      if (Array.isArray(j.result)) return j.result;
+    } catch (_) {}
+    await new Promise(s => setTimeout(s, 900 * (i + 1)));
+  }
+  return null;
+}
+// Incremental NFT-ownership scan. Walks Transfer logs in 120k-block windows from where the last run
+// stopped; a throttled window just pauses the scan until the next refresh (sbScannedTo persists).
+async function sbScanOwners() {
+  const bn = await rpcBatch([{ jsonrpc: '2.0', id: 1, method: 'eth_blockNumber', params: [] }], 3);
+  if (!bn) return false;
+  const latest = parseInt(bn[1], 16);
+  let from = sbScannedTo ? sbScannedTo + 1 : SB_DEPLOY_BLOCK;
+  const CHUNK = 120000;
+  while (from <= latest) {
+    const to = Math.min(from + CHUNK - 1, latest);
+    const logs = await sbGetLogsRange({ address: SB_NFT, topics: [TRANSFER_TOPIC] }, from, to);
+    if (!logs) { console.log('SB owner scan paused at block ' + from + ' (throttled) — resumes next refresh'); return false; }
+    for (const l of logs) {
+      if (!l.topics || l.topics.length < 4) continue;
+      sbOwners[parseInt(l.topics[3], 16)] = sbAddrOf(l.topics[2]);
+    }
+    sbScannedTo = to; from = to + 1;
+    await new Promise(s => setTimeout(s, 350));
+  }
+  return true;
+}
+async function refreshBrokers() {
+  if (sbBusy) return; sbBusy = true;
+  try {
+    const prev = sbStats || {};
+    // 1) one batched RPC read for the live counters
+    const C = (id, to, data) => ({ jsonrpc: '2.0', id, method: 'eth_call', params: [{ to, data }, 'latest'] });
+    const byId = await rpcBatch([
+      C(1, SB_NFT, SB_SEL.totalSupply), C(2, SB_NFT, SB_SEL.maxSupply), C(3, SB_NFT, SB_SEL.transfersEnabled),
+      C(4, SB_ACT, SB_SEL.activeCount), C(5, SB_ACT, SB_SEL.totalActiveWeight),
+      C(6, SB_BOOST, SB_SEL.pendingEth), C(7, SB_BOOST, SB_SEL.getStockTokens),
+      C(8, SB_TOKEN, SB_SEL.totalSupply),
+    ]);
+    if (!byId) throw new Error('core RPC batch throttled');
+    const minted = sbNum(byId[1]), maxSupply = sbNum(byId[2]);
+    const active = sbNum(byId[4]), totalWeight = sbNum(byId[5]);
+    const pendingEth = sbNum(byId[6]) / 1e18;
+    const tokenSupply = sbNum(byId[8]) / 1e18;
+    // getStockTokens() -> address[3] (fixed-size array: 3 words, no offset)
+    const stocks = [0, 1, 2].map(i => sbAddrOf('0x' + String(byId[7]).slice(2 + i * 64, 66 + i * 64).slice(-64).padStart(64, '0'))).filter(Boolean);
+    // symbols for any stock we haven't met yet (list rotates via StockTokensUpdated)
+    const missing = stocks.filter(a => !sbSymbols[a]);
+    if (missing.length) {
+      const sy = await rpcBatch(missing.map((a, i) => C(i + 1, a, SB_SEL.symbol)), 3);
+      if (sy) missing.forEach((a, i) => {
+        const d = sy[i + 1];
+        try { sbSymbols[a] = Buffer.from(String(d).slice(2 + 128, 2 + 128 + sbNum(sbWord(d, 1)) * 2), 'hex').toString('utf8'); } catch (_) {}
+      });
+    }
+    // 2) activation tier census — event replay (Activated/Upgraded/Cleared), ~1.6k logs total
+    let tiersOut = prev.activation && prev.activation.tiers || null, tiersPartial = true;
+    const [evA, evU, evC] = [
+      await ethGetLogs({ address: SB_ACT, topics: [SB_T.activated] }),
+      await ethGetLogs({ address: SB_ACT, topics: [SB_T.upgraded] }),
+      await ethGetLogs({ address: SB_ACT, topics: [SB_T.cleared] }),
+    ];
+    if (evA && evU && evC) {
+      const tierByToken = {};
+      const seq = [];
+      evA.forEach(l => seq.push({ b: parseInt(l.blockNumber, 16), i: parseInt(l.logIndex, 16), id: parseInt(l.topics[1], 16), tier: sbNum(sbWord(l.data, 0)) }));
+      evU.forEach(l => seq.push({ b: parseInt(l.blockNumber, 16), i: parseInt(l.logIndex, 16), id: parseInt(l.topics[1], 16), tier: sbNum(sbWord(l.data, 1)) }));
+      evC.forEach(l => seq.push({ b: parseInt(l.blockNumber, 16), i: parseInt(l.logIndex, 16), id: parseInt(l.topics[1], 16), tier: null }));
+      seq.sort((x, y) => x.b - y.b || x.i - y.i);
+      seq.forEach(e => { if (e.tier === null) delete tierByToken[e.id]; else tierByToken[e.id] = e.tier; });
+      const counts0 = [0, 0, 0, 0, 0];
+      Object.values(tierByToken).forEach(t => { if (t >= 0 && t < 5) counts0[t]++; });
+      // conservation: replayed census must match the contract's own counters, else serve last-good
+      const replayCount = Object.keys(tierByToken).length;
+      const replayWeight = counts0.reduce((s, n, i) => s + n * SB_TIERS[i].weightBps, 0);
+      if (replayCount === active && replayWeight === totalWeight) {
+        tiersOut = SB_TIERS.map((t, i) => Object.assign({}, t, { active: counts0[i] }));
+        tiersPartial = false;
+      } else {
+        console.log('SB tier replay mismatch (replay ' + replayCount + '/' + replayWeight + ' vs chain ' + active + '/' + totalWeight + ') — serving last-good tiers');
+        tiersPartial = !tiersOut;
+      }
+    }
+    // 3) dividend rounds — DropStarted carries the ETH swapped into stocks for that round
+    let dividends = prev.dividends || null;
+    const drops = await ethGetLogs({ address: SB_BOOST, topics: [SB_T.dropStarted] });
+    if (drops && drops.length) {
+      const rounds = drops.map(l => ({ round: parseInt(l.topics[1], 16), ethIn: sbNum(sbWord(l.data, 0)) / 1e18, block: parseInt(l.blockNumber, 16) }));
+      rounds.sort((a, b) => a.round - b.round);
+      const first = rounds[0], last = rounds[rounds.length - 1];
+      // two block timestamps anchor an approx clock for every round (block time is near-constant here)
+      let lastAt = null, perDay = null;
+      const tb = await rpcBatch([
+        { jsonrpc: '2.0', id: 1, method: 'eth_getBlockByNumber', params: ['0x' + first.block.toString(16), false] },
+        { jsonrpc: '2.0', id: 2, method: 'eth_getBlockByNumber', params: ['0x' + last.block.toString(16), false] },
+      ], 3);
+      if (tb && tb[1] && tb[2]) {
+        const t0 = parseInt(tb[1].timestamp, 16) * 1000, t1 = parseInt(tb[2].timestamp, 16) * 1000;
+        lastAt = t1;
+        const spanDays = (t1 - t0) / 86400000;
+        perDay = spanDays > 0.5 ? +(rounds.length / spanDays).toFixed(1) : null;
+        const msPerBlock = last.block > first.block ? (t1 - t0) / (last.block - first.block) : null;
+        rounds.forEach(r => { r.at = msPerBlock ? Math.round(t0 + (r.block - first.block) * msPerBlock) : null; });
+      }
+      dividends = {
+        rounds: rounds.length, totalEthIn: +rounds.reduce((s, r) => s + r.ethIn, 0).toFixed(6),
+        pendingEth: +pendingEth.toFixed(6), lastRound: { round: last.round, ethIn: +last.ethIn.toFixed(6), at: lastAt },
+        roundsPerDay: perDay, recent: rounds.slice(-10).reverse().map(r => ({ round: r.round, ethIn: +r.ethIn.toFixed(6), at: r.at })),
+        stocks: stocks.map(a => ({ address: a, symbol: sbSymbols[a] || null })),
+      };
+    } else if (dividends) dividends.pendingEth = +pendingEth.toFixed(6);
+    // 4) $STONKBROKER burn ledger (transfers to 0x0 on the token itself — same rule as FLOOR)
+    let burned = prev.token ? prev.token.burned : null, burnEvents = prev.token ? prev.token.burnEvents : null;
+    const burnLogs = await ethGetLogs({ address: SB_TOKEN, topics: [TRANSFER_TOPIC, null, sbPad(ZERO_ADDR)] });
+    if (burnLogs) { burned = +(burnLogs.reduce((s, l) => s + sbNum(l.data), 0) / 1e18).toFixed(0); burnEvents = burnLogs.length; }
+    // 5) market price (GeckoTerminal; last-good on failure)
+    const gm = await geckoMarket(SB_TOKEN);
+    const price = (gm && gm.price) || (prev.token && prev.token.price) || null;
+    // 6) ownership census (incremental; holders stay null until the scan is complete AND conserves)
+    const scanDone = await sbScanOwners();
+    let holders = null, topHolders = null, holdersOf = null;
+    const ownerCount = Object.keys(sbOwners).length;
+    if (ownerCount >= minted && minted > 0) {
+      holdersOf = {};
+      Object.values(sbOwners).forEach(o => { if (o && o !== ZERO_ADDR) holdersOf[o] = (holdersOf[o] || 0) + 1; });
+      // conservation: every minted id must have an owner row
+      if (Object.values(holdersOf).reduce((s, n) => s + n, 0) === minted) {
+        holders = Object.keys(holdersOf).length;
+        topHolders = Object.entries(holdersOf).sort((a, b) => b[1] - a[1]).slice(0, 15)
+          .map(([addr, count]) => ({ addr, count, label: addr === SB_AMM ? 'Anvil AMM vault (pooled)' : null }));
+      }
+    }
+    if (!scanDone && holders === null) console.log('SB holders still unknown (scan ' + ownerCount + '/' + minted + ' ids, through block ' + sbScannedTo + ')');
+    // 7) cross-game: broker holders who also run a Floor desk (both censuses must be ready)
+    let crossover = prev.crossover || null;
+    if (holdersOf && seenPlayers.size) {
+      let both = 0;
+      Object.keys(holdersOf).forEach(a => { if (a !== SB_AMM && seenPlayers.has(a)) both++; });
+      crossover = { brokerHoldersWithFloorDesk: both, brokerHolders: holders, floorPlayersSeen: seenPlayers.size };
+    }
+    sbStats = {
+      minted, maxSupply, mintedOut: minted >= maxSupply, transfersEnabled: byId[3] ? sbNum(byId[3]) === 1 : null,
+      holders, topHolders, holdersPartial: holders === null,
+      activation: { active, pctOfMinted: minted ? +(active / minted * 100).toFixed(1) : null, totalWeight, tiers: tiersOut, tiersPartial },
+      dividends, crossover,
+      token: { address: SB_TOKEN, price, priceSource: (gm && gm.price) ? 'geckoterminal' : (price != null ? 'last-good' : null),
+        supply: tokenSupply, marketCap: price != null ? +(price * tokenSupply).toFixed(0) : null,
+        burned, burnEvents, reserveUsd: (gm && gm.reserveUsd) || null, vol24: (gm && gm.vol24) || null },
+      contracts: { nft: SB_NFT, token: SB_TOKEN, activation: SB_ACT, booster: SB_BOOST, ammVault: SB_AMM },
+    };
+    sbStatsAt = Date.now();
+    sbSave();
+    console.log('SB ok minted=' + minted + ' active=' + active + ' holders=' + (holders == null ? 'unknown' : holders) + ' rounds=' + (dividends ? dividends.rounds : '?') + ' price=' + price);
+  } catch (e) { console.log('SB refresh failed (keeping last good): ' + e.message); }
+  finally { sbBusy = false; }
+}
+// Boot is when the RPC throttles hardest and the Floor refreshers already fire — join the queue late.
+setTimeout(refreshBrokers, 45000);
+setInterval(refreshBrokers, 300000);
+// ---- per-broker lookup (id -> owner, 6551 wallet, holdings, dividends, on-chain art) ----
+const sbBrokerCache = new Map();
+const SB_BROKER_TTL = 600000;
+async function fetchBroker(id) {
+  const C = (cid, to, data) => ({ jsonrpc: '2.0', id: cid, method: 'eth_call', params: [{ to, data }, 'latest'] });
+  const w256 = n => n.toString(16).padStart(64, '0');
+  const a = await rpcBatch([
+    C(1, SB_NFT, SB_SEL.ownerOf + w256(id)), C(2, SB_NFT, SB_SEL.tokenWallet + w256(id)),
+    C(3, SB_NFT, SB_SEL.fundedToken + w256(id)), C(4, SB_NFT, SB_SEL.initialGrant + w256(id)),
+    C(5, SB_ACT, SB_SEL.activationOf + w256(id)), C(6, SB_NFT, SB_SEL.tokenURI + w256(id)),
+  ]);
+  if (!a || !a[1] || a[1] === '0x') {              // unknown id or throttled — caller answers "unknown", not zeros
+    console.log('SB broker lookup failed id=' + id + ' (' + (a ? 'bad ownerOf' : 'RPC batch exhausted retries') + ')');
+    return null;
+  }
+  const owner = sbAddrOf(sbWord(a[1], 0));
+  const wallet = sbAddrOf(sbWord(a[2], 0));
+  const seedToken = sbAddrOf(sbWord(a[3], 0));
+  const seedAmount = sbNum(a[4]) / 1e18;
+  const isActive = sbNum(sbWord(a[5], 0)) === 1;
+  const tier0 = sbNum(sbWord(a[5], 1));   // contract tiers are 0-indexed; UI speaks 1-indexed
+  // on-chain art: tokenURI is data:application/json;base64,{name, image(svg data uri), attributes}
+  let art = null;
+  try {
+    const uri = Buffer.from(String(a[6]).slice(2 + 128, 2 + 128 + sbNum(sbWord(a[6], 1)) * 2), 'hex').toString('utf8');
+    const j = JSON.parse(Buffer.from(uri.split('base64,')[1], 'base64').toString('utf8'));
+    art = { name: j.name || ('Stonk Broker #' + id), image: j.image || null, attributes: j.attributes || [] };
+  } catch (_) {}
+  // wallet holdings: the 3 current dividend stocks + the seed stock + $STONKBROKER + native ETH
+  const stockList = [];
+  const seen = new Set();
+  ((sbStats && sbStats.dividends && sbStats.dividends.stocks) || []).forEach(s => { if (s.address && !seen.has(s.address)) { seen.add(s.address); stockList.push(s.address); } });
+  if (seedToken && seedToken !== ZERO_ADDR && !seen.has(seedToken)) { seen.add(seedToken); stockList.push(seedToken); }
+  const calls = stockList.map((t, i) => C(i + 1, t, SB_SEL.balanceOf + sbPad(wallet).slice(2)));
+  calls.push(C(90, SB_TOKEN, SB_SEL.balanceOf + sbPad(wallet).slice(2)));
+  calls.push({ jsonrpc: '2.0', id: 91, method: 'eth_getBalance', params: [wallet, 'latest'] });
+  const b = await rpcBatch(calls, 4);
+  const holdings = [];
+  let sbBal = null, ethBal = null;
+  if (b) {
+    stockList.forEach((t, i) => { const v = sbNum(b[i + 1]) / 1e18; if (v > 0) holdings.push({ token: t, symbol: sbSymbols[t] || null, amount: v }); });
+    sbBal = sbNum(b[90]) / 1e18; ethBal = sbNum(b[91]) / 1e18;
+  }
+  // dividends received = stock-token transfers Booster -> this broker's wallet (per current stock; small
+  // per-wallet). Only activated brokers can receive drops, so inactive ones skip the log scans entirely —
+  // that's ~68% of lookups spared 3-4 getLogs each on a throttle-prone RPC.
+  const byStock = [];
+  if (isActive) {
+    for (const t of stockList) {
+      const logs = await ethGetLogs({ address: t, topics: [TRANSFER_TOPIC, sbPad(SB_BOOST), sbPad(wallet)] });
+      if (logs === null) { byStock.push({ token: t, symbol: sbSymbols[t] || null, count: null, amount: null }); continue; }
+      byStock.push({ token: t, symbol: sbSymbols[t] || null, count: logs.length, amount: +(logs.reduce((s, l) => s + sbNum(l.data), 0) / 1e18).toFixed(9) });
+    }
+  }
+  return {
+    id, owner, wallet, art,
+    activation: { active: isActive, tier: isActive ? tier0 + 1 : null, weightBps: isActive && SB_TIERS[tier0] ? SB_TIERS[tier0].weightBps : null },
+    seed: { token: seedToken, symbol: (seedToken && sbSymbols[seedToken]) || null, amount: seedAmount },
+    holdings, stonkbrokerBalance: sbBal, ethBalance: ethBal,
+    dividends: { byStock, note: 'transfers from the StockBooster to this broker wallet; other inflows not counted' },
+    links: { wallet: EXPLORER + '/address/' + wallet, nft: EXPLORER + '/token/' + SB_NFT + '/instance/' + id },
+  };
+}
+
 // ---- machine-readable surface (see /llms.txt) ----
 // Everything under /api is public read-only data, so it's open to any origin. Without this header a
 // browser-based agent can't read the API at all, which quietly firewalled off the exact audience we want.
@@ -1511,6 +1797,8 @@ const API_INDEX = {
     { path: '/api/firms', desc: 'Firms, members, and free agents.' },
     { path: '/api/live-actions', desc: 'Recent on-chain game actions (collect/claim/seat/recruit/upgrade/newdesk/referral/firmburn).' },
     { path: '/api/history', desc: 'Daily snapshots for trends. Rows before tracking began are reconstructed and marked seeded:true.' },
+    { path: '/api/brokers', desc: 'StonkBrokers (same chain, different game): mint/holders, activation tiers, dividend rounds, $STONKBROKER burns + price.' },
+    { path: '/api/broker?id=1-4444', desc: 'One StonkBroker: owner, ERC-6551 wallet holdings, dividends received, activation tier, on-chain art.' },
   ],
 };
 const LLMS_TXT = () => `# The Floor — companion dashboard for $FLOOR (Robinhood Chain)
@@ -1565,6 +1853,11 @@ ${API_INDEX.endpoints.map(e => `- ${'`'}${e.path}${'`'} — ${e.desc}`).join('\n
 - Game:        ${GAME_CONTRACT}
 - Firm:        ${FIRM_CONTRACT}
 - FLOOR/WETH pool (Uniswap V3): ${FLOOR_POOL}
+
+## StonkBrokers (second game covered, same chain)
+- Clutch Markets' 4444 ERC-6551 broker NFTs: each owns a wallet seeded with a tokenized stock and
+  earns stock dividends when activated. ${'`'}/api/brokers${'`'} = collection stats, ${'`'}/api/broker?id=N${'`'} = one broker.
+- NFT ${SB_NFT} · $STONKBROKER ${SB_TOKEN} · dashboard page: ${'`'}/brokers${'`'}
 
 ## Gotchas that will bite an agent
 - "Sell volume" is NOT every transfer into the pool: liquidity adds land there too, and ~68% of real
@@ -1906,6 +2199,36 @@ write tools return unsigned calldata for your own signer. Never send a private k
     return;
   }
 
+  // ---- StonkBrokers: cached collection stats ----
+  if (p === '/api/brokers' && req.method === 'GET') {
+    if (!sbStats && !sbBusy) refreshBrokers();    // kick off; serve "warming" until ready
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=60' });
+    res.end(JSON.stringify(sbStats ? Object.assign({ ok: true, ageMs: Date.now() - sbStatsAt }, sbStats) : { ok: false, warming: true }));
+    return;
+  }
+  // ---- StonkBrokers: per-broker lookup ----
+  if (p === '/api/broker' && req.method === 'GET') {
+    const id = Math.floor(Number(u.searchParams.get('id')));
+    if (!(id >= 1 && id <= 4444)) { res.writeHead(400, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'id must be 1-4444' })); return; }
+    const cached = sbBrokerCache.get(id);
+    if (cached && Date.now() - cached.ts < SB_BROKER_TTL) {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=120' });
+      res.end(JSON.stringify(Object.assign({ ok: true, cached: true }, cached.data))); return;
+    }
+    try {
+      const data = await fetchBroker(id);
+      if (!data) { res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify({ ok: false, error: 'lookup failed (RPC throttled or unknown id) — retry shortly' })); return; }
+      sbBrokerCache.set(id, { data, ts: Date.now() });
+      if (sbBrokerCache.size > 300) { const k = sbBrokerCache.keys().next().value; sbBrokerCache.delete(k); }
+      track({ t: 'broker_lookup', id, sid: 'server' });
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=120' });
+      res.end(JSON.stringify(Object.assign({ ok: true, cached: false }, data)));
+    } catch (e) {
+      res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: 'lookup failed' }));
+    }
+    return;
+  }
+
   // ---- deals broadcast: GET (public) / POST (owner-gated) ----
   if (p === '/deals-status' && req.method === 'GET') {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -1942,6 +2265,7 @@ write tools return unsigned calldata for your own signer. Never send a private k
   let fp = decodeURIComponent(p);
   if (fp === '/') fp = '/index.html';
   if (fp === '/firmwars') fp = '/firmwars.html';
+  if (fp === '/brokers') fp = '/brokers.html';
   const file = path.join(ROOT, path.normalize(fp).replace(/^(\.\.[\/\\])+/, ''));
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
