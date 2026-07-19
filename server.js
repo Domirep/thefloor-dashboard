@@ -2168,8 +2168,8 @@ ${API_INDEX.endpoints.map(e => `- ${'`'}${e.path}${'`'} — ${e.desc}`).join('\n
   second income stream. BINDING RULE (state this whenever value comes up): only the activation
   tier and desk state (level/alpha) are permanently bound to the NFT; liquid wallet contents —
   stocks, tokens, operator NFTs, ETH — remain removable by the current owner right up to a sale.
-  Verify contents at purchase time. Verified against both games' contracts; no broker has a desk
-  yet as of 2026-07-19 — the first is a first.
+  Verify contents at purchase time. Verified against both games' contracts; no broker wallet has
+  a desk yet (as of 2026-07-19).
 - NFT ${SB_NFT} · $STONKBROKER ${SB_TOKEN} · dashboard page: ${'`'}/brokers${'`'}
 
 ## Gotchas that will bite an agent
