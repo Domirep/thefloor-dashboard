@@ -75,11 +75,18 @@
   <div class="card">
     <h3>One wallet, both games</h3>
     <p style="margin-top:0">A broker's wallet is a full account — it can hold any token or NFT and use any app on this chain, and whatever it holds travels with the broker when it changes hands. That includes a Floor desk: positions on The Floor normally can't be sold or moved at all, but a desk <b>inside a broker's wallet</b> goes wherever the NFT goes.</p>
+    <div class="facts" style="margin-bottom:12px">
+      What a desk adds to a broker (capabilities, not price promises):<br>
+      · a <b>second income stream</b> — FLOOR emissions alongside the stock dividend drops<br>
+      · the desk <b>survives transfers</b>, so it's the one Floor position a future owner actually receives<br>
+      · earnings accrue <b>inside the NFT</b> instead of scattering across your wallets<br>
+      · anyone — human or agent — can <b>verify the desk on-chain</b> before buying the broker
+    </div>
       <ol>
-        <li>Add the agent endpoint to Claude, Claude Code, or Cursor: <a href="/mcp">/mcp</a>.</li>
-        <li>Ask it to <b>prepare_broker_floor_desk</b> for your broker's id. You get back an unsigned transaction — it shows the referrer (changeable) and the exact cost before you sign.</li>
+        <li>Add the agent endpoint to Claude, Claude Code, or Cursor: <a href="/mcp">/mcp</a>. This flow is <b>MCP-only by design</b> — no website here builds or submits these transactions.</li>
+        <li>Ask it to <b>prepare_broker_floor_desk</b> for your broker's id. The tool verifies everything on-chain first — that you own the broker, that its wallet has no desk, the exact cost, the referrer (changeable) — and <b>refuses with an error if any check fails</b>. Only a fully verified request gets a transaction back.</li>
         <li>Sign in your own wallet as the broker's owner. The 0.01 ETH rides along with your signature; the broker's wallet needs no prior funding.</li>
-        <li>The desk now belongs to the broker's wallet. Collect its earnings the same way (<b>prepare_broker_floor_collect</b>) — the $FLOOR lands in the broker's wallet.</li>
+        <li>The desk now belongs to the broker's wallet. Collect its earnings the same way (<b>prepare_broker_floor_collect</b>, same verification) — the $FLOOR lands in the broker's wallet.</li>
       </ol>
     <div class="facts">
       Three facts to keep straight before you rely on any of this:<br>
@@ -87,7 +94,7 @@
       · a paid activation <b>resets on every transfer</b> — activate after moving a broker, not before<br>
       · everything else in the wallet is <b>removable by the owner</b> until a sale lands — verify contents at sale time
     </div>
-    <p class="note">There is deliberately no "connect wallet" button on this site. Transactions are prepared unsigned and you sign them in your own wallet — this server never holds keys and never broadcasts. Nobody's broker wallet has opened a desk yet.</p>
+    <p class="note">There is deliberately no "connect wallet" button on this site. Transactions come out of the MCP unsigned, only after every verification passes, and you sign them in your own wallet — this server never holds keys and never broadcasts. Nobody's broker wallet has opened a desk yet.</p>
   </div>
 
   <div class="foot">

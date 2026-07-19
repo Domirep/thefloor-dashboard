@@ -1116,8 +1116,11 @@ const MCP_INSTRUCTIONS = [
   'SECOND GAME: StonkBrokers (get_brokers / get_broker / get_broker_activation_math / prepare_activate_broker)',
   '— 4444 ERC-6551 broker NFTs whose wallets hold tokenized stock and earn ~10-min dividend drops. CROSS-GAME:',
   'a broker\'s wallet can itself play The Floor (get_broker_floor_status, prepare_broker_floor_desk/collect) —',
-  'the desk then belongs to the NFT\'s wallet and travels with it on sale. As of 2026-07-19 no broker on the',
-  'chain has a desk yet; the first one makes history.',
+  'the desk then belongs to the NFT\'s wallet and travels with it on sale. No broker on the chain has one yet.',
+  'POLICY: the broker prepare_* tools are VERIFICATION-GATED and MCP-only — there is deliberately no website',
+  'transaction UI. They ERROR with no calldata unless every on-chain check passes (ownership vs ownerOf, desk',
+  'state, live fee quote, allowance). Treat an error as "not verified", never retry around it by hand-building',
+  'calldata.',
 ].join(' ');
 const obj = (props, required) => ({ type: 'object', properties: props || {}, required: required || [], additionalProperties: false });
 const MCP_TOOLS = [
@@ -1148,10 +1151,10 @@ const MCP_TOOLS = [
   { name: 'get_brokers', description: 'StonkBrokers collection state in one call: minted/holders, activation tier census, stock-dividend rounds (~10-min cadence, ETH value per round), $STONKBROKER price + burns, and the Floor-crossover count. Different game, same chain — each broker NFT owns a real ERC-6551 wallet seeded with tokenized stock.', inputSchema: obj() },
   { name: 'get_broker', description: 'One StonkBroker by id (1-4444): owner, its ERC-6551 wallet address and holdings, the stock it was seeded with, per-stock dividends received, activation tier, whether its wallet owns a Floor desk (floor.hasDesk), and its on-chain art. null means unknown, never zero.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' } }, ['id']) },
   { name: 'get_broker_activation_math', description: 'The decision math for activating a StonkBroker: per tier — activation fee in $STONKBROKER and USD, your weight share of the dividend pool after dilution, estimated dividends/day (from the observed drop rate), and payback days. Pass `id` for an exact on-chain fee quote (handles upgrade credit for already-active brokers). FACTS not advice: the drop rate tracks AMM trading volume and varies; new activations dilute everyone; token prices move.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id for an exact quoteActivation fee (optional — omit for table prices)' }, tier: { type: 'integer', description: 'Tier 1-5 to analyze (optional — omit for all five)' } }) },
-  { name: 'prepare_activate_broker', description: 'Build the UNSIGNED transaction(s) to activate a StonkBroker\'s dividend drops at a tier (or upgrade an active one — the on-chain quote credits what was already paid). Fee is paid in $STONKBROKER by the SIGNING wallet (50% burned, 50% treasury) and needs an ERC20 approve first — the response includes `approveFirst` when the allowance is short. Only the broker\'s owner meaningfully does this. IMPORTANT: the NFT\'s transfer hook CLEARS activation on every ownership change — activate AFTER any planned transfer (e.g. moving the broker to an agent wallet), never right before one, or the fee is wasted.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, tier: { type: 'integer', description: 'Target tier 1-5 (5 = 3.33x dividend weight)' }, from: { type: 'string', description: 'Signing wallet — enables the allowance check and exact approveFirst amount.' } }, ['id', 'tier']) },
+  { name: 'prepare_activate_broker', description: 'VERIFICATION-GATED: build the UNSIGNED transaction(s) to activate a StonkBroker\'s dividend drops at a tier (or upgrade an active one — the on-chain quote credits what was already paid). This tool ERRORS and returns no calldata unless every check passes live on-chain: the fee quote and the signer\'s $STONKBROKER allowance (so `from` is required). Fee is paid by the signer (50% burned, 50% treasury); `approveFirst` is included when the allowance is short. IMPORTANT: the NFT\'s transfer hook CLEARS activation on every ownership change — activate AFTER any planned transfer (e.g. moving the broker to an agent wallet), never right before one, or the fee is wasted.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, tier: { type: 'integer', description: 'Target tier 1-5 (5 = 3.33x dividend weight)' }, from: { type: 'string', description: 'REQUIRED: the wallet that will pay — the on-chain allowance check is mandatory.' } }, ['id', 'tier']) },
   { name: 'get_broker_floor_status', description: 'Cross-game: does this StonkBroker\'s ERC-6551 wallet play The Floor? Returns the wallet, whether it owns a desk, and if so its live desk state (alpha, share, pending PnL, FLOOR balance). Binding rule: the desk itself (level/alpha) is permanently bound to the NFT and transfers on sale; liquid contents (FLOOR balance, operator NFTs, tokens) remain removable by the current owner until the sale lands.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' } }, ['id']) },
-  { name: 'prepare_broker_floor_desk', description: 'THE cross-game move, and as of 2026-07-19 nobody on the chain has done it: build the UNSIGNED transaction that makes a StonkBroker\'s OWN ERC-6551 wallet open a desk on The Floor. You sign as the broker\'s owner; the tx calls the broker wallet\'s executeCall (owner-gated), which forwards 0.01 ETH into createDesk. The desk then belongs to the BROKER WALLET, not you — the desk and its alpha are permanently bound to the NFT and transfer with it on sale (liquid wallet contents remain owner-removable until a sale; never promise a buyer the wallet\'s tokens). The 0.01 ETH rides along with your signature (the broker wallet needs no prior funding). Referrer semantics are identical to prepare_create_desk: on-chain, permanent, defaults to this dashboard\'s address, overridable — always tell the user who it is before signing.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, referrer: { type: 'string', description: 'Referrer to credit (permanent). Omit for this dashboard\'s default; 0x0…0 for none.' }, from: { type: 'string', description: 'Signing wallet — MUST be the broker\'s current owner (executeCall is owner-gated; anyone else reverts). Checked when given.' } }, ['id']) },
-  { name: 'prepare_broker_floor_collect', description: 'Build the UNSIGNED transaction that makes a StonkBroker\'s wallet collect its Floor desk\'s pending PnL. Sign as the broker\'s owner. The collected FLOOR lands IN the broker\'s wallet (it belongs to the NFT, not to you — use the wallet\'s executeCall for anything further).', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, from: { type: 'string', description: 'Signing wallet — MUST be the broker\'s current owner. Checked when given.' } }, ['id']) },
+  { name: 'prepare_broker_floor_desk', description: 'VERIFICATION-GATED cross-game move (nobody on the chain has done it yet): build the UNSIGNED transaction that makes a StonkBroker\'s OWN ERC-6551 wallet open a desk on The Floor. This tool ERRORS and returns no calldata unless every check passes live on-chain: `from` is required and must match ownerOf (executeCall is owner-gated), and the broker wallet must verifiably have no desk. Why do it: the desk and its alpha bind to the NFT and transfer with it on sale — the only way a Floor position can change hands — giving the broker a second income stream alongside its stock dividends (liquid wallet contents remain owner-removable until a sale; never promise a buyer the wallet\'s tokens). The 0.01 ETH rides along with your signature (no prior wallet funding). Referrer: on-chain, permanent, defaults to this dashboard\'s address, overridable — always tell the user who it is before signing.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, referrer: { type: 'string', description: 'Referrer to credit (permanent). Omit for this dashboard\'s default; 0x0…0 for none.' }, from: { type: 'string', description: 'REQUIRED: the broker\'s current owner — verified against ownerOf on-chain before any calldata is returned.' } }, ['id']) },
+  { name: 'prepare_broker_floor_collect', description: 'VERIFICATION-GATED: build the UNSIGNED transaction that makes a StonkBroker\'s wallet collect its Floor desk\'s pending PnL. Errors with no calldata unless `from` matches ownerOf on-chain and the wallet verifiably has a desk. The collected FLOOR lands IN the broker\'s wallet (it belongs to the NFT, not to you — use the wallet\'s executeCall for anything further).', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, from: { type: 'string', description: 'REQUIRED: the broker\'s current owner — verified against ownerOf on-chain.' } }, ['id']) },
   { name: 'get_broker_leaderboard', description: 'Activated StonkBrokers ranked by the USD value of their wallet CONTENTS right now (the 3 dividend stocks + $STONKBROKER + ETH, priced from their on-chain pools). IMPORTANT framing: contents are a removable snapshot — the current owner can move everything out before a sale; a paid activation is cleared on every transfer (buyers re-activate); a Floor desk lives on the broker\'s wallet and survives sales. Report this as data, never as an appraisal or a promise of value.', inputSchema: obj({ limit: { type: 'integer', description: 'Max ranked rows to return (1-50, default 20)' } }) },
 ];
 // Client hints (MCP ToolAnnotations). readOnlyHint = safe to call without a confirmation prompt. The
@@ -1567,21 +1570,24 @@ async function mcpCall(name, args) {
       const id = Math.floor(Number(args.id)), tier = Math.floor(Number(args.tier));
       if (!(id >= 1 && id <= 4444)) return { error: 'id must be 1-4444' };
       if (!(tier >= 1 && tier <= 5)) return { error: 'tier must be 1-5' };
+      // VERIFICATION-GATED: live quote + on-chain allowance read must both succeed or no calldata.
+      const from = String(args.from || '').trim();
+      if (!from) return { error: 'verification-gated: pass `from` (the wallet that will pay the fee). This tool refuses to build the transaction without checking the $STONKBROKER allowance on-chain.' };
+      if (!/^0x[0-9a-fA-F]{40}$/.test(from)) return { error: 'from must be a 0x-prefixed 40-hex address' };
       const q = await ethCall(SB_ACT, SB_SEL_QUOTE_ACT + w256(BigInt(id)) + w256(BigInt(tier - 1)));
-      if (!q || q === '0x') return { error: 'could not quote the activation fee (RPC throttled) — retry shortly; never sign without a live quote' };
+      if (!q || q === '0x') return { error: 'verification failed: could not quote the activation fee live (RPC throttled) — no calldata returned; never sign without a live quote. Retry shortly.' };
       const feeWei = BigInt(q), fee = Number(feeWei) / 1e18;
+      const res = await ethCall(SB_TOKEN, SEL_ALLOWANCE + wAddr(from) + wAddr(SB_ACT));
+      if (res === null) return { error: 'verification failed: could not read the $STONKBROKER allowance (RPC throttled) — no calldata returned; retry shortly' };
+      let allowed = 0n; try { allowed = BigInt(res); } catch (_) {}
       const out = unsignedTx(SB_ACT, SB_SEL_ACTIVATE + w256(BigInt(id)) + w256(BigInt(tier - 1)), {
         what: 'Activate StonkBroker #' + id + ' at tier ' + tier + ' (' + (SB_TIERS[tier - 1].weightBps / 10000) + 'x dividend weight)',
         feeStonkbroker: fee,
+        verified: { quote: 'fee quoted live from quoteActivation', allowance: allowed >= feeWei ? 'sufficient (' + (Number(allowed) / 1e18).toFixed(0) + ' approved)' : 'short — sign approveFirst before this' },
         feeNote: 'Quoted live on-chain; an already-active broker is only charged the difference. 50% of the fee is burned. Paid in $STONKBROKER by the signer via transferFrom — the approve must clear first.',
         tierArgNote: 'On-chain tiers are ZERO-BASED: tier ' + tier + ' is encoded as ' + (tier - 1) + ' in the calldata.',
       });
-      const from = String(args.from || '').trim();
-      if (/^0x[0-9a-fA-F]{40}$/.test(from)) {
-        const res = await ethCall(SB_TOKEN, SEL_ALLOWANCE + wAddr(from) + wAddr(SB_ACT));
-        let allowed = 0n; if (res) { try { allowed = BigInt(res); } catch (_) {} }
-        if (allowed < feeWei) out.approveFirst = unsignedTx(SB_TOKEN, SEL_APPROVE + wAddr(SB_ACT) + w256(feeWei), { what: 'Approve ' + fee + ' $STONKBROKER to the ActivationManager (sign before activating)' });
-      } else out.warnings = ['No `from` given — allowance not checked. The ActivationManager pulls $STONKBROKER via transferFrom; without an approve this reverts.'];
+      if (allowed < feeWei) out.approveFirst = unsignedTx(SB_TOKEN, SEL_APPROVE + wAddr(SB_ACT) + w256(feeWei), { what: 'Approve ' + fee + ' $STONKBROKER to the ActivationManager (sign before activating)' });
       return out;
     }
     case 'get_broker_floor_status': {
@@ -1609,25 +1615,25 @@ async function mcpCall(name, args) {
         referrer = raw.toLowerCase();
         referrerSource = referrer === ZERO_ADDR ? 'none (caller opted out)' : 'caller-supplied';
       } else { referrer = REF_WALLET; referrerSource = "default — this dashboard's referrer"; }
-      const wo = await sbIdWallet(id);
-      if (!wo) return { error: 'could not resolve the broker wallet (RPC throttled) — retry shortly' };
-      if (wo.wallet === referrer) return { error: 'the broker wallet cannot be its own referrer' };
-      const warnings = [];
+      // VERIFICATION-GATED (owner's call, 2026-07-19): every check must PASS on-chain or this tool
+      // returns an error and NO calldata. No warnings-with-a-transaction, no partially-verified output.
       const from = String(args.from || '').trim();
-      if (from) {
-        if (!hex40(from)) return { error: 'from must be a 0x-prefixed 40-hex address' };
-        if (from.toLowerCase() !== wo.owner) return { error: 'from is not the broker\'s current owner (' + wo.owner + ') — executeCall is owner-gated and this would revert' };
-      } else warnings.push('No `from` given — only the broker\'s CURRENT OWNER (' + wo.owner + ') can sign this; anyone else reverts.');
+      if (!from) return { error: 'verification-gated: pass `from` (the wallet that owns broker #' + id + '). This tool refuses to build the transaction without confirming ownership on-chain.' };
+      if (!hex40(from)) return { error: 'from must be a 0x-prefixed 40-hex address' };
+      const wo = await sbIdWallet(id);
+      if (!wo) return { error: 'verification failed: could not read the broker\'s owner/wallet (RPC throttled) — no calldata returned; retry shortly' };
+      if (wo.wallet === referrer) return { error: 'the broker wallet cannot be its own referrer' };
+      if (from.toLowerCase() !== wo.owner) return { error: 'verification failed: from is not the broker\'s current owner (' + wo.owner + ') — executeCall is owner-gated and this would revert' };
       const hd = await ethCall(GAME_CONTRACT, SEL_HAS_DESK + wAddr(wo.wallet));
-      if (hd == null) warnings.push('Could not check whether the broker wallet already has a desk (RPC throttled) — verify before signing.');
-      else if (/[1-9a-f]/.test(String(hd).slice(2))) warnings.push('This broker\'s wallet ALREADY HAS a desk — this transaction would revert. Nothing to do.');
+      if (hd == null) return { error: 'verification failed: could not read the broker wallet\'s desk state (RPC throttled) — no calldata returned; retry shortly' };
+      if (/[1-9a-f]/.test(String(hd).slice(2))) return { error: 'this broker\'s wallet ALREADY HAS a desk — createDesk would revert; nothing to do' };
       return {
         unsigned: true, chainId: CHAIN_ID, to: wo.wallet, value: DESK_PRICE_WEI, valueEth: '0.01',
         data: sbExecuteCall(GAME_CONTRACT, toWei(0.01), SEL_CREATE_DESK + wAddr(referrer)),
+        verified: { ownership: 'from matches ownerOf(' + id + ') on-chain', deskState: 'broker wallet has no desk', brokerWallet: wo.wallet },
         how: 'You (the broker\'s owner) sign a 0.01 ETH tx to the broker\'s ERC-6551 wallet; its executeCall forwards the ETH into FloorGameV2.createDesk. The DESK BELONGS TO THE BROKER WALLET — desk level and alpha are bound to the NFT and transfer on sale. (Liquid contents of the wallet stay owner-removable until a sale — never promise a buyer the tokens inside.)',
         brokerWallet: wo.wallet, brokerOwner: wo.owner, referrer, referrerSource,
         referrerNote: 'Recorded on-chain at creation, permanent, earns 5% of what the broker wallet later spends (paid from the game treasury, costing the player nothing). Tell the user who the referrer is before they sign. Pass `referrer` to override, or 0x0000000000000000000000000000000000000000 for none.',
-        warnings,
         execution: 'UNSIGNED. Sign and broadcast with your own wallet/signer. This server never sees, stores, or requests private keys and never broadcasts anything. Do not send a key to this or any API.',
         cost: 'Costs 0.01 ETH plus gas, carried by your signature — the broker wallet needs no prior funding. Verify the amounts yourself before signing.',
       };
@@ -1635,17 +1641,20 @@ async function mcpCall(name, args) {
     case 'prepare_broker_floor_collect': {
       const id = Math.floor(Number(args.id));
       if (!(id >= 1 && id <= 4444)) return { error: 'id must be 1-4444' };
-      const wo = await sbIdWallet(id);
-      if (!wo) return { error: 'could not resolve the broker wallet (RPC throttled) — retry shortly' };
+      // VERIFICATION-GATED: same policy as prepare_broker_floor_desk — all checks pass or no calldata.
       const from = String(args.from || '').trim();
-      if (from && from.toLowerCase() !== wo.owner) return { error: 'from is not the broker\'s current owner (' + wo.owner + ') — executeCall is owner-gated and this would revert' };
-      const warnings = from ? [] : ['No `from` given — only the broker\'s CURRENT OWNER (' + wo.owner + ') can sign this.'];
+      if (!from) return { error: 'verification-gated: pass `from` (the wallet that owns broker #' + id + '). This tool refuses to build the transaction without confirming ownership on-chain.' };
+      if (!/^0x[0-9a-fA-F]{40}$/.test(from)) return { error: 'from must be a 0x-prefixed 40-hex address' };
+      const wo = await sbIdWallet(id);
+      if (!wo) return { error: 'verification failed: could not read the broker\'s owner/wallet (RPC throttled) — no calldata returned; retry shortly' };
+      if (from.toLowerCase() !== wo.owner) return { error: 'verification failed: from is not the broker\'s current owner (' + wo.owner + ') — executeCall is owner-gated and this would revert' };
       const hd = await ethCall(GAME_CONTRACT, SEL_HAS_DESK + wAddr(wo.wallet));
-      if (hd == null) warnings.push('Could not check the broker wallet\'s desk (RPC throttled) — verify before signing.');
-      else if (!/[1-9a-f]/.test(String(hd).slice(2))) warnings.push('This broker\'s wallet has NO desk — collect would revert. prepare_broker_floor_desk first.');
+      if (hd == null) return { error: 'verification failed: could not read the broker wallet\'s desk state (RPC throttled) — no calldata returned; retry shortly' };
+      if (!/[1-9a-f]/.test(String(hd).slice(2))) return { error: 'this broker\'s wallet has NO desk — collect would revert. prepare_broker_floor_desk first.' };
       return unsignedTx(wo.wallet, sbExecuteCall(GAME_CONTRACT, 0n, SEL_COLLECT), {
         what: 'Broker #' + id + '\'s wallet collects its Floor desk PnL — the FLOOR lands IN the broker wallet, not in yours',
-        brokerWallet: wo.wallet, brokerOwner: wo.owner, costFloor: 0, warnings,
+        verified: { ownership: 'from matches ownerOf(' + id + ') on-chain', deskState: 'broker wallet has a desk' },
+        brokerWallet: wo.wallet, brokerOwner: wo.owner, costFloor: 0,
       });
     }
 
@@ -2290,6 +2299,14 @@ ${API_INDEX.endpoints.map(e => `- ${'`'}${e.path}${'`'} — ${e.desc}`).join('\n
   liquid wallet contents — stocks, tokens, operator NFTs, ETH — remain removable by the current
   owner right up to a sale. Verify contents at purchase time. Verified against both games'
   contracts; no broker wallet has a desk yet (as of 2026-07-19).
+- **This flow is MCP-ONLY and VERIFICATION-GATED by design.** No website ever builds or submits
+  these transactions. The broker prepare_* tools ERROR with no calldata unless every check passes
+  live on-chain (from == ownerOf, desk state readable and correct, live quote, allowance). An
+  error means "not verified" — surface it, don't work around it.
+- Why a broker-desk is worth having (facts, not price promises): the desk survives transfers, so
+  it's the one Floor position a buyer can actually receive; it adds a second income stream (FLOOR
+  emissions) beside the stock drops; earnings accrue inside the NFT instead of scattering across
+  wallets; and any future owner — human or agent — can verify the desk on-chain before buying.
 - NFT ${SB_NFT} · $STONKBROKER ${SB_TOKEN} · dashboard page: ${'`'}/brokers${'`'}
 
 ## Gotchas that will bite an agent
