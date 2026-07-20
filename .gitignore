@@ -5,3 +5,6 @@ node_modules/
 data-local/
 .claude/
 *.log
+HANDOFF.md
+
+MONITORING.md
