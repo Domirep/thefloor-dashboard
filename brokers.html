@@ -143,6 +143,8 @@ const chip=s=>{if(!s)return '?';const c={AAPL:'aapl',AMZN:'amzn',NVDA:'nvda',STO
   return '<span class="stk'+(c?' '+c:'')+'">'+g+s+'</span>';};
 const usd=v=>v==null?'':' <small style="color:var(--muted-cream)">$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:2})+'</small>';
 const EXPL='https://robinhoodchain.blockscout.com';
+const OS_BASE='https://opensea.io/item/robinhood/0x539cdd042c2f3d93ebc5be7dfff0c79f3b4fabf0/';
+const osUrl=id=>OS_BASE+id;
 
 function render(j){
   $('#c-minted').innerHTML = fmt(j.minted)+' <small>/ '+fmt(j.maxSupply)+(j.mintedOut?' · out':'')+'</small>';
@@ -218,6 +220,7 @@ function bkRender(id,j){
         '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">'+
           '<span style="font-family:var(--font-display);font-size:22px">'+((j.art&&j.art.name)||('Stonk Broker #'+id))+'</span>'+
           (act.active?'<span class="pill on">Tier '+act.tier+' active · '+(act.weightBps/10000).toFixed(2)+'×</span>':'<span class="pill">not activated</span>')+
+          '<a class="btn" style="margin:0 0 0 auto;padding:6px 12px;font-size:11px" href="'+((j.links&&j.links.opensea)||osUrl(id))+'" target="_blank" rel="noopener">View on OpenSea ↗</a>'+
         '</div>'+
         '<div class="out"><span class="k">Owner</span><span class="v"><a href="'+EXPL+'/address/'+j.owner+'" target="_blank" rel="noopener">'+shrt(j.owner)+'</a></span></div>'+
         '<div class="out"><span class="k">Broker wallet (ERC-6551)</span><span class="v"><a href="'+(j.links&&j.links.wallet||'#')+'" target="_blank" rel="noopener">'+shrt(j.wallet)+'</a></span></div>'+
@@ -231,8 +234,10 @@ function bkRender(id,j){
         (j.stonkbrokerBalance>0?'<div class="out"><span class="k">'+chip('STONKBROKER')+'</span><span class="v">'+M(j.stonkbrokerBalance)+usd(j.stonkbrokerBalanceUsd)+'</span></div>':'')+
         (j.ethBalance>0?'<div class="out"><span class="k">ETH</span><span class="v">'+fmt(j.ethBalance,6)+usd(j.ethBalanceUsd)+'</span></div>':'')+
         (j.contentsUsd!=null?'<div class="out"><span class="k">Wallet value (snapshot)</span><span class="v">~$'+Number(j.contentsUsd).toLocaleString('en-US',{maximumFractionDigits:2})+(j.unpricedAssets?' <small style="color:var(--muted)">+ unpriced: '+j.unpricedAssets.join(', ')+'</small>':'')+'</span></div>':'')+
-        (divs.length?divs.map(d=>'<div class="out"><span class="k">Dividends '+(d.symbol?chip(d.symbol):shrt(d.token))+'</span><span class="v">'+(d.count===null?'unknown (throttled)':fmt(d.amount,9)+' over '+d.count+' drops')+'</span></div>').join(''):
-          '<div class="out"><span class="k">Dividends received</span><span class="v">'+(j.dividends&&j.dividends.byStock===null?'unavailable (throttled)':(act.active?'none recorded yet':'none — broker not activated'))+'</span></div>')+
+        (act.active?'<div class="grp"><b>Rewards received</b> · stock drops auto-pushed into the wallet (not claimed)</div>':'')+
+        (j.dividends&&j.dividends.totalRewardsUsd!=null?'<div class="out"><span class="k">Total rewards</span><span class="v">~$'+Number(j.dividends.totalRewardsUsd).toLocaleString('en-US',{maximumFractionDigits:2})+' <small style="color:var(--muted)">over '+fmt(j.dividends.totalDrops)+' drops</small></span></div>':'')+
+        (divs.length?divs.map(d=>'<div class="out"><span class="k">'+(d.symbol?chip(d.symbol):shrt(d.token))+'</span><span class="v">'+(d.count===null?'unknown (throttled)':fmt(d.amount,9)+' over '+d.count+' drops')+'</span></div>').join(''):
+          (act.active?'<div class="out"><span class="k">Rewards</span><span class="v">'+(j.dividends&&j.dividends.byStock===null?'unavailable (throttled)':'none recorded yet')+'</span></div>':''))+
       '</div></div>';
 }
 $('#bk-go').addEventListener('click',lookup);
@@ -249,7 +254,7 @@ async function loadLeader(){
     }
     $('#leader').innerHTML=(j.partialPass?'<p class="note" style="margin:0 0 8px">first sweep still running — high-tier brokers measured first, ranks refine as the rest come in</p>':'')+
       '<div style="max-height:520px;overflow-y:auto"><table><tr><th>#</th><th>Broker</th><th>Tier</th><th class="num">Contents (USD)</th><th>Floor desk</th></tr>'+
-      j.top.map(r=>'<tr><td>'+r.rank+'</td><td><a href="#" data-bk="'+r.id+'">Stonk Broker #'+r.id+'</a></td><td>T'+r.tier+'</td><td class="num">$'+Number(r.contentsUsd).toLocaleString('en-US',{maximumFractionDigits:2})+'</td><td>'+(r.hasDesk?'🟢 desk':'—')+'</td></tr>').join('')+'</table></div>'+
+      j.top.map(r=>'<tr><td>'+r.rank+'</td><td><a href="#" data-bk="'+r.id+'">Stonk Broker #'+r.id+'</a> <a href="'+osUrl(r.id)+'" target="_blank" rel="noopener" title="View on OpenSea" style="color:var(--muted)">↗</a></td><td>T'+r.tier+'</td><td class="num">$'+Number(r.contentsUsd).toLocaleString('en-US',{maximumFractionDigits:2})+'</td><td>'+(r.hasDesk?'🟢 desk':'—')+'</td></tr>').join('')+'</table></div>'+
       '<p class="note" style="margin-top:8px">top 50 of '+fmt(j.scanned)+' measured ('+fmt(j.activated)+' activated)</p>';
     document.querySelectorAll('#leader a[data-bk]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();$('#bk-id').value=a.dataset.bk;lookup();window.scrollTo({top:0,behavior:'smooth'});}));
   }catch(e){}

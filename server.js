@@ -1681,6 +1681,7 @@ const SB_ACT = '0xacd5ae3c060c1137fe2ee86b0ab2ef697456f664';    // ActivationMan
 const SB_BOOST = '0x038a7f4e4e89448ad74e044337c9ac25c11e726b';  // StockBooster (fee -> stock-token dividend drops)
 const SB_AMM = '0xe302733accf4800146e55fc45b46b4e4ffc032d2';    // StonkNFTAMMVault (pooled brokers trade here)
 const SB_DEPLOY_BLOCK = 12493793;                               // NFT deploy block — owner-scan anchor
+const SB_OPENSEA = 'https://opensea.io/item/robinhood/' + SB_NFT + '/';   // verified 2026-07-19: /<tokenId> resolves
 const SB_SEL = {
   totalSupply: '0x18160ddd', maxSupply: '0x32cb6b0c', transfersEnabled: '0xbef97c87',
   tokenWallet: '0xa6e62aef', fundedToken: '0x32abb23e', initialGrant: '0x1a9db47c',
@@ -1962,7 +1963,7 @@ function sbBrokerLite(id) {
     dividends: { byStock: null, note: 'unavailable while the RPC is throttled' },
     floor: { hasDesk: lr ? lr.hasDesk : null, note: null },
     rank: lr ? { contentsRank: lr.rank, ofActivated: sbLeader.scanned, contentsUsd: lr.contentsUsd, note: 'contents snapshot — owner-removable before a sale; not an appraisal' } : null,
-    links: { wallet: wallet ? EXPLORER + '/address/' + wallet : null, nft: EXPLORER + '/token/' + SB_NFT + '/instance/' + id },
+    links: { wallet: wallet ? EXPLORER + '/address/' + wallet : null, nft: EXPLORER + '/token/' + SB_NFT + '/instance/' + id, opensea: SB_OPENSEA + id },
   };
 }
 async function fetchBrokerInner(id) {
@@ -2038,18 +2039,30 @@ async function fetchBrokerInner(id) {
       byStock.push({ token: t, symbol: sbSymbols[t] || null, count: logs.length, amount: +(logs.reduce((s, l) => s + sbNum(l.data), 0) / 1e18).toFixed(9) });
     }
   }
+  // rolled-up rewards: total USD received across all stock drops + total drop count. null when any
+  // stock's scan was throttled (so a partial total never reads as a complete one) or a price is missing.
+  let rewardsUsd = 0, rewardsDrops = 0, rewardsComplete = byStock.length > 0;
+  for (const d of byStock) {
+    if (d.count === null || d.amount === null) { rewardsComplete = false; continue; }
+    rewardsDrops += d.count;
+    const p = sbStockPrices[d.token];
+    if (p) rewardsUsd += d.amount * p.usd; else rewardsComplete = false;
+  }
   return {
     id, owner, wallet, art,
     activation: { active: isActive, tier: isActive ? tier0 + 1 : null, weightBps: isActive && SB_TIERS[tier0] ? SB_TIERS[tier0].weightBps : null },
     seed: { token: seedToken, symbol: (seedToken && sbSymbols[seedToken]) || null, amount: seedAmount },
     holdings, stonkbrokerBalance: sbBal, stonkbrokerBalanceUsd: sbBalUsd, ethBalance: ethBal, ethBalanceUsd: ethBalUsd,
     contentsUsd: b ? +contentsUsd.toFixed(2) : null, unpricedAssets: unpriced.length ? unpriced : undefined,
-    dividends: { byStock, note: 'transfers from the StockBooster to this broker wallet; other inflows not counted' },
+    dividends: { byStock,
+      totalRewardsUsd: (isActive && rewardsComplete) ? +rewardsUsd.toFixed(2) : null,
+      totalDrops: (isActive && rewardsComplete) ? rewardsDrops : null,
+      note: 'stock-token drops pushed from the StockBooster into this broker wallet (rewards are auto-dropped, not claimed); other inflows not counted' },
     // the broker's wallet is a first-class address — it can hold a Floor desk of its own (null = unknown)
     floor: { hasDesk: floorDesk, note: floorDesk ? 'This broker\'s wallet owns a desk on The Floor. The desk (level/alpha) is bound to the NFT and transfers on sale; liquid contents remain owner-removable until then.' : null },
     rank: (sbLeader && sbLeader.byId && sbLeader.byId[id]) ? { contentsRank: sbLeader.byId[id].rank, ofActivated: sbLeader.scanned,
       contentsUsd: sbLeader.byId[id].contentsUsd, note: 'contents snapshot — owner-removable before a sale; not an appraisal' } : null,
-    links: { wallet: EXPLORER + '/address/' + wallet, nft: EXPLORER + '/token/' + SB_NFT + '/instance/' + id },
+    links: { wallet: EXPLORER + '/address/' + wallet, nft: EXPLORER + '/token/' + SB_NFT + '/instance/' + id, opensea: SB_OPENSEA + id },
   };
 }
 
