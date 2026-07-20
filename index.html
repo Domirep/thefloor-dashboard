@@ -284,6 +284,19 @@ footer a{color:var(--muted-cream)}
 .op .pop{position:absolute;left:50%;top:-4px;transform:translateX(-50%);font-family:var(--font-mono);font-size:14px;font-weight:700;opacity:0;pointer-events:none}
 .op.busy .pop{animation:oppop 1.4s ease-out}
 .op.busy .fig{animation:opbob var(--bd,3s) ease-in-out infinite,opwork .55s ease-in-out}
+/* staff directory rows: identity first (X name + handle), then the numbers */
+.rst{display:flex;flex-direction:column;gap:1px}
+.rst-row{display:grid;grid-template-columns:34px 30px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:5px 8px;border-radius:6px;cursor:pointer;border:1px solid transparent;transition:background .12s,border-color .12s}
+.rst-row:hover{background:rgba(201,162,39,.07);border-color:var(--brass-dark)}
+.rst-rk{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.rst-av{width:30px;height:30px;border-radius:7px;background:#0f0b16 center/80% no-repeat;border:1px solid #5a4a2a;image-rendering:pixelated}
+.rst-av.x{border-radius:50%;background-size:cover;image-rendering:auto}
+.rst-nm{font-family:var(--font-mono);font-size:12px;color:var(--paper);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
+.rst-x{font-family:var(--font-mono);font-size:10px;color:var(--muted-cream);text-decoration:none}
+.rst-x:hover{color:var(--brass-light);text-decoration:underline}
+.rst-op{font-family:var(--font-mono);font-size:10px;color:var(--muted);white-space:nowrap}
+.rst-al{font-family:var(--font-mono);font-size:11.5px;color:var(--amber);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+@media(max-width:620px){.rst-row{grid-template-columns:28px 26px minmax(0,1fr) auto;gap:8px}.rst-op{display:none}}
 @keyframes opbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 @keyframes opwork{0%,100%{filter:brightness(1)}45%{filter:brightness(1.6) saturate(1.3)}}
 @keyframes oppop{0%{opacity:0;transform:translateX(-50%) translateY(2px) scale(.7)}25%{opacity:1;transform:translateX(-50%) translateY(-6px) scale(1)}100%{opacity:0;transform:translateX(-50%) translateY(-30px) scale(1)}}
@@ -1985,19 +1998,30 @@ function opTier(pct){                     // pct = 0..1 (1 = top of the floor)
   return {sz:44,gc:'#6b5a33',gb:6};
 }
 let __officeTimer=null;
+/* X display names are user-controlled and carry emoji/RTL/markup — always escape into HTML. */
+const escH=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function officeDesk(r,total){
   const pct=1-((r.rank-1)/Math.max(1,total));
   const t=opTier(pct);
   const op=r.op||'Retail Analyst';
-  const del=(Math.random()*2.2).toFixed(2), bd=(2.4+Math.random()*1.6).toFixed(2);
-  return `<div class="op" data-a="${r.a}" title="${op} · alpha ${(r.alpha||0).toLocaleString()} · rank #${r.rank}">
-    <div class="fig" style="--sz:${t.sz}px;--gc:${t.gc};--gb:${t.gb}px;--del:${del}s;--bd:${bd}s;background-image:url('${OFFICE_SVG(op)}')"></div>
-    <div class="rk">#${r.rank}</div><span class="pop"></span>
-    <div class="plate">${r.a.slice(0,6)}</div></div>`;
+  const h=(typeof handleOf==='function')?handleOf(r.a):null;
+  const tag=(h&&h.handle)?String(h.handle).replace(/[^A-Za-z0-9_]/g,''):'';   // handles are [A-Za-z0-9_] only
+  const shortAddr=r.a.slice(0,6)+'…'+r.a.slice(-4);
+  const name=(h&&(h.name||h.handle))?escH(h.name||('@'+h.handle)):shortAddr;
+  const av=(h&&h.avatar)
+    ? `<div class="rst-av x" style="background-image:url('${escH(h.avatar)}');border-color:${t.gc}"></div>`
+    : `<div class="rst-av" style="background-image:url('${OFFICE_SVG(op)}');border-color:${t.gc}"></div>`;
+  const idLine=tag
+    ? `<div><div class="rst-nm">${name}</div><a class="rst-x" href="https://x.com/${tag}" target="_blank" rel="noopener" onclick="event.stopPropagation()">@${tag} ↗</a></div>`
+    : `<div><div class="rst-nm">${shortAddr}</div></div>`;
+  return `<div class="rst-row" data-a="${r.a}" title="${escH(op)} · alpha ${(r.alpha||0).toLocaleString()} · rank #${r.rank}">
+    <div class="rst-rk">#${r.rank}</div>${av}${idLine}
+    <div class="rst-op">${escH(op)}</div>
+    <div class="rst-al">${(r.alpha||0).toLocaleString()} α</div></div>`;
 }
 function officePod(cls,title,tierBadge,sub,members,total){
-  return `<div class="pod ${cls}"><div class="pod-h"><span class="nm">${title}</span>${tierBadge}<span class="mc">${sub}</span></div>
-    <div class="desks">${members.map(r=>officeDesk(r,total)).join('')}</div></div>`;
+  return `<div class="pod ${cls}"><div class="pod-h"><span class="nm">${escH(title)}</span>${tierBadge}<span class="mc">${sub}</span></div>
+    <div class="rst">${members.map(r=>officeDesk(r,total)).join('')}</div></div>`;
 }
 async function loadOffice(){
   const floor=$('#officeFloor'); if(!floor)return;
@@ -2023,14 +2047,15 @@ async function loadOffice(){
   if(freeRows.length) html+=officePod('free','Free Agents','<span class="tier" style="background:#3a3120;color:var(--muted-cream)">Unaffiliated</span>',freeRows.length+' solo',freeRows,total);
   html+='</div>';
   floor.innerHTML=html;
-  floor.querySelectorAll('.op').forEach(el=>el.onclick=()=>inspectWallet(el.dataset.a));
+  floor.querySelectorAll('.rst-row').forEach(el=>el.onclick=()=>inspectWallet(el.dataset.a));
+  const linked=rows.filter(r=>(typeof handleOf==='function')&&handleOf(r.a)).length;
   const leg=$('#officeLegend');
   if(leg) leg.innerHTML=`
     <span><span class="dot" style="background:#c9a227"></span>Whale</span>
     <span><span class="dot" style="background:#e6c96b"></span>Big</span>
     <span><span class="dot" style="background:#46698a"></span>Mid</span>
     <span><span class="dot" style="background:#6b5a33"></span>Small</span>
-    <span style="margin-left:auto">size &amp; glow = alpha · ${total} on the floor</span>`;
+    <span style="margin-left:auto">ring colour = alpha tier · ${linked} of ${total} have linked 𝕏 · click a row for their card</span>`;
 }
 /* ================= the office scene engine ================= */
 const SCN={W:1150,H:430,BACK:344,FRONT:392,SPEED:110};
@@ -2232,6 +2257,8 @@ async function loadHandles(){
     window.__handles=(j&&j.handles)||{};
     if(typeof SCENE!=='undefined'&&SCENE.actors) SCENE.actors.forEach(a=>{try{applyHandle(a)}catch(e){}});
     try{ relabelPlates(); }catch(e){}
+    // the staff directory renders identities from these handles, so redraw it once they land
+    if(document.querySelector('#officeFloor .rst-row')){ try{ loadOffice(); }catch(e){} }
     if(window.__lastAddr){ try{ renderFlexCard(); }catch(e){} }
   }catch(e){}
 }
