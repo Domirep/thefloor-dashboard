@@ -910,11 +910,6 @@ setInterval(snapshotHistory, 21600000);       // every 6h — upserts today's ro
 // ---- X (Twitter) handle registry — proxied + cached from the game's own /api/x/profiles ----
 // The official site links wallets to X profiles; that endpoint returns ONLY wallets with a linked handle.
 // We proxy it server-side (avoids CORS, one fetch shared by all visitors) and cache to the volume.
-// ---- Firm Wars leaderboard (basic; client-submitted, sanitized + clamped) ----
-const FW_SCORES_FILE = path.join(DATA_DIR, 'fw-scores.json');
-let fwScores = [];
-try { const j = JSON.parse(fs.readFileSync(FW_SCORES_FILE, 'utf8')); if (Array.isArray(j)) { fwScores = j; console.log('LOADED ' + fwScores.length + ' Firm Wars scores'); } } catch (_) {}
-function saveFwScores() { try { fs.writeFile(FW_SCORES_FILE, JSON.stringify(fwScores.slice(0, 300)), () => {}); } catch (_) {} }
 
 const HANDLES_FILE = path.join(DATA_DIR, 'handles.json');
 let handles = {};
@@ -2732,31 +2727,6 @@ write tools return unsigned calldata for your own signer. Never send a private k
     return;
   }
 
-  // ---- Firm Wars leaderboard ----
-  if (p === '/api/fw-scores' && req.method === 'GET') {
-    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-    res.end(JSON.stringify({ ok: true, scores: fwScores.slice().sort((a, b) => b.score - a.score).slice(0, 50) }));
-    return;
-  }
-  if (p === '/api/fw-scores' && req.method === 'POST') {
-    let b = ''; req.on('data', c => { b += c; if (b.length > 2000) req.destroy(); });
-    req.on('end', () => {
-      try {
-        const j = JSON.parse(b || '{}');
-        const firm = (String(j.firm || 'Anon').replace(/[<>]/g, '').trim().slice(0, 24)) || 'Anon';
-        const op = String(j.op || '').replace(/[^a-zA-Z0-9 .'-]/g, '').slice(0, 24);
-        let score = Math.round(Number(j.score)); if (!isFinite(score)) score = 0; score = Math.max(-1e7, Math.min(1e9, score));
-        let days = Math.round(Number(j.days)) || 30; days = Math.max(1, Math.min(90, days));
-        const entry = { firm, op, score, days, ts: Date.now() };
-        fwScores.push(entry); fwScores.sort((a, b) => b.score - a.score); if (fwScores.length > 300) fwScores.length = 300;
-        saveFwScores();
-        const rank = fwScores.indexOf(entry) + 1;
-        console.log('FW score ' + firm + ' ' + score + ' (rank ' + rank + '/' + fwScores.length + ')');
-        res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ ok: true, rank, total: fwScores.length }));
-      } catch (_) { res.writeHead(400); res.end('{}'); }
-    });
-    return;
-  }
 
   // ---- daily historical snapshots ----
   if (p === '/api/history' && req.method === 'GET') {
@@ -2857,7 +2827,6 @@ write tools return unsigned calldata for your own signer. Never send a private k
   // ---- static files ----
   let fp = decodeURIComponent(p);
   if (fp === '/') fp = '/index.html';
-  if (fp === '/firmwars') fp = '/firmwars.html';
   if (fp === '/brokers') fp = '/brokers.html';
   if (fp === '/play') fp = '/play.html';
   const file = path.join(ROOT, path.normalize(fp).replace(/^(\.\.[\/\\])+/, ''));
