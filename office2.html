@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="robots" content="noindex,nofollow" />
+<title>The Floor · The Night Shift</title>
+<link rel="icon" href="/assets/favicon.ico" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#05060b;overflow:hidden;font-family:'IBM Plex Mono',ui-monospace,monospace;color:#e8dcc0}
+  #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+  .hud{position:fixed;pointer-events:none;text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.9)}
+  #title{top:18px;left:22px}
+  #title h1{font-size:15px;letter-spacing:4px;color:#e6c96b;font-weight:700}
+  #title p{font-size:10.5px;letter-spacing:1.6px;color:#8d7f61;margin-top:3px}
+  #stats{top:18px;right:22px;text-align:right;font-size:10.5px;letter-spacing:1.2px;line-height:1.85;color:#9c8c68}
+  #stats b{color:#e6c96b;font-weight:600}
+  #feed{left:22px;bottom:18px;font-size:10.5px;letter-spacing:1px;line-height:1.9;color:#9c8c68;max-width:44vw}
+  #feed .l{opacity:0;transform:translateY(4px);animation:in .45s ease-out forwards}
+  #feed .l b{color:#e6c96b;font-weight:600}
+  #feed .l.burn b{color:#ff9d4a}
+  @keyframes in{to{opacity:1;transform:none}}
+  #hint{right:22px;bottom:18px;font-size:10px;letter-spacing:1.4px;color:#5f563f;text-align:right}
+  a{color:#8d7f61;text-decoration:none;pointer-events:auto}
+  a:hover{color:#e6c96b}
+  @media(max-width:700px){#title h1{font-size:12px;letter-spacing:2.5px}#stats,#feed{font-size:9px}#feed{max-width:60vw}}
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas></div>
+
+<div class="hud" id="title">
+  <h1>THE NIGHT SHIFT</h1>
+  <p>THE FLOOR · ROBINHOOD CHAIN</p>
+</div>
+<div class="hud" id="stats">
+  <div>OFFERED TO MOLOCH <b id="sBurn">—</b></div>
+  <div>SUPPLY <b id="sSupply">—</b></div>
+  <div>ON THE FLOOR <b id="sPlayers">—</b></div>
+  <div>EPOCH ENDS <b id="sHalve">—</b></div>
+</div>
+<div class="hud" id="feed"></div>
+<div class="hud" id="hint"><a href="/">← dashboard</a> · <a href="/brokers">brokers</a></div>
+
+<script>
+/* ============================================================================
+   THE NIGHT SHIFT — a living pixel diorama of The Floor.
+   Rendered at 480x270 and integer-scaled, so every pixel lands on the grid.
+
+   The story: the floor never closes. In the east wall sits MOLOCH, a bull-headed
+   idol-machine that devours $FLOOR. Brokers carry offerings to its maw; it
+   swallows, the room surges with light, and supply falls. Emissions are what it
+   gives back. The halving is Moloch getting sleepy.
+   ========================================================================== */
+const W=480,H=270;
+const cv=document.getElementById('c'), g=cv.getContext('2d');
+const bg=document.createElement('canvas'); bg.width=W; bg.height=H; const bgx=bg.getContext('2d');
+const lig=document.createElement('canvas'); lig.width=W; lig.height=H; const ligx=lig.getContext('2d');
+const bl=document.createElement('canvas'); bl.width=W>>2; bl.height=H>>2; const blx=bl.getContext('2d');
+[g,bgx,ligx,blx].forEach(x=>x.imageSmoothingEnabled=false);
+
+/* ---- palette ---- */
+const P={
+  sky0:'#080b18', sky1:'#101833', sky2:'#1b2648',
+  cityD:'#141c30', cityM:'#1b2540', cityL:'#232f4f', win:'#ffd98a', win2:'#ffb googles',
+  glass:'#16203a', mull:'#0e0a06',
+  wallD:'#17110b', wall:'#241a10', wallL:'#31241५',
+  trim:'#8a6d16', trimL:'#c9a227',
+  floorD:'#241a11', floor:'#33251731', floorL:'#3d2c1a',
+  brass:'#c9a227', brassL:'#e6c96b', brassD:'#7a5c10',
+  bronze:'#7a5c2e', bronzeL:'#a8813f', bronzeD:'#3f2f18', bronzeK:'#231a0e',
+  fire0:'#7a2a08', fire1:'#ff6a1a', fire2:'#ffab3a', fire3:'#ffe6a8',
+  skin:'#e3ab7c', skinD:'#b07a4a',
+  suitA:'#2b3050', suitB:'#3a2f45', suitC:'#22303a', suitD:'#402a2a',
+  shirt:'#e8dcc0', ink:'#0b0906',
+  crt:'#7fe0a0', crtD:'#1d3a2a', paper:'#d9cba6'
+};
+/* base art is painted brighter than it reads: the multiply lighting pass darkens
+   everything, so the raw palette has to sit high or the room turns to mud. */
+P.win2='#ffb84d'; P.wallD='#241a10'; P.wall='#3d2c1a'; P.wallL='#54402a';
+P.floorD='#402f1c'; P.floor='#523c26'; P.floorL='#63492e';
+P.cityD='#1d2740'; P.cityM='#27334f'; P.cityL='#36456a';
+P.glass='#1d2b4a';
+
+const R=(x,y,w,h,c)=>{ bgx.fillStyle=c; bgx.fillRect(x|0,y|0,w|0,h|0); };
+const r=(ctx,x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.fillRect(x|0,y|0,w|0,h|0); };
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const RI=(a,b)=>Math.floor(rnd(a,b+1));
+
+/* ---- world geometry ---- */
+const FLOOR_Y=186;              // where the back wall meets the floor
+const LANE=[204,236];           // feet Y for back / front lanes
+const MOL={x:330,y:26,w:150,h:206};   // Moloch's alcove
+const ELEV={x:10,y:120,w:40,h:66};
+const TERM={x:150,y:150,w:44,h:36};
+
+/* ============================ STATIC BACKDROP ============================ */
+let cityFar=[],cityNear=[];
+function buildCity(){
+  cityFar=[];cityNear=[];
+  for(let x=-10;x<330;x+=RI(9,16)){
+    const h=RI(18,52); cityFar.push({x,w:RI(7,13),h,lit:[]});
+  }
+  for(let x=-8;x<330;x+=RI(13,22)){
+    const h=RI(30,78); const b={x,w:RI(10,17),h,lit:[]};
+    for(let i=0;i<RI(8,18);i++) b.lit.push({dx:RI(1,b.w-3),dy:RI(3,h-4),on:Math.random()<.85});
+    cityNear.push(b);
+  }
+}
+function paintStatic(){
+  // --- sky gradient (banded, like real pixel art) ---
+  for(let y=0;y<FLOOR_Y;y++){
+    const t=y/FLOOR_Y;
+    R(0,y,W,1, t<.34?P.sky0 : t<.62?P.sky1 : P.sky2);
+  }
+  // stars
+  for(let i=0;i<70;i++){ const x=RI(0,329),y=RI(2,70); R(x,y,1,1, Math.random()<.3?'#6b7ba8':'#3d4a72'); }
+  // --- city ---
+  const horizon=FLOOR_Y-46;
+  cityFar.forEach(b=>{ R(b.x,horizon-b.h,b.w,b.h+40,P.cityD); });
+  cityNear.forEach(b=>{
+    R(b.x,horizon-b.h,b.w,b.h+40,P.cityM);
+    R(b.x,horizon-b.h,b.w,1,P.cityL);
+    b.lit.forEach(l=>{ if(l.on) R(b.x+l.dx,horizon-b.h+l.dy,2,2, Math.random()<.25?P.win2:P.win); });
+  });
+  // ground haze
+  for(let y=horizon+16;y<FLOOR_Y;y++) R(0,y,330,1,'rgba(20,28,52,.10)');
+
+  /* --- interior: ceiling + wall structure --- */
+  R(0,0,W,16,P.wallD);
+  R(0,15,W,2,P.trim);
+  // wall piers between windows (deco verticals)
+  const piers=[0,66,132,198,264,306];
+  piers.forEach(px=>{ R(px,16,24,FLOOR_Y-16,P.wall); R(px,16,2,FLOOR_Y-16,P.wallL); R(px+22,16,2,FLOOR_Y-16,P.wallD); });
+  R(0,16,330,4,P.wall);
+  // window mullions + sills
+  for(let i=0;i<5;i++){
+    const wx=24+i*66;
+    R(wx,20,1,FLOOR_Y-38,P.mull);
+    R(wx+20,20,1,FLOOR_Y-38,P.mull);
+    R(wx,20,42,2,P.mull);
+    for(let k=1;k<5;k++) R(wx,20+k*30,42,1,P.mull);       // horizontal glazing bars
+    R(wx-2,FLOOR_Y-20,46,3,P.trim); R(wx-2,FLOOR_Y-17,46,2,P.brassD);   // sill
+  }
+  // wainscot
+  R(0,FLOOR_Y-14,330,14,P.wall);
+  R(0,FLOOR_Y-14,330,2,P.trim);
+
+  /* --- floor: boards with perspective banding --- */
+  for(let y=FLOOR_Y;y<H;y++){
+    const t=(y-FLOOR_Y)/(H-FLOOR_Y);
+    R(0,y,W,1, t<.3?P.floorD : t<.7?P.floor : P.floorL);
+  }
+  for(let y=FLOOR_Y+3;y<H;y+=7) R(0,y,W,1,'rgba(0,0,0,.16)');
+  for(let x=-40;x<W+80;x+=26){
+    for(let y=FLOOR_Y;y<H;y+=7){
+      const sk=(y-FLOOR_Y)*0.55;
+      R(x+sk,y,1,7,'rgba(0,0,0,.13)');
+    }
+  }
+  // brass inlay strip
+  R(0,FLOOR_Y+1,W,1,P.brassD); R(0,FLOOR_Y+2,W,1,'rgba(201,162,39,.25)');
+
+  /* --- elevator (left) --- */
+  const E=ELEV;
+  R(E.x-3,E.y-4,E.w+6,E.h+4,P.wallD);
+  R(E.x-3,E.y-4,E.w+6,3,P.trim);
+  R(E.x,E.y,E.w,E.h,'#1a1209');
+  R(E.x+1,E.y+1,E.w-2,E.h-2,'#2a1d10');
+  R(E.x+E.w/2-1,E.y+1,2,E.h-2,'#120c06');       // door split
+  R(E.x,E.y-4,E.w,2,P.brass);
+  for(let i=0;i<5;i++) R(E.x+6+i*7,E.y-9,4,3,i===2?P.brassL:P.brassD);   // floor indicator
+}
+
+/* ============================ MOLOCH ============================ */
+/* A bull-headed idol-machine set into the east wall. Bronze, riveted, stepped
+   deco shoulders, horns, and a furnace maw that opens to swallow offerings. */
+function paintMoloch(){
+  const {x,y,w,h}=MOL;
+  // alcove recess
+  R(x-6,16,w+12,FLOOR_Y-16,'#120d08');
+  R(x-6,16,2,FLOOR_Y-16,P.wallL);
+  // stepped deco surround
+  for(let i=0;i<4;i++){ R(x-4+i*3, 20+i*5, w+8-i*6, 4, i%2?P.brassD:P.trim); }
+  // body / chest plate
+  R(x+10,y+70,w-20,h-70,P.bronzeD);
+  R(x+14,y+74,w-28,h-78,P.bronze);
+  // shoulder steps
+  for(let i=0;i<5;i++){ R(x+6+i*4, y+66+i*6, w-12-i*8, 5, i%2?P.bronze:P.bronzeD); }
+  // rivets down the chest
+  for(let ry=y+86;ry<y+h-16;ry+=14){
+    for(let rx=x+22;rx<x+w-22;rx+=18) R(rx,ry,2,2,P.bronzeL);
+  }
+  // pistons either side
+  [x+14,x+w-22].forEach(px=>{
+    R(px,y+92,8,80,P.bronzeK); R(px+1,y+94,6,76,P.bronzeD);
+    for(let k=0;k<5;k++) R(px+1,y+98+k*15,6,3,P.bronzeL);
+  });
+  // --- head: bull skull, stylised ---
+  const hx=x+30, hy=y+8, hw=w-60, hh=64;
+  R(hx-2,hy-2,hw+4,hh+4,P.bronzeK);
+  R(hx,hy,hw,hh,P.bronze);
+  R(hx,hy,hw,3,P.bronzeL);
+  // brow ridge
+  R(hx+4,hy+16,hw-8,7,P.bronzeD);
+  R(hx+4,hy+16,hw-8,2,P.bronzeL);
+  // cheek plates
+  R(hx+2,hy+30,10,26,P.bronzeD);
+  R(hx+hw-12,hy+30,10,26,P.bronzeD);
+  // horns
+  for(let i=0;i<14;i++){
+    const t=i/13;
+    R(hx-4-i*2, hy+14-i*1.6, 4-t*1.5, 5-t*2, i>9?P.brassL:P.brass);
+    R(hx+hw+i*2, hy+14-i*1.6, 4-t*1.5, 5-t*2, i>9?P.brassL:P.brass);
+  }
+  // muzzle
+  R(hx+hw/2-13,hy+44,26,18,P.bronzeD);
+  R(hx+hw/2-11,hy+46,22,14,P.bronzeK);
+  R(hx+hw/2-8,hy+50,5,4,'#0a0705'); R(hx+hw/2+3,hy+50,5,4,'#0a0705');   // nostrils
+  // --- the maw (dynamic glow drawn per-frame) ---
+  MOL.maw={x:x+w/2-26,y:y+108,w:52,h:44};
+  R(MOL.maw.x-4,MOL.maw.y-4,MOL.maw.w+8,MOL.maw.h+8,P.bronzeK);
+  R(MOL.maw.x-2,MOL.maw.y-2,MOL.maw.w+4,MOL.maw.h+4,P.bronzeD);
+  R(MOL.maw.x,MOL.maw.y,MOL.maw.w,MOL.maw.h,'#150a04');
+  // grate bars over the maw
+  for(let i=0;i<7;i++) R(MOL.maw.x+3+i*7,MOL.maw.y,3,MOL.maw.h,P.bronzeK);
+  // teeth
+  for(let i=0;i<9;i++){ R(MOL.maw.x+2+i*6,MOL.maw.y,4,4,P.bronzeL); R(MOL.maw.x+2+i*6,MOL.maw.y+MOL.maw.h-4,4,4,P.bronzeD); }
+  // offering slab / altar step
+  R(x+w/2-40,y+h-16,80,10,P.bronzeD);
+  R(x+w/2-40,y+h-16,80,2,P.bronzeL);
+  R(x+w/2-46,y+h-6,92,6,P.bronzeK);
+  // gauges
+  [[x+20,y+150],[x+w-30,y+150]].forEach(([gx,gy])=>{
+    R(gx-1,gy-1,12,12,P.bronzeK); R(gx,gy,10,10,'#2b1f12'); R(gx+2,gy+2,6,6,P.brassD);
+  });
+  MOL.eyes=[{x:hx+12,y:hy+20},{x:hx+hw-20,y:hy+20}];
+  MOL.gauges=[[x+20,y+150],[x+w-30,y+150]];
+}
+
+/* ============================ DESKS ============================ */
+const DESKS=[
+  {x:64,y:LANE[0],t:2},{x:104,y:LANE[0],t:1},{x:214,y:LANE[0],t:3},{x:254,y:LANE[0],t:1},
+  {x:88,y:LANE[1],t:2},{x:186,y:LANE[1],t:4},{x:256,y:LANE[1],t:1}
+];
+function drawDesk(ctx,d){
+  const x=d.x,y=d.y,w=30,h=13;
+  r(ctx,x-1,y-h-1,w+2,h+2,P.ink);
+  r(ctx,x,y-h,w,h,'#4a3418');
+  r(ctx,x,y-h,w,2,'#63481f');
+  r(ctx,x+2,y-2,3,2,'#2a1c0c'); r(ctx,x+w-5,y-2,3,2,'#2a1c0c');
+  // monitor
+  const mw=d.t>2?14:11, mh=d.t>2?10:8;
+  r(ctx,x+w/2-mw/2-1,y-h-mh-1,mw+2,mh+2,P.ink);
+  r(ctx,x+w/2-mw/2,y-h-mh,mw,mh,P.crtD);
+  const flick=(Math.sin(T*0.006+x)*0.5+0.5);
+  r(ctx,x+w/2-mw/2+1,y-h-mh+1,mw-2,mh-2, flick>.5?'#2a5f42':'#255339');
+  for(let i=0;i<3;i++) r(ctx,x+w/2-mw/2+2,y-h-mh+2+i*2, RI(3,mw-4),1, P.crt);
+  // desk lamp for higher tiers
+  if(d.t>=2){ r(ctx,x+w-6,y-h-7,2,7,P.brassD); r(ctx,x+w-9,y-h-9,8,3,P.brass); }
+  // paper stack
+  if(d.t>=3){ r(ctx,x+3,y-h-3,7,3,P.paper); r(ctx,x+3,y-h-4,7,1,'#efe3c2'); }
+}
+
+/* ============================ WORKERS ============================ */
+const SUITS=[P.suitA,P.suitB,P.suitC,P.suitD];
+class Worker{
+  constructor(i){
+    this.lane=Math.random()<.5?0:1;
+    this.x=rnd(56,300); this.y=LANE[this.lane];
+    this.suit=SUITS[i%SUITS.length];
+    this.dir=Math.random()<.5?-1:1;
+    this.state='idle'; this.t=rnd(0,3); this.frame=0; this.fa=0;
+    this.carry=null; this.busy=false; this.home=this.x; this.speed=rnd(34,46);
+  }
+  goto(tx,lane,then){ this.tx=tx; this.tlane=lane; this.state='walk'; this.then=then; }
+  update(dt){
+    this.t-=dt;
+    if(this.state==='walk'){
+      const ty=LANE[this.tlane];
+      if(Math.abs(this.y-ty)>1) this.y+= Math.sign(ty-this.y)*Math.min(22*dt,Math.abs(ty-this.y));
+      const d=this.tx-this.x;
+      this.dir=d<0?-1:1;
+      if(Math.abs(d)>1.2){ this.x+=Math.sign(d)*Math.min(this.speed*dt,Math.abs(d)); this.fa+=dt*9; }
+      else { this.lane=this.tlane; this.state='idle'; this.t=rnd(1.5,5); const f=this.then; this.then=null; if(f)f(); }
+    } else if(this.state==='work'){ this.fa+=dt*4; if(this.t<=0){ this.state='idle'; this.t=rnd(2,6);} }
+    else { // idle: wander or sit down to work
+      if(this.t<=0){
+        if(Math.random()<.45){ this.state='work'; this.t=rnd(3,9); }
+        else this.goto(Math.max(56,Math.min(300,this.x+rnd(-70,70))), Math.random()<.35?1-this.lane:this.lane);
+      }
+    }
+    this.frame=Math.floor(this.fa)%4;
+  }
+  draw(ctx){
+    const x=Math.round(this.x), y=Math.round(this.y), d=this.dir;
+    const walking=this.state==='walk';
+    const bob=walking?(this.frame===1||this.frame===3?1:0):(this.state==='work'?(Math.sin(this.fa)>0?1:0):0);
+    const yy=y-bob;
+    // shadow
+    ctx.fillStyle='rgba(0,0,0,.34)'; ctx.fillRect(x-5,y-1,11,2);
+    // legs
+    const sw=walking?[[-2,2],[0,0],[2,-2],[0,0]][this.frame]:[0,0];
+    r(ctx,x-3+sw[0],yy-6,3,6,P.ink); r(ctx,x+1+sw[1],yy-6,3,6,P.ink);
+    r(ctx,x-3+sw[0],yy-6,3,5,'#1e2238'); r(ctx,x+1+sw[1],yy-6,3,5,'#1e2238');
+    // body
+    r(ctx,x-5,yy-16,10,11,P.ink);
+    r(ctx,x-4,yy-15,8,9,this.suit);
+    r(ctx,x-1,yy-15,2,9,P.shirt);            // shirt placket
+    r(ctx,x-1,yy-14,2,3,'#b8452f');          // tie
+    // arms
+    const aw=walking?[[1,-1],[0,0],[-1,1],[0,0]][this.frame]:[0,0];
+    r(ctx,x-6,yy-14+aw[0],2,7,this.suit);
+    r(ctx,x+4,yy-14+aw[1],2,7,this.suit);
+    // head
+    r(ctx,x-4,yy-24,8,9,P.ink);
+    r(ctx,x-3,yy-23,6,7,P.skin);
+    r(ctx,x-3,yy-23,6,2,'#3a2a1c');          // hair
+    r(ctx,x-3+(d>0?3:1),yy-20,1,1,P.ink);    // eye
+    // carried offering
+    if(this.carry){ r(ctx,x+(d>0?4:-9),yy-12,6,6,P.brassD); r(ctx,x+(d>0?5:-8),yy-11,4,4,P.brass); }
+  }
+}
+const workers=[]; for(let i=0;i<11;i++) workers.push(new Worker(i));
+
+/* ============================ PARTICLES ============================ */
+const parts=[];
+function spawn(x,y,n,kind){
+  for(let i=0;i<n;i++){
+    parts.push({x,y,kind,
+      vx:kind==='ember'?rnd(-14,14):rnd(-4,4),
+      vy:kind==='ember'?rnd(-42,-14):kind==='steam'?rnd(-9,-4):rnd(-2,2),
+      life:kind==='ember'?rnd(.7,1.9):kind==='steam'?rnd(1.2,2.6):rnd(2,5),
+      max:0,s:kind==='dust'?1:RI(1,2)});
+    parts[parts.length-1].max=parts[parts.length-1].life;
+  }
+}
+function updParts(dt){
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i]; p.life-=dt;
+    if(p.life<=0){ parts.splice(i,1); continue; }
+    p.x+=p.vx*dt; p.y+=p.vy*dt;
+    if(p.kind==='ember'){ p.vy+=26*dt; p.vx*=.98; }
+    if(p.kind==='steam'){ p.vy*=.97; p.vx+=Math.sin(T*.002+p.y)*.4*dt; }
+  }
+}
+function drawParts(ctx){
+  parts.forEach(p=>{
+    const t=p.life/p.max;
+    let c;
+    if(p.kind==='ember') c= t>.66?P.fire3 : t>.33?P.fire2 : P.fire1;
+    else if(p.kind==='steam') c='rgba(190,200,220,'+(t*.20).toFixed(2)+')';
+    else c='rgba(230,201,107,'+(t*.30).toFixed(2)+')';
+    r(ctx,p.x,p.y,p.s,p.s,c);
+  });
+}
+
+/* ============================ CAMERA + STATE ============================ */
+let T=0, shake=0, mawHeat=0, roomSurge=0, molochWake=.35;
+const cam={x:0,y:0};
+function kick(a){ shake=Math.max(shake,a); }
+
+/* offering ritual: a worker carries FLOOR to Moloch and feeds the maw */
+/* pick a worker who isn't already mid-errand, so events never swarm the whole floor */
+function freeWorker(){ const f=workers.filter(w=>!w.busy); return f.length?f[RI(0,f.length-1)]:null; }
+function offering(amount,who){
+  const w=freeWorker();
+  if(!w) return;
+  w.busy=true; w.carry=true;
+  const alt=MOL.x+MOL.w/2-52;
+  w.goto(alt,1,()=>{
+    w.state='work'; w.t=.5;
+    setTimeout(()=>{
+      mawHeat=1; roomSurge=1; molochWake=Math.min(1,molochWake+.06); kick(3.2);
+      spawn(MOL.maw.x+MOL.maw.w/2, MOL.maw.y+MOL.maw.h/2, 34,'ember');
+      spawn(MOL.maw.x+MOL.maw.w/2, MOL.maw.y-6, 10,'steam');
+      w.carry=null;
+      pushFeed('<b>'+fmt(amount)+' $FLOOR</b> offered to Moloch','burn');
+      setTimeout(()=>{ w.goto(rnd(70,290), RI(0,1), ()=>{ w.busy=false; }); },700);
+    },520);
+  });
+}
+function toTerminal(label){
+  const w=freeWorker(); if(!w) return;
+  w.busy=true;
+  w.goto(TERM.x+TERM.w/2,1,()=>{
+    w.state='work'; w.t=1.4; termFlash=1;
+    spawn(TERM.x+TERM.w/2,TERM.y+8,7,'dust');
+    setTimeout(()=>{ w.goto(rnd(70,290),RI(0,1),()=>{w.busy=false;}); },900);
+  });
+}
+let termFlash=0, elevOpen=0;
+function arrival(){
+  elevOpen=1; kick(1.1);
+  const w=new Worker(workers.length); w.x=ELEV.x+ELEV.w/2; w.y=LANE[0]; w.lane=0;
+  workers.push(w); if(workers.length>16){ const o=workers.shift(); }
+  w.goto(rnd(80,280),RI(0,1));
+}
+
+/* ============================ FEED / HUD ============================ */
+const feedEl=document.getElementById('feed'); const lines=[];
+const fmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:0});
+function pushFeed(html,cls){
+  lines.unshift('<div class="l '+(cls||'')+'">'+html+'</div>');
+  if(lines.length>5) lines.pop();
+  feedEl.innerHTML=lines.join('');
+}
+
+/* ============================ RENDER ============================ */
+function light(ctx,x,y,rad,col,a){
+  const gr=ctx.createRadialGradient(x,y,0,x,y,rad);
+  gr.addColorStop(0,col); gr.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.globalAlpha=a; ctx.fillStyle=gr; ctx.fillRect(x-rad,y-rad,rad*2,rad*2); ctx.globalAlpha=1;
+}
+function frame(dt){
+  T+=dt*1000;
+  mawHeat=Math.max(0,mawHeat-dt*1.1);
+  roomSurge=Math.max(0,roomSurge-dt*1.3);
+  termFlash=Math.max(0,termFlash-dt*1.6);
+  elevOpen=Math.max(0,elevOpen-dt*.5);
+  shake*=Math.pow(.0016,dt);
+  molochWake=Math.max(.3,molochWake-dt*.004);
+  updParts(dt);
+  workers.forEach(w=>w.update(dt));
+
+  const sx=(Math.random()-.5)*shake, sy=(Math.random()-.5)*shake;
+  cam.x=Math.sin(T*.00013)*2.2+sx; cam.y=Math.cos(T*.00009)*1.1+sy;
+
+  /* 1. scene */
+  g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,W,H);
+  g.save(); g.translate(Math.round(-cam.x),Math.round(-cam.y));
+  g.drawImage(bg,0,0);
+
+  // maw interior fire (behind grate)
+  const heat=.42+mawHeat*.58+Math.sin(T*.004)*.05;
+  const m=MOL.maw;
+  r(g,m.x,m.y,m.w,m.h,'#1c0a03');
+  for(let i=0;i<m.h;i+=2){
+    const t=1-i/m.h, a=(t*heat);
+    g.fillStyle='rgba(255,'+Math.round(70+150*t)+','+Math.round(20+60*t)+','+a.toFixed(2)+')';
+    g.fillRect(m.x+RI(0,2), m.y+m.h-i-2, m.w-RI(0,4), 2);
+  }
+  for(let i=0;i<7;i++) r(g,m.x+3+i*7,m.y,3,m.h,P.bronzeK);   // grate bars in front of fire
+
+  // eyes
+  MOL.eyes.forEach(e=>{
+    const a=.45+molochWake*.5+mawHeat*.4;
+    r(g,e.x-1,e.y-1,10,6,P.bronzeK);
+    g.fillStyle='rgba(255,'+Math.round(120+90*mawHeat)+',40,'+Math.min(1,a).toFixed(2)+')';
+    g.fillRect(e.x,e.y,8,4);
+    r(g,e.x+ (Math.sin(T*.0007)>0?5:1), e.y+1,2,2,'#2a0f04');   // slit pupil drifts
+  });
+  // gauge needles react to heat
+  MOL.gauges.forEach(([gx,gy],i)=>{
+    const ang=-2.2+ (mawHeat*1.6) + Math.sin(T*.003+i)*.12;
+    r(g,gx+5,gy+5,1,1,P.brassL);
+    r(g,gx+5+Math.cos(ang)*3, gy+5+Math.sin(ang)*3,1,1,P.fire2);
+  });
+
+  DESKS.forEach(d=>drawDesk(g,d));
+
+  // terminal
+  r(g,TERM.x-1,TERM.y-1,TERM.w+2,TERM.h+2,P.ink);
+  r(g,TERM.x,TERM.y,TERM.w,TERM.h,'#241a10');
+  r(g,TERM.x+3,TERM.y+3,TERM.w-6,TERM.h-12,termFlash>.5?'#3f7f5c':P.crtD);
+  for(let i=0;i<5;i++) r(g,TERM.x+5,TERM.y+5+i*4,RI(6,TERM.w-10),1,P.crt);
+  r(g,TERM.x+3,TERM.y+TERM.h-7,TERM.w-6,4,P.brassD);
+
+  // elevator doors
+  const eo=Math.round(elevOpen*(ELEV.w/2-2));
+  r(g,ELEV.x,ELEV.y,ELEV.w/2-eo,ELEV.h,'#2a1d10');
+  r(g,ELEV.x+ELEV.w/2+eo,ELEV.y,ELEV.w/2-eo,ELEV.h,'#2a1d10');
+  if(elevOpen>.05) r(g,ELEV.x+ELEV.w/2-eo,ELEV.y,eo*2,ELEV.h,'#c9a227');
+
+  // y-sorted actors
+  workers.slice().sort((a,b)=>a.y-b.y).forEach(w=>w.draw(g));
+  drawParts(g);
+  g.restore();
+
+  /* 2. lighting map (multiply) */
+  ligx.setTransform(1,0,0,1,0,0);
+  ligx.globalCompositeOperation='source-over';
+  ligx.fillStyle='#8b83a6'; ligx.fillRect(0,0,W,H);       // night ambient (keeps shadows readable)
+  ligx.globalCompositeOperation='lighter';
+  // ceiling pendants pour warm pools down the room
+  for(let i=0;i<5;i++) light(ligx,40+i*66,26,86,'rgba(255,214,140,.95)',.85);
+  light(ligx,W*.42,FLOOR_Y+30,150,'rgba(255,196,120,.5)',.5);   // general floor fill
+  // moloch maw is the dominant source
+  light(ligx,m.x+m.w/2,m.y+m.h/2, 108+mawHeat*70,'rgba(255,150,60,1)',.55+mawHeat*.45);
+  light(ligx,TERM.x+TERM.w/2,TERM.y+10,34,'rgba(120,240,170,.9)',.3+termFlash*.4);
+  if(elevOpen>.05) light(ligx,ELEV.x+ELEV.w/2,ELEV.y+ELEV.h/2,40,'rgba(255,210,120,1)',elevOpen*.6);
+  if(roomSurge>0) { ligx.fillStyle='rgba(255,170,80,'+(roomSurge*.30).toFixed(3)+')'; ligx.fillRect(0,0,W,H); }
+  g.globalCompositeOperation='multiply'; g.drawImage(lig,0,0);
+  g.globalCompositeOperation='source-over';
+
+  /* 3. additive glow */
+  g.globalCompositeOperation='lighter';
+  light(g,m.x+m.w/2,m.y+m.h/2,60+mawHeat*46,'rgba(255,120,40,.55)',.5+mawHeat*.5);
+  for(let i=0;i<5;i++) light(g,40+i*66,20,20,'rgba(255,214,140,.5)',.32);
+  light(g,TERM.x+TERM.w/2,TERM.y+8,16,'rgba(120,240,170,.5)',.25+termFlash*.5);
+  g.globalCompositeOperation='source-over';
+
+  /* 4. bloom */
+  blx.clearRect(0,0,bl.width,bl.height);
+  blx.drawImage(cv,0,0,bl.width,bl.height);
+  g.globalCompositeOperation='lighter'; g.globalAlpha=.30;
+  g.drawImage(bl,0,0,W,H); g.globalAlpha=1; g.globalCompositeOperation='source-over';
+
+  /* 5. grade: vignette + scanlines */
+  const vg=g.createRadialGradient(W/2,H/2,H*.34,W/2,H/2,H*.92);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(4,3,10,.42)');
+  g.fillStyle=vg; g.fillRect(0,0,W,H);
+  g.fillStyle='rgba(0,0,0,.055)';
+  for(let y=0;y<H;y+=2) g.fillRect(0,y,W,1);
+}
+
+/* ============================ SCALING ============================ */
+function fit(){
+  const s=Math.max(1,Math.min(Math.floor(innerWidth/W),Math.floor(innerHeight/H)));
+  cv.width=W; cv.height=H;
+  cv.style.width=(W*s)+'px'; cv.style.height=(H*s)+'px';
+  g.imageSmoothingEnabled=false;
+}
+addEventListener('resize',fit);
+
+/* ============================ LIVE CHAIN DATA ============================ */
+/* Chain events arrive in bursts. Queue them and release one at a time so the floor
+   stages a sequence of errands instead of every broker sprinting off at once. */
+let seen=new Set(), firstLoad=true; const evq=[];
+setInterval(()=>{
+  if(!evq.length) return;
+  if(workers.filter(w=>w.busy).length>=2) return;   // at most two errands running
+  (evq.shift())();
+},1400);
+
+async function poll(){
+  try{
+    const j=await (await fetch('/api/live-actions',{cache:'no-store'})).json();
+    const acts=(j&&j.actions)||[];
+    // seed EVERY known action on first load, or the backlog replays as a stampede
+    if(firstLoad){ acts.forEach(a=>seen.add(a.tx||JSON.stringify(a))); firstLoad=false; return; }
+    acts.slice().reverse().forEach(a=>{
+      const k=a.tx||JSON.stringify(a); if(seen.has(k))return; seen.add(k);
+      const kind=(a.kind||a.t||'').toLowerCase();
+      if(evq.length>6) return;                       // don't hoard a huge backlog
+      if(kind.includes('burn')) evq.push(()=>offering(a.amount||a.value||0));
+      else if(kind.includes('collect')||kind.includes('claim')) evq.push(()=>{ toTerminal(); pushFeed('<b>PnL collected</b> at the terminal'); });
+      else if(kind.includes('newdesk')) evq.push(()=>{ arrival(); pushFeed('<b>New desk</b> opened'); });
+      else if(kind.includes('recruit')||kind.includes('seat')||kind.includes('starter')) evq.push(()=>pushFeed('<b>Operator seated</b>'));
+      else if(kind.includes('upgrade')) evq.push(()=>pushFeed('<b>Desk upgraded</b>'));
+    });
+  }catch(e){}
+}
+async function stats(){
+  try{
+    const j=await (await fetch('/api/token-stats',{cache:'no-store'})).json();
+    if(j&&j.ok!==false){
+      document.getElementById('sBurn').textContent=fmt(j.burned||0);
+      document.getElementById('sSupply').textContent=fmt(j.supply||0);
+      if(j.halveAt){ const d=Math.max(0,j.halveAt-Date.now()); const dd=Math.floor(d/86400000), hh=Math.floor(d/3600000)%24;
+        document.getElementById('sHalve').textContent=dd+'d '+hh+'h'; }
+    }
+  }catch(e){}
+  try{
+    const l=await (await fetch('/api/leaderboard',{cache:'no-store'})).json();
+    const n=(l&&l.lb&&l.lb.byAlpha&&l.lb.byAlpha.length)||0;
+    if(n) document.getElementById('sPlayers').textContent=n;
+  }catch(e){}
+}
+
+/* ambient life so the floor is never still */
+setInterval(()=>{
+  if(Math.random()<.35) spawn(rnd(30,300),rnd(60,150),1,'dust');
+  if(Math.random()<.5) spawn(MOL.maw.x+rnd(6,MOL.maw.w-6),MOL.maw.y+4,1,'ember');
+  if(Math.random()<.22) spawn(MOL.x+MOL.w/2+rnd(-30,30),MOL.y+60,1,'steam');
+},240);
+
+/* boot */
+buildCity(); paintStatic(); paintMoloch(); fit();
+pushFeed('<b>The night shift</b> is on the floor');
+poll(); stats(); setInterval(poll,20000); setInterval(stats,60000);
+let last=performance.now();
+(function loop(now){ const dt=Math.min(.05,(now-last)/1000); last=now; frame(dt); requestAnimationFrame(loop); })(performance.now());
+</script>
+</body>
+</html>
