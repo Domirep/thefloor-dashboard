@@ -285,7 +285,14 @@ footer a{color:var(--muted-cream)}
 .op.busy .pop{animation:oppop 1.4s ease-out}
 .op.busy .fig{animation:opbob var(--bd,3s) ease-in-out infinite,opwork .55s ease-in-out}
 /* staff directory rows: identity first (X name + handle), then the numbers */
-.rst{display:flex;flex-direction:column;gap:1px}
+/* multi-column so a 140-strong roster doesn't run for thousands of pixels */
+.rst{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:1px 12px;align-content:start}
+/* every roster scrolls in place so no single group (free agents, or a 50-cap firm) stretches the page */
+.pod .rst{max-height:640px;overflow-y:auto;overscroll-behavior:contain;padding-right:6px}   /* ~15 rows: a typical firm fits whole, only the biggest scroll */
+.pod .rst::-webkit-scrollbar{width:8px}
+.pod .rst::-webkit-scrollbar-thumb{background:#3a3120;border-radius:4px}
+.pod .rst::-webkit-scrollbar-thumb:hover{background:var(--brass-dark)}
+.pod .rst::-webkit-scrollbar-track{background:rgba(0,0,0,.25);border-radius:4px}
 .rst-row{display:grid;grid-template-columns:34px 30px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:5px 8px;border-radius:6px;cursor:pointer;border:1px solid transparent;transition:background .12s,border-color .12s}
 .rst-row:hover{background:rgba(201,162,39,.07);border-color:var(--brass-dark)}
 .rst-rk{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
@@ -2044,7 +2051,7 @@ async function loadOffice(){
     const tier=m.officeTier?`<span class="tier">Office L${m.officeTier}${m.boostPct?' · +'+m.boostPct+'%':''}</span>`:'';
     html+=officePod('', (m.name||('Firm '+id)), tier, mem.length+' seated', mem, total);
   });
-  if(freeRows.length) html+=officePod('free','Free Agents','<span class="tier" style="background:#3a3120;color:var(--muted-cream)">Unaffiliated</span>',freeRows.length+' solo',freeRows,total);
+  if(freeRows.length) html+=officePod('free','Free Agents','<span class="tier" style="background:#3a3120;color:var(--muted-cream)">Unaffiliated</span>',freeRows.length+' solo · ranked by alpha'+(freeRows.length>12?' · scroll':''),freeRows,total);
   html+='</div>';
   floor.innerHTML=html;
   floor.querySelectorAll('.rst-row').forEach(el=>el.onclick=()=>inspectWallet(el.dataset.a));
