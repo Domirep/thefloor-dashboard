@@ -2470,11 +2470,9 @@ http.createServer(async (req, res) => {
 <div style="max-width:720px;margin:0 auto;padding:48px 20px">
 <h1 style="color:#d4af5a;font-size:22px;letter-spacing:1px">▸ THE FLOOR · MCP</h1>
 <p>This URL is a <b>Model Context Protocol</b> endpoint — it's for your AI agent, not your browser.
-Add it to Claude, Claude Code, or Cursor and ask about Robinhood Chain's games in plain language:
-The Floor (desks, alpha, emissions, operator payback math) and StonkBrokers (broker wallets,
-activation math, stock dividends) — and it can even <b>play</b>, including making a StonkBroker's
-own ERC-6551 wallet open a desk on The Floor (unsigned transactions only; your wallet signs,
-this server never touches keys).</p>
+Add it to Claude, Claude Code, or Cursor and ask about two games on Robinhood Chain in plain
+language. It can read live state and even <b>play</b> — unsigned transactions only; your wallet
+signs, this server never touches keys.</p>
 <h2 style="color:#d4af5a;font-size:15px;margin-top:28px">Add it</h2>
 <pre style="background:#12100c;border:1px solid #37301f;border-radius:8px;padding:14px;overflow-x:auto;font-size:12.5px"># Claude Code
 claude mcp add --transport http the-floor ${base}/mcp
@@ -2484,8 +2482,22 @@ ${base}/mcp
 
 # Cursor (mcp.json)
 { "mcpServers": { "the-floor": { "url": "${base}/mcp" } } }</pre>
-<h2 style="color:#d4af5a;font-size:15px;margin-top:28px">${MCP_TOOLS.length} tools</h2>
-<p style="font-size:13px;color:#b3a88f">${MCP_TOOLS.map(t => t.name).join(' · ')}</p>
+<h2 style="color:#d4af5a;font-size:16px;margin-top:30px">▸ StonkBrokers <span style="font-size:10px;letter-spacing:1px;color:#0c0906;background:#d4af5a;padding:2px 7px;border-radius:3px;vertical-align:2px">NEW</span></h2>
+<p>Clutch Markets' <b>4,444 ERC-6551 broker NFTs</b> — each owns a real on-chain wallet seeded with a
+tokenized stock (AAPL/AMZN/NVDA) that earns stock-dividend drops roughly every 10 minutes. The MCP
+reads <b>any broker</b> — wallet holdings + USD value, dividends received, activation tier, and a
+contents leaderboard — and prepares actions: <b>activate</b> a broker, or make its own 6551 wallet
+<b>open (and collect) a desk on The Floor</b>. That desk lives inside the NFT and travels with it on
+sale. Broker write tools are <b>verification-gated</b>: no calldata unless ownership, activation, and
+on-chain state all check out.</p>
+<p style="font-size:13px;color:#b3a88f">${MCP_TOOLS.filter(t => t.name.includes('broker')).map(t => t.name).join(' · ')}</p>
+<h2 style="color:#d4af5a;font-size:16px;margin-top:26px">▸ The Floor</h2>
+<p>The idle desk-and-operators game on the same chain: desks, alpha, emissions and the halving,
+operator payback math, firms, leaderboards, reinvest-vs-sell behavior, and the swap path to buy
+$FLOOR. Read state, run <code>get_strategy</code> for the decision math, and prepare every in-game
+move (create/upgrade desk, recruit/seat operators, collect, swap) as unsigned calldata.</p>
+<p style="font-size:13px;color:#b3a88f">${MCP_TOOLS.filter(t => !t.name.includes('broker')).map(t => t.name).join(' · ')}</p>
+<p style="font-size:11px;color:#6f6249;margin-top:14px">${MCP_TOOLS.length} tools total · full self-describing schema via <code>tools/list</code></p>
 <p style="margin-top:28px;font-size:13px"><a href="/llms.txt" style="color:#d4af5a">llms.txt</a> ·
 <a href="/api" style="color:#d4af5a">API index</a> · <a href="/" style="color:#d4af5a">dashboard</a> ·
 <a href="https://github.com/Domirep/thefloor-dashboard" style="color:#d4af5a">source (GitHub)</a> ·
