@@ -1120,9 +1120,11 @@ const MCP_INSTRUCTIONS = [
   '— 4444 ERC-6551 broker NFTs whose wallets hold tokenized stock and earn ~10-min dividend drops. CROSS-GAME:',
   'a broker\'s wallet can itself play The Floor (get_broker_floor_status, prepare_broker_floor_desk/collect) —',
   'the desk then belongs to the NFT\'s wallet and travels with it on sale. No broker on the chain has one yet.',
-  'POLICY: the broker prepare_* tools are VERIFICATION-GATED and MCP-only — there is deliberately no website',
-  'transaction UI. They ERROR with no calldata unless every on-chain check passes: the broker is ACTIVATED',
-  '(desk creation is a perk of activated brokers), ownership vs ownerOf, desk state, live fee quote,',
+  'POLICY: reads work on ANY broker, but the broker prepare_* (write) tools only work on a broker the',
+  'SIGNING WALLET OWNS — `from` must equal ownerOf(tokenId) (the 6551 executeCall is owner-gated), so an',
+  'agent can only act on brokers it controls, never someone else\'s. These tools are VERIFICATION-GATED and',
+  'MCP-only (no website tx UI): they ERROR with no calldata unless every on-chain check passes — ownership,',
+  'the broker is ACTIVATED (desk creation is a perk of activated brokers), desk state, live fee quote,',
   'allowance. Treat an error as "not verified", never retry around it by hand-building calldata.',
 ].join(' ');
 const obj = (props, required) => ({ type: 'object', properties: props || {}, required: required || [], additionalProperties: false });
@@ -2488,8 +2490,11 @@ tokenized stock (AAPL/AMZN/NVDA) that earns stock-dividend drops roughly every 1
 reads <b>any broker</b> — wallet holdings + USD value, dividends received, activation tier, and a
 contents leaderboard — and prepares actions: <b>activate</b> a broker, or make its own 6551 wallet
 <b>open (and collect) a desk on The Floor</b>. That desk lives inside the NFT and travels with it on
-sale. Broker write tools are <b>verification-gated</b>: no calldata unless ownership, activation, and
-on-chain state all check out.</p>
+sale. <b>Reads work on any broker; writes only on a broker your wallet owns</b> — the write tools
+require the signer to be the broker's on-chain owner (its 6551 <code>executeCall</code> is
+owner-gated), so an agent can only act on a broker it controls, never someone else's. Broker writes
+are <b>verification-gated</b>: no calldata unless ownership, activation, and on-chain state all
+check out.</p>
 <p style="font-size:13px;color:#b3a88f">${MCP_TOOLS.filter(t => t.name.includes('broker')).map(t => t.name).join(' · ')}</p>
 <h2 style="color:#d4af5a;font-size:16px;margin-top:26px">▸ The Floor</h2>
 <p>The idle desk-and-operators game on the same chain: desks, alpha, emissions and the halving,
