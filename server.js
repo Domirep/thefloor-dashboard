@@ -2,9 +2,17 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const ROOT = __dirname;
 const PORT = process.env.PORT || 4319;
-const ADMIN_KEY = process.env.ADMIN_KEY || 'floor-admin';
+// Fail CLOSED: no ADMIN_KEY set -> admin endpoints are unreachable (no guessable default in the
+// now-public source). Constant-time compare so the key can't be recovered by response timing.
+const ADMIN_KEY = process.env.ADMIN_KEY || '';
+function adminAuth(provided) {
+  if (!ADMIN_KEY) return false;
+  const a = Buffer.from(String(provided || '')), b = Buffer.from(ADMIN_KEY);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 const TYPES = { '.html':'text/html', '.css':'text/css', '.js':'text/javascript', '.svg':'image/svg+xml',
   '.png':'image/png', '.ico':'image/x-icon', '.json':'application/json', '.woff2':'font/woff2' };
 
@@ -2455,7 +2463,10 @@ http.createServer(async (req, res) => {
       // asking for text/event-stream (a server-push stream this stateless server doesn't offer -> 405).
       const wantsHtml = /text\/html/i.test(req.headers.accept || '') && !/text\/event-stream/i.test(req.headers.accept || '');
       if (req.method === 'GET' && wantsHtml) {
-        const base = 'https://' + (req.headers.host || 'thefloor-dashboard-production.up.railway.app');
+        // Host is client-controlled and gets interpolated into this HTML (and cached), so strip it to
+        // a safe hostname charset — no reflected-XSS/host-header injection via a crafted Host header.
+        const safeHost = String(req.headers.host || '').replace(/[^a-z0-9.:-]/gi, '').slice(0, 100) || 'thefloor-dashboard-production.up.railway.app';
+        const base = 'https://' + safeHost;
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=3600' });
         res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>The Floor · MCP for agents</title></head>
@@ -2568,7 +2579,7 @@ write tools return unsigned calldata for your own signer. Never send a private k
 
   // ---- admin stats (token-gated) ----
   if (p === '/admin/stats') {
-    if (u.searchParams.get('key') !== ADMIN_KEY) { res.writeHead(401); res.end('unauthorized'); return; }
+    if (!adminAuth(u.searchParams.get('key'))) { res.writeHead(401); res.end('unauthorized'); return; }
     const HOUR = 3600000;
     const errs = events.filter(e => e.t === 'js_error' || e.t === 'explorer_error' || e.t === 'promise_reject').slice(-60).reverse();
     const wallets = {}; events.filter(e => e.t === 'wallet_lookup').forEach(e => { if (e.addr) wallets[e.addr] = (wallets[e.addr] || 0) + 1; });
@@ -2814,7 +2825,7 @@ write tools return unsigned calldata for your own signer. Never send a private k
     res.end(JSON.stringify(dealsStatus)); return;
   }
   if (p === '/deals-status' && req.method === 'POST') {
-    if (u.searchParams.get('key') !== ADMIN_KEY) { res.writeHead(401); res.end('unauthorized'); return; }
+    if (!adminAuth(u.searchParams.get('key'))) { res.writeHead(401); res.end('unauthorized'); return; }
     let b = ''; req.on('data', c => { b += c; if (b.length > 2000) req.destroy(); });
     req.on('end', () => {
       try { const j = JSON.parse(b || '{}'); dealsStatus = { live: !!j.live, msg: String(j.msg || '').slice(0, 120), ts: Date.now() }; } catch (_) {}
