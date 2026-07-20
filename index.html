@@ -296,11 +296,11 @@ footer a{color:var(--muted-cream)}
 .rst-row{display:grid;grid-template-columns:34px 30px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:5px 8px;border-radius:6px;cursor:pointer;border:1px solid transparent;transition:background .12s,border-color .12s}
 .rst-row:hover{background:rgba(201,162,39,.07);border-color:var(--brass-dark)}
 .rst-rk{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
-.rst-av{width:30px;height:30px;border-radius:7px;background:#0f0b16 center/80% no-repeat;border:1px solid #5a4a2a;image-rendering:pixelated}
+.rst-av{width:30px;height:30px;border-radius:7px;background:#0f0b16 center/80% no-repeat;border:1px solid #3a3120;image-rendering:pixelated}
 .rst-av.x{border-radius:50%;background-size:cover;image-rendering:auto}
-.rst-nm{font-family:var(--font-mono);font-size:12px;color:var(--paper);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
-.rst-x{font-family:var(--font-mono);font-size:10px;color:var(--muted-cream);text-decoration:none}
-.rst-x:hover{color:var(--brass-light);text-decoration:underline}
+.rst-id{min-width:0}
+.rst-nm{display:block;font-family:var(--font-mono);font-size:12px;color:var(--paper);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;text-decoration:none}
+a.rst-nm:hover{color:var(--brass-light);text-decoration:underline}
 .rst-op{font-family:var(--font-mono);font-size:10px;color:var(--muted);white-space:nowrap}
 .rst-al{font-family:var(--font-mono);font-size:11.5px;color:var(--amber);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
 @media(max-width:620px){.rst-row{grid-template-columns:28px 26px minmax(0,1fr) auto;gap:8px}.rst-op{display:none}}
@@ -378,10 +378,6 @@ footer a{color:var(--muted-cream)}
 @keyframes fxcoin{to{transform:translate(var(--dx),var(--dy));opacity:0}}
 .fx-ember{position:absolute;width:5px;height:5px;border-radius:50%;background:#ff8a1f;box-shadow:0 0 7px #ff7a1a;animation:fxember 1.15s ease-out forwards;pointer-events:none}
 @keyframes fxember{to{transform:translate(var(--dx),var(--dy)) scale(.4);opacity:0}}
-.office-roster{margin-top:14px}
-.office-roster summary{cursor:pointer;font-family:var(--font-mono);font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted-cream);padding:10px 14px;background:#0e0b08;border:1px solid #2a2318;border-radius:6px}
-.office-roster summary:hover{color:var(--brass-light);border-color:var(--brass-dark)}
-.office-roster[open] summary{margin-bottom:12px}
 @media(prefers-reduced-motion:reduce){html:not(.motion-live) .board-tape{animation:none}html:not(.motion-live) .actor.walking .body{animation:none}}
 .office-ticker{display:flex;gap:18px;overflow:hidden;white-space:nowrap;background:#0c0906;border:1px solid #2a2318;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-family:var(--font-mono);font-size:11px;color:var(--muted-cream)}
 .office-ticker .ti{flex:none}
@@ -844,6 +840,18 @@ try{ if(localStorage.getItem('floor.motion')!=='still') document.documentElement
   </section>
 
   <!-- FIRMS -->
+  <!-- STAFF DIRECTORY -->
+  <section id="staff" data-tab="firms">
+    <div class="section-head">
+      <img src="assets/icon-seats.svg" alt="" />
+      <h2>Staff Directory</h2>
+      <span class="sub label">every desk owner, grouped by firm</span>
+    </div>
+    <div class="office-legend" id="officeLegend"></div>
+    <div id="officeTicker" class="office-ticker" style="display:none"></div>
+    <div id="officeFloor" class="office"><p style="color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:24px">clocking everyone in…</p></div>
+  </section>
+
   <section id="firms" data-tab="firms">
     <div class="section-head">
       <img src="assets/icon-league.svg" alt="" />
@@ -857,12 +865,6 @@ try{ if(localStorage.getItem('floor.motion')!=='still') document.documentElement
       </table>
     </div>
     <p class="note">Soulbound boosts stack on top: <b>The Intern (+10%)</b>, <b>The Principal (+5%</b> — claimable by Firm founders on the Firms page<b>)</b>, <b>X Badge (+2%</b> — connect your X on The Floor<b>)</b>. Total boost hard-capped at <b>+50%</b>. Found a Firm for 2,500 FLOOR; members contribute FLOOR to level the shared office.</p>
-    <details class="office-roster" id="officeRosterWrap">
-      <summary>Staff directory — every desk owner, grouped by firm</summary>
-      <div class="office-legend" id="officeLegend"></div>
-      <div id="officeTicker" class="office-ticker" style="display:none"></div>
-      <div id="officeFloor" class="office"><p style="color:var(--muted);font-family:var(--font-mono);font-size:12px;padding:24px">clocking everyone in…</p></div>
-    </details>
   </section>
 
   <!-- CALCULATOR -->
@@ -2008,23 +2010,22 @@ let __officeTimer=null;
 /* X display names are user-controlled and carry emoji/RTL/markup — always escape into HTML. */
 const escH=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function officeDesk(r,total){
-  const pct=1-((r.rank-1)/Math.max(1,total));
-  const t=opTier(pct);
   const op=r.op||'Retail Analyst';
   const h=(typeof handleOf==='function')?handleOf(r.a):null;
   const tag=(h&&h.handle)?String(h.handle).replace(/[^A-Za-z0-9_]/g,''):'';   // handles are [A-Za-z0-9_] only
   const shortAddr=r.a.slice(0,6)+'…'+r.a.slice(-4);
-  const name=(h&&(h.name||h.handle))?escH(h.name||('@'+h.handle)):shortAddr;
   const av=(h&&h.avatar)
-    ? `<div class="rst-av x" style="background-image:url('${escH(h.avatar)}');border-color:${t.gc}"></div>`
-    : `<div class="rst-av" style="background-image:url('${OFFICE_SVG(op)}');border-color:${t.gc}"></div>`;
+    ? `<div class="rst-av x" style="background-image:url('${escH(h.avatar)}')"></div>`
+    : `<div class="rst-av" style="background-image:url('${OFFICE_SVG(op)}')"></div>`;
+  // one identity per row: the handle IS the name people know, so don't print both
   const idLine=tag
-    ? `<div><div class="rst-nm">${name}</div><a class="rst-x" href="https://x.com/${tag}" target="_blank" rel="noopener" onclick="event.stopPropagation()">@${tag} ↗</a></div>`
-    : `<div><div class="rst-nm">${shortAddr}</div></div>`;
+    ? `<a class="rst-nm" href="https://x.com/${tag}" target="_blank" rel="noopener" onclick="event.stopPropagation()">@${tag}</a>`
+    : `<span class="rst-nm">${shortAddr}</span>`;
   return `<div class="rst-row" data-a="${r.a}" title="${escH(op)} · alpha ${(r.alpha||0).toLocaleString()} · rank #${r.rank}">
-    <div class="rst-rk">#${r.rank}</div>${av}${idLine}
+    <div class="rst-rk">#${r.rank}</div>${av}
+    <div class="rst-id">${idLine}</div>
     <div class="rst-op">${escH(op)}</div>
-    <div class="rst-al">${(r.alpha||0).toLocaleString()} α</div></div>`;
+    <div class="rst-al">${(r.alpha||0).toLocaleString()} alpha</div></div>`;
 }
 function officePod(cls,title,tierBadge,sub,members,total){
   return `<div class="pod ${cls}"><div class="pod-h"><span class="nm">${escH(title)}</span>${tierBadge}<span class="mc">${sub}</span></div>
@@ -2057,12 +2058,7 @@ async function loadOffice(){
   floor.querySelectorAll('.rst-row').forEach(el=>el.onclick=()=>inspectWallet(el.dataset.a));
   const linked=rows.filter(r=>(typeof handleOf==='function')&&handleOf(r.a)).length;
   const leg=$('#officeLegend');
-  if(leg) leg.innerHTML=`
-    <span><span class="dot" style="background:#c9a227"></span>Whale</span>
-    <span><span class="dot" style="background:#e6c96b"></span>Big</span>
-    <span><span class="dot" style="background:#46698a"></span>Mid</span>
-    <span><span class="dot" style="background:#6b5a33"></span>Small</span>
-    <span style="margin-left:auto">ring colour = alpha tier · ${linked} of ${total} have linked 𝕏 · click a row for their card</span>`;
+  if(leg) leg.innerHTML=`<span>${total} desk owners · ranked by alpha · ${linked} with linked 𝕏 · click a row for their card</span>`;
 }
 /* ================= the office scene engine ================= */
 const SCN={W:1150,H:430,BACK:344,FRONT:392,SPEED:110};
