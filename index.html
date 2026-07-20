@@ -453,6 +453,71 @@ a.rst-nm:hover{color:var(--brass-light);text-decoration:underline}
   .ticker .tk{gap:8px} .tk-lab{font-size:9px;letter-spacing:1px} .tk-val{font-size:11px}
   .tk-deals{padding:4px 8px;font-size:9px;gap:4px}
 }
+/* ---- Weekly Firm Championship ---- */
+#competition .comp-banner{position:relative;overflow:hidden;border-radius:6px;background:linear-gradient(150deg,#1c1710,#0d0b08);border:2px solid var(--brass-dark);box-shadow:4px 5px 0 rgba(0,0,0,.5);padding:20px 22px;margin-bottom:18px}
+#competition .comp-banner::before{content:"";position:absolute;top:-40%;right:-10%;width:60%;height:170%;background:radial-gradient(circle at 80% 12%,rgba(201,162,39,.16),transparent 60%);pointer-events:none}
+#competition .cb-main{position:relative;display:flex;flex-wrap:wrap;gap:16px 30px;justify-content:space-between;align-items:flex-end}
+#competition .cb-lab{margin-bottom:6px}
+#competition .cb-pool{min-width:0}
+#competition .cb-floor{font-family:var(--font-display);font-size:34px;color:var(--amber);line-height:1;letter-spacing:.5px;font-variant-numeric:tabular-nums}
+#competition .cb-floor .cb-unit{font-family:var(--font-mono);font-size:14px;color:var(--brass-light);letter-spacing:1px}
+#competition .cb-usd{font-family:var(--font-mono);font-size:13px;color:var(--muted-cream);margin-top:5px;font-variant-numeric:tabular-nums}
+#competition .cb-count{min-width:0;text-align:right}
+#competition .cb-count .cb-lab{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+#competition .cb-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);display:inline-block;flex:none}
+#competition .cb-clock{font-family:var(--font-mono);font-size:30px;font-weight:700;color:var(--brass-light);font-variant-numeric:tabular-nums;letter-spacing:1px;line-height:1;white-space:nowrap}
+#competition .cb-clock.closed{font-size:17px;color:var(--amber);letter-spacing:.5px}
+#competition .cb-win{font-family:var(--font-mono);font-size:12px;color:var(--muted-cream);margin-top:5px;letter-spacing:.5px}
+#competition .comp-split{position:relative;margin-top:16px;padding-top:14px;border-top:1px dashed #3a2f1a}
+#competition .comp-split .split-bars{display:flex;height:12px;border-radius:3px;overflow:hidden;border:1px solid #4a3d22}
+#competition .comp-split .split-bars i{display:block;height:100%}
+#competition .comp-split .s1{background:linear-gradient(90deg,var(--brass-dark),var(--brass-light))}
+#competition .comp-split .s2{background:linear-gradient(90deg,#6f6a5c,#c9c4b5)}
+#competition .comp-split .s3{background:linear-gradient(90deg,#7a4a1e,#cd7f32)}
+#competition .split-legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:9px;font-size:11px;color:var(--muted-cream)}
+#competition .split-legend b{color:var(--paper)}
+#competition .split-legend .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
+#competition .tbl-wrap{overflow-x:auto;border:1px solid #37301f;box-shadow:3px 4px 0 rgba(0,0,0,.45);background:var(--navy-950)}
+#competition table{border-collapse:collapse;width:100%;font-size:13px;min-width:0}
+#competition th,#competition td{padding:11px 12px;text-align:right;border-bottom:1px solid #241d12;white-space:nowrap;vertical-align:middle}
+#competition th{background:linear-gradient(180deg,#241c10,#191308);color:var(--brass-light);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1.2px;font-size:10.5px}
+#competition tbody tr:hover{background:#191308}
+#competition .num{font-variant-numeric:tabular-nums}
+#competition .pos{color:var(--green)} #competition .neg{color:var(--red)}
+#competition th.c-rank,#competition td.c-rank{text-align:center;width:46px}
+#competition th.c-firm,#competition td.c-firm{text-align:left}
+#competition td.c-rank{font-size:18px}
+#competition td.c-rank .rank-num{font-size:13px;color:var(--muted-cream);font-variant-numeric:tabular-nums}
+#competition tbody tr.leader{background:linear-gradient(90deg,rgba(201,162,39,.15),rgba(201,162,39,.02));box-shadow:inset 3px 0 0 var(--amber)}
+#competition tbody tr.leader:hover{background:linear-gradient(90deg,rgba(201,162,39,.2),rgba(201,162,39,.04))}
+#competition tbody tr.leader .firm-name{color:var(--brass-light)}
+#competition .firm-cell{display:flex;align-items:center;gap:11px;min-width:0}
+#competition .emblem-wrap{position:relative;width:32px;height:32px;flex:none;border-radius:50%;overflow:hidden;display:inline-grid;place-items:center;border:1px solid var(--brass-dark);background:linear-gradient(150deg,var(--brass-light),var(--brass-dark));color:#0c0906;font-family:var(--font-display);font-size:15px;line-height:1}
+#competition .emblem-wrap::before{content:attr(data-ini)}
+#competition .emblem{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#1d1914}
+#competition .firm-meta{min-width:0}
+#competition .firm-name{color:var(--paper);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
+#competition .firm-memo{font-style:italic;font-size:11px;color:var(--muted-cream);white-space:normal;line-height:1.4;margin-top:2px;max-width:270px}
+#competition td.c-prize .prize-floor{color:var(--brass-light);font-variant-numeric:tabular-nums}
+#competition td.c-prize .prize-floor .unit{color:var(--muted-cream);font-size:11px}
+#competition td.c-prize .prize-usd{display:block;color:var(--muted-cream);font-size:11px;margin-top:2px;font-variant-numeric:tabular-nums}
+#competition td.c-prize .prize-none{color:var(--muted)}
+#competition .comp-state{background:var(--navy-900);border:1px solid #37301f;box-shadow:3px 4px 0 rgba(0,0,0,.45);padding:22px 20px;text-align:center;color:var(--muted-cream);font-size:13px;line-height:1.65}
+#competition .comp-state b{color:var(--paper)}
+#competition .comp-loading{color:var(--muted-cream);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;padding:20px 4px}
+@media(max-width:560px){
+  #competition .comp-banner{padding:16px 16px}
+  #competition .cb-main{gap:14px}
+  #competition .cb-count{text-align:left}
+  #competition .cb-count .cb-lab{justify-content:flex-start}
+  #competition .cb-floor{font-size:27px}
+  #competition .cb-clock{font-size:23px}
+  #competition th,#competition td{padding:9px 8px;font-size:12px}
+  #competition td.c-prize{white-space:normal}
+  #competition .emblem-wrap{width:28px;height:28px;font-size:13px}
+  #competition .firm-name{max-width:44vw}
+  #competition .firm-memo{max-width:52vw}
+}
 </style>
 <script>
 /* Set before first paint so a live floor never flashes frozen sprites. Mirrors motionStill() below;
@@ -840,6 +905,91 @@ try{ if(localStorage.getItem('floor.motion')!=='still') document.documentElement
   </section>
 
   <!-- FIRMS -->
+  <!-- WEEKLY FIRM CHAMPIONSHIP -->
+  <section id="competition" data-tab="firms">
+    <div class="section-head">
+      <img src="assets/icon-league.svg" alt="" />
+      <h2>Weekly Firm Championship</h2>
+      <span class="sub label">top 3 split the pool · closes Fri 23:59 ET</span>
+    </div>
+    <div id="compBanner" class="comp-banner" style="display:none"></div>
+    <div id="compBody"><div class="comp-loading">loading championship…</div></div>
+    <p id="compNote" class="note">
+      Unofficial and not affiliated with The Floor · PnL is off-chain-indexed &amp; marked to market · data via
+      <a href="https://thefloor.sh" target="_blank" rel="noopener">thefloor.sh</a>.
+    </p>
+  </section>
+  <script>
+  /* Weekly Firm Championship — IIFE so its $/fmt/escH never collide with the page globals. */
+  (function(){
+    'use strict';
+    const $=(s)=>document.querySelector(s);
+    const escH=(v)=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const fmt=(n,d=0)=>{ n=Number(n); if(!isFinite(n)) n=0; return n.toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:0}); };
+    const usd=(n)=>{ n=Number(n)||0; const a=Math.abs(n); return '$'+fmt(a,(a>0&&a<1000)?2:0); };
+    const safeUrl=(u)=>(typeof u==='string' && /^https:\/\//i.test(u.trim()))?u.trim():'';
+    const medalOf=(r)=>r===1?'🥇':r===2?'🥈':r===3?'🥉':'';
+    const initialOf=(name)=>{ const s=String(name||'').trim(); return s?s.charAt(0).toUpperCase():'?'; };
+    const pad2=(x)=>(x<10?'0':'')+x;
+    const agoText=(ms)=>{ ms=Number(ms); if(!isFinite(ms)||ms<0) return ''; const s=Math.round(ms/1000); return s<60?`${s}s`:s<3600?`${Math.round(s/60)}m`:`${Math.round(s/3600)}h`; };
+    let compTarget=null;
+    const fmtCountdown=(ms)=>{ if(!(ms>0)) return null; const s=Math.floor(ms/1000); return `${Math.floor(s/86400)}d ${pad2(Math.floor((s%86400)/3600))}h ${pad2(Math.floor((s%3600)/60))}m ${pad2(s%60)}s`; };
+    const paintCountdown=()=>{ const el=$('#compCountdown'); if(!el||compTarget==null) return; const txt=fmtCountdown(compTarget-Date.now()); if(txt==null){ el.textContent='Window closed — payout pending'; el.classList.add('closed'); } else { el.textContent=txt; el.classList.remove('closed'); } };
+    function bannerHtml(d){
+      const w=d.window||{};
+      const closed=compTarget!=null && (compTarget-Date.now())<=0;
+      const initTxt=compTarget!=null?(fmtCountdown(compTarget-Date.now())||'Window closed — payout pending'):'—';
+      const poolUsd=(d.prizePoolUsd!=null)?`<div class="cb-usd">≈ ${usd(d.prizePoolUsd)}</div>`:'';
+      const dot=d.live?'<span class="cb-dot" title="live"></span>':'';
+      const bps=(Array.isArray(d.splitBps)&&d.splitBps.length>=3)?d.splitBps:[6500,2500,1000];
+      const w1=(Number(bps[0])||0)/100,w2=(Number(bps[1])||0)/100,w3=(Number(bps[2])||0)/100;
+      const p=(x)=>Math.round(x*10)/10;
+      return `<div class="cb-main"><div class="cb-pool"><div class="cb-lab label">Prize Pool</div><div class="cb-floor">${fmt(d.prizePoolFloor)} <span class="cb-unit">$FLOOR</span></div>${poolUsd}</div><div class="cb-count"><div class="cb-lab label">${dot}${closed?'Status':'Closes in'}</div><div class="cb-clock${closed?' closed':''}" id="compCountdown">${initTxt}</div>${w.label?`<div class="cb-win">${escH(w.label)}</div>`:''}</div></div><div class="comp-split" title="${p(w1)}/${p(w2)}/${p(w3)} split to 1st / 2nd / 3rd"><div class="split-bars"><i class="s1" style="width:${w1}%"></i><i class="s2" style="width:${w2}%"></i><i class="s3" style="width:${w3}%"></i></div><div class="split-legend"><span><i class="sw" style="background:var(--brass-light)"></i><b>${p(w1)}%</b> 1st place</span><span><i class="sw" style="background:#c9c4b5"></i><b>${p(w2)}%</b> 2nd</span><span><i class="sw" style="background:#cd7f32"></i><b>${p(w3)}%</b> 3rd</span></div></div>`;
+    }
+    function rowHtml(f,i){
+      const rank=(f&&f.rank!=null)?Number(f.rank):(i+1);
+      const med=medalOf(rank);
+      const rankCell=med?med:`<span class="rank-num">${rank}</span>`;
+      const url=safeUrl(f.emblem);
+      const ini=escH(initialOf(f.name));
+      const emblem=`<span class="emblem-wrap" data-ini="${ini}">`+(url?`<img class="emblem" src="${escH(url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">`:'')+`</span>`;
+      const memo=f.message?`<div class="firm-memo" title="Memo from the corner office">“${escH(f.message)}”</div>`:'';
+      const mem=Array.isArray(f.members)?f.members.length:(f.members!=null?f.members:0);
+      const pnl=Number(f.pnlUsd)||0;
+      const pnlCls=pnl>=0?'pos':'neg';
+      const pnlTxt=(pnl>=0?'+':'-')+usd(pnl);
+      let prizeCell='';
+      if(rank<=3){ if(f.prizeFloor!=null&&Number(f.prizeFloor)>0){ prizeCell=`<span class="prize-floor">${fmt(f.prizeFloor)} <span class="unit">$FLOOR</span></span>`+(f.prizeUsd!=null?`<span class="prize-usd">≈ ${usd(f.prizeUsd)}</span>`:''); } else { prizeCell='<span class="prize-none">—</span>'; } }
+      return `<tr${rank===1?' class="leader"':''}><td class="c-rank">${rankCell}</td><td class="c-firm"><div class="firm-cell">${emblem}<div class="firm-meta"><div class="firm-name">${escH(f.name||'Unnamed firm')}</div>${memo}</div></div></td><td class="num">${fmt(mem)}</td><td class="num ${pnlCls}">${pnlTxt}</td><td class="num c-prize">${prizeCell}</td></tr>`;
+    }
+    function render(d){
+      const banner=$('#compBanner'),body=$('#compBody'),note=$('#compNote');
+      if(!banner||!body) return;
+      const w=d.window||{};
+      if(w.endSec!=null&&isFinite(Number(w.endSec))) compTarget=Number(w.endSec)*1000;
+      else if(compTarget==null&&w.closesInSec!=null&&isFinite(Number(w.closesInSec))) compTarget=Date.now()+Number(w.closesInSec)*1000;
+      if(w.endSec!=null||d.prizePoolFloor!=null){ banner.innerHTML=bannerHtml(d); banner.style.display=''; }
+      if(d.pnlConfigured===false){
+        body.innerHTML='<div class="comp-state"><b>Scoring isn\'t live yet</b> — the window and prize pool are already tracking. Firms compete on realized Robinhood-Chain trading PnL.</div>';
+      } else {
+        const firms=Array.isArray(d.firms)?d.firms:[];
+        if(!firms.length){ body.innerHTML='<div class="comp-state">Standings populate as firms log realized PnL this window. Check back soon.</div>'; }
+        else { body.innerHTML='<div class="tbl-wrap"><table><thead><tr><th class="c-rank">#</th><th class="c-firm">Firm</th><th>Members</th><th>Weekly PnL</th><th class="c-prize">Projected Prize</th></tr></thead><tbody>'+firms.map(rowHtml).join('')+'</tbody></table></div>'; }
+      }
+      if(note){ note.innerHTML=[ d.disclaimer?escH(d.disclaimer):'', 'Prize projections assume the current pool; it grows through the week.', 'PnL is marked to market, so a firm\'s standing can shift as prices move — even a firm that isn\'t actively trading this week.', `${d.ageMs!=null?`Updated ${agoText(d.ageMs)} ago · `:''}Unofficial and not affiliated with The Floor · PnL is off-chain-indexed · data via <a href="https://thefloor.sh" target="_blank" rel="noopener">thefloor.sh</a>.` ].filter(Boolean).join(' '); }
+      paintCountdown();
+    }
+    async function loadCompetition(){
+      try{ const r=await fetch('/api/firm-competition',{cache:'no-store'}); const d=await r.json();
+        if(!d||d.ok===false||d.warming) return; render(d);
+      }catch(e){ if(typeof console!=='undefined'&&console.warn) console.warn('firm-competition load failed:',e); }
+    }
+    function boot(){ loadCompetition(); setInterval(loadCompetition,60000); setInterval(paintCountdown,1000); }
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+    window.loadCompetition=loadCompetition;
+  })();
+  </script>
+
   <!-- STAFF DIRECTORY -->
   <section id="staff" data-tab="firms">
     <div class="section-head">

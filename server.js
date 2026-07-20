@@ -654,6 +654,16 @@ const TOPIC_JOIN_APP = '0xc3685ccc1089f78aab412b6ade28f0c9ff18ac60ae601e9d4bd8f3
 async function rpcCall(to, data) { const b = await rpcBatch([{ jsonrpc: '2.0', id: 0, method: 'eth_call', params: [{ to, data }, 'latest'] }], 4); return b ? b[0] : null; }
 let firms = null, firmsAt = 0, firmsBusy = false;
 try { const p = JSON.parse(fs.readFileSync(FIRM_FILE, 'utf8')); if (p && p.firms) { firms = p.firms; firmsAt = p.at || 0; console.log('LOADED firms from volume'); } } catch (_) {}
+
+// ---- firm competition mirror: thefloor.sh weekly PnL championship, normalized + prize-projected ----
+const FIRMCOMP_FILE = path.join(DATA_DIR, 'firm-comp.json');
+const FC_PNL_URL = 'https://thefloor.sh/api/firm-pnl';
+const FC_META_URL = 'https://thefloor.sh/api/firm/meta?ids=';
+const FC_SPLIT_BPS = [6500, 2500, 1000];            // prize split to ranks 1/2/3 (65/25/10)
+const FC_DISCLAIMER = "PnL is reported by thefloor.sh, indexed off-chain and not verifiable on-chain; values are revalued continuously (mark-to-market), so a firm's rank can move even when it isn't trading. Prize projections are 65/25/10 of the current pool and change as the pool grows. Unofficial — not affiliated with The Floor.";
+const fcWeiToFloor = w => { try { return Number(BigInt(w)) / 1e18; } catch { return 0; } };
+let firmComp = null, firmCompAt = 0, firmCompBusy = false;
+try { const _c = JSON.parse(fs.readFileSync(FIRMCOMP_FILE, 'utf8')); if (_c && _c.data) { firmComp = _c.data; firmCompAt = _c.at || 0; console.log('LOADED firm-comp from volume'); } } catch (_) {}
 async function refreshFirms() {
   if (firmsBusy) return; firmsBusy = true;
   const F = FIRM_CONTRACT, G = GAME_CONTRACT;
@@ -753,6 +763,56 @@ async function refreshFirms() {
 }
 setTimeout(refreshFirms, 50000);              // stagger after behavior
 setInterval(refreshFirms, 3600000);           // hourly
+
+// Mirror thefloor.sh's two competition endpoints into ONE normalized snapshot. pnl first; the
+// emblem-meta id list is derived from it, then meta (best-effort — a meta 500 still ships standings).
+// Keeps last-good on ANY failure — never wipes firmComp to null/empty.
+async function refreshFirmComp() {
+  if (firmCompBusy) return; firmCompBusy = true;
+  try {
+    const pnl = await sfetch(FC_PNL_URL);                     // throws on failure -> outer catch keeps last good
+    const rawFirms = Array.isArray(pnl.firms) ? pnl.firms : [];
+    const ids = rawFirms.map(f => f.id).filter(id => id !== undefined && id !== null);
+    // On a meta-only failure carry the prior snapshot's emblems forward; on meta success trust it verbatim.
+    const priorMeta = {};
+    if (firmComp && Array.isArray(firmComp.firms)) firmComp.firms.forEach(f => { if (f.emblem || f.message) priorMeta[f.id] = { emblem: f.emblem, message: f.message }; });
+    let meta = {};
+    if (ids.length) { try { meta = (await sfetch(FC_META_URL + ids.join(','))) || {}; } catch (e) { meta = priorMeta; console.log('firm-comp meta failed (emblems kept last-good): ' + e.message); } }
+
+    const now = Math.floor(Date.now() / 1000);
+    const win = pnl.window || {};
+    const configured = !!pnl.pnlConfigured;
+    const price = (tokenStats && tokenStats.price) || null;   // reuse the shared FLOOR price; may be null
+    const pool = fcWeiToFloor(pnl.prizePoolWei || '0');       // FLOOR
+
+    const sorted = rawFirms.slice().sort((a, b) => (Number(b.pnlUsd) || 0) - (Number(a.pnlUsd) || 0));
+    const firmsOut = sorted.map((f, i) => {
+      const m = meta[f.id] || {};
+      const row = { id: f.id, name: f.name, members: f.members, pnlUsd: Number(f.pnlUsd) || 0,
+        emblem: m.emblem || null, message: m.message || null };
+      if (!configured) { row.rank = null; row.prizeShareBps = null; row.prizeFloor = null; row.prizeUsd = null; return row; }
+      const rank = i + 1;
+      const shareBps = rank <= 3 ? FC_SPLIT_BPS[rank - 1] : 0;
+      const prizeFloor = pool * shareBps / 10000;
+      row.rank = rank; row.prizeShareBps = shareBps; row.prizeFloor = prizeFloor;
+      row.prizeUsd = price != null ? prizeFloor * price : null;
+      return row;
+    });
+
+    firmComp = {
+      source: 'thefloor.sh (indexed off-chain)', pnlConfigured: configured, live: !!win.live,
+      window: { label: win.label || null, startSec: win.startSec, endSec: win.endSec, closesInSec: Math.max(0, (Number(win.endSec) || 0) - now) },
+      prizePoolFloor: pool, floorPriceUsd: price, prizePoolUsd: price != null ? pool * price : null,
+      splitBps: FC_SPLIT_BPS.slice(), firms: firmsOut, disclaimer: FC_DISCLAIMER,
+    };
+    firmCompAt = Date.now();
+    fs.writeFile(FIRMCOMP_FILE, JSON.stringify({ data: firmComp, at: firmCompAt }), () => {});
+    console.log('FIRMCOMP ok firms=' + firmsOut.length + ' configured=' + configured + ' pool=' + Math.round(pool) + ' live=' + (!!win.live));
+  } catch (e) { console.log('firm-comp refresh failed (keeping last good): ' + e.message); }
+  finally { firmCompBusy = false; }
+}
+setTimeout(refreshFirmComp, 30000);           // warm ~30s after boot (their cache is ~5.5min)
+setInterval(refreshFirmComp, 300000);         // every 5 min
 
 // ---- leaderboards: rank-by-alpha (feeds report rank + office) + the Recruiter Race (cached ~30 min) ----
 const LEADER_FILE = path.join(DATA_DIR, 'leaderboard.json');
@@ -2333,6 +2393,7 @@ const API_INDEX = {
     { path: '/api/distribution', desc: 'Desk-tier spread and alpha concentration.' },
     { path: '/api/holders', desc: 'Top FLOOR holders.' },
     { path: '/api/firms', desc: 'Firms, members, and free agents.' },
+    { path: '/api/firm-competition', desc: 'Weekly firm PnL competition mirrored from thefloor.sh: standings ranked by PnL, prize pool, and projected 65/25/10 payouts. PnL is indexed off-chain, not on-chain-verifiable.' },
     { path: '/api/live-actions', desc: 'Recent on-chain game actions (collect/claim/seat/recruit/upgrade/newdesk/referral/firmburn).' },
     { path: '/api/history', desc: 'Daily snapshots for trends. Rows before tracking began are reconstructed and marked seeded:true.' },
     { path: '/api/brokers', desc: 'StonkBrokers (same chain, different game): mint/holders, activation tiers, dividend rounds, $STONKBROKER burns + price.' },
@@ -2719,6 +2780,19 @@ write tools return unsigned calldata for your own signer. Never send a private k
     if (!firms) refreshFirms();
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=300' });
     res.end(JSON.stringify({ ok: !!firms, firms: firms || null, ageMs: firmsAt ? Date.now() - firmsAt : null }));
+    return;
+  }
+
+  // ---- firm competition: normalized standings + prize projection (closesInSec/ageMs recomputed live) ----
+  if (p === '/api/firm-competition' && req.method === 'GET') {
+    if (!firmComp && !firmCompBusy) refreshFirmComp();
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=120' });
+    if (!firmComp) { res.end(JSON.stringify({ ok: false, warming: true })); return; }
+    const now = Math.floor(Date.now() / 1000);
+    const endSec = Number(firmComp.window && firmComp.window.endSec) || 0;
+    const out = Object.assign({ ok: true, ageMs: Date.now() - firmCompAt }, firmComp);
+    out.window = Object.assign({}, firmComp.window, { closesInSec: Math.max(0, endSec - now) });   // live countdown; don't mutate cache
+    res.end(JSON.stringify(out));
     return;
   }
 
