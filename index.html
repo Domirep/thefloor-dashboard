@@ -502,6 +502,9 @@ a.rst-nm:hover{color:var(--brass-light);text-decoration:underline}
 #competition td.c-prize .prize-floor .unit{color:var(--muted-cream);font-size:11px}
 #competition td.c-prize .prize-usd{display:block;color:var(--muted-cream);font-size:11px;margin-top:2px;font-variant-numeric:tabular-nums}
 #competition td.c-prize .prize-none{color:var(--muted)}
+#competition .comp-rules{background:var(--navy-950);border:1px solid #2a2318;border-left:2px solid var(--brass-dark);border-radius:5px;padding:12px 15px;margin-bottom:16px;font-size:12px;line-height:1.7;color:var(--muted-cream)}
+#competition .comp-rules b{color:var(--brass-light);font-weight:600}
+#competition .comp-rules .flag{color:var(--paper)}
 #competition .comp-state{background:var(--navy-900);border:1px solid #37301f;box-shadow:3px 4px 0 rgba(0,0,0,.45);padding:22px 20px;text-align:center;color:var(--muted-cream);font-size:13px;line-height:1.65}
 #competition .comp-state b{color:var(--paper)}
 #competition .comp-loading{color:var(--muted-cream);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;padding:20px 4px}
@@ -913,6 +916,10 @@ try{ if(localStorage.getItem('floor.motion')!=='still') document.documentElement
       <span class="sub label">top 3 split the pool · closes Fri 23:59 ET</span>
     </div>
     <div id="compBanner" class="comp-banner" style="display:none"></div>
+    <div class="comp-rules">
+      <b>How it works.</b> Each firm's score is its members' trading profit on Robinhood Chain, added up, Monday–Friday (ET). The <b>top 3 firms</b> split the prize pool <b>65 / 25 / 10</b>, paid Saturday. The pool grows all week as the game is played.
+      <br><span class="flag">Worth knowing:</span> the rules say realized profit (“close a trade to book it”), but the scores we track move with live prices — a firm's rank shifts even when it isn't trading, so a lead isn't locked until Friday's close.
+    </div>
     <div id="compBody"><div class="comp-loading">loading championship…</div></div>
     <p id="compNote" class="note">
       Unofficial and not affiliated with The Floor · PnL is off-chain-indexed &amp; marked to market · data via
