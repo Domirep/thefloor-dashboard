@@ -2352,6 +2352,7 @@ const LLMS_TXT = () => `# The Floor — companion dashboard for $FLOOR (Robinhoo
 ## Agent endpoint
 - MCP (streamable HTTP): ${'`'}/mcp${'`'} — add as an MCP server; tools are self-describing via tools/list.
 - Discovery (JSON): ${'`'}/api${'`'}
+- Open source (MIT): https://github.com/Domirep/thefloor-dashboard — no custody, unsigned-calldata writes, threat model in SECURITY.md
 
 ## Deciding what to do (the MCP won't decide for you)
 - These tools give an agent the ABILITY to read state and prepare transactions — they don't make the
@@ -2491,8 +2492,10 @@ ${base}/mcp
 <h2 style="color:#d4af5a;font-size:15px;margin-top:28px">${MCP_TOOLS.length} tools</h2>
 <p style="font-size:13px;color:#b3a88f">${MCP_TOOLS.map(t => t.name).join(' · ')}</p>
 <p style="margin-top:28px;font-size:13px"><a href="/llms.txt" style="color:#d4af5a">llms.txt</a> ·
-<a href="/api" style="color:#d4af5a">API index</a> · <a href="/" style="color:#d4af5a">dashboard</a></p>
-<p style="font-size:11.5px;color:#6f6249">Unofficial fan-built companion to thefloor.sh. Read tools are cached public data;
+<a href="/api" style="color:#d4af5a">API index</a> · <a href="/" style="color:#d4af5a">dashboard</a> ·
+<a href="https://github.com/Domirep/thefloor-dashboard" style="color:#d4af5a">source (GitHub)</a> ·
+<a href="https://github.com/Domirep/thefloor-dashboard/blob/master/SECURITY.md" style="color:#d4af5a">security</a></p>
+<p style="font-size:11.5px;color:#6f6249">Unofficial fan-built companion to thefloor.sh. Open source (MIT). Read tools are cached public data;
 write tools return unsigned calldata for your own signer. Never send a private key to this or any API.</p>
 </div></body></html>`);
         return;
