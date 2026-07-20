@@ -64,27 +64,32 @@ const bl=document.createElement('canvas'); bl.width=W>>2; bl.height=H>>2; const 
 [g,bgx,ligx,blx].forEach(x=>x.imageSmoothingEnabled=false);
 
 /* ---- palette ---- */
+/* Palette. Base art is painted BRIGHT because the multiply lighting pass darkens
+   everything — too-dark raw colours turn the room to mud (learned: avg luminance 10 -> 36). */
 const P={
   sky0:'#080b18', sky1:'#101833', sky2:'#1b2648',
-  cityD:'#141c30', cityM:'#1b2540', cityL:'#232f4f', win:'#ffd98a', win2:'#ffb googles',
-  glass:'#16203a', mull:'#0e0a06',
-  wallD:'#17110b', wall:'#241a10', wallL:'#31241५',
+  cityD:'#1d2740', cityM:'#27334f', cityL:'#36456a', win:'#ffd98a', win2:'#ffb84d',
+  glass:'#1d2b4a', mull:'#0e0a06',
+  wallD:'#241a10', wall:'#3d2c1a', wallL:'#54402a',
   trim:'#8a6d16', trimL:'#c9a227',
-  floorD:'#241a11', floor:'#33251731', floorL:'#3d2c1a',
+  floorD:'#402f1c', floor:'#523c26', floorL:'#63492e',
   brass:'#c9a227', brassL:'#e6c96b', brassD:'#7a5c10',
   bronze:'#7a5c2e', bronzeL:'#a8813f', bronzeD:'#3f2f18', bronzeK:'#231a0e',
   fire0:'#7a2a08', fire1:'#ff6a1a', fire2:'#ffab3a', fire3:'#ffe6a8',
-  skin:'#e3ab7c', skinD:'#b07a4a',
-  suitA:'#2b3050', suitB:'#3a2f45', suitC:'#22303a', suitD:'#402a2a',
-  shirt:'#e8dcc0', ink:'#0b0906',
-  crt:'#7fe0a0', crtD:'#1d3a2a', paper:'#d9cba6'
+  skin:'#e8b487', skinD:'#c08a56', skinL:'#f4cfa4',
+  shirt:'#efe6cf', collar:'#d9cba6', ink:'#0b0906', rim:'#ffcf8a',
+  crt:'#7fe0a0', crtD:'#1d3a2a', paper:'#d9cba6', hairD:'#2a1d12', hairL:'#4a3420'
 };
-/* base art is painted brighter than it reads: the multiply lighting pass darkens
-   everything, so the raw palette has to sit high or the room turns to mud. */
-P.win2='#ffb84d'; P.wallD='#241a10'; P.wall='#3d2c1a'; P.wallL='#54402a';
-P.floorD='#402f1c'; P.floor='#523c26'; P.floorL='#63492e';
-P.cityD='#1d2740'; P.cityM='#27334f'; P.cityL='#36456a';
-P.glass='#1d2b4a';
+// suited brokers — each has a base/shadow/rim-light tone + a tie colour, so bodies read 3D under the maw's light
+const SUITSETS=[
+  {b:'#39405f',d:'#242a44',l:'#5761864',t:'#9a3a2a'},   // navy
+  {b:'#463a52',d:'#2c2436',l:'#6a5a7c',t:'#3a6a52'},    // plum
+  {b:'#2c3a44',d:'#1b2730',l:'#47606f',t:'#b58a1e'},    // teal-grey
+  {b:'#4c3634',d:'#2f2020',l:'#6e4c48',t:'#c9a227'},    // oxblood
+  {b:'#42402f',d:'#2a2820',l:'#5f5c46',t:'#7a5220'},    // olive-charcoal
+];
+SUITSETS[0].l='#576186';
+const BOSS_SUIT={b:'#54421e',d:'#332810',l:'#7a6230',t:'#e6c96b'};   // gold pinstripe — the principal
 
 const R=(x,y,w,h,c)=>{ bgx.fillStyle=c; bgx.fillRect(x|0,y|0,w|0,h|0); };
 const r=(ctx,x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.fillRect(x|0,y|0,w|0,h|0); };
@@ -267,15 +272,19 @@ function drawDesk(ctx,d){
 }
 
 /* ============================ WORKERS ============================ */
-const SUITS=[P.suitA,P.suitB,P.suitC,P.suitD];
 class Worker{
-  constructor(i){
+  constructor(i,boss){
     this.lane=Math.random()<.5?0:1;
     this.x=rnd(56,300); this.y=LANE[this.lane];
-    this.suit=SUITS[i%SUITS.length];
+    this.boss=!!boss;
+    this.ss=boss?BOSS_SUIT:SUITSETS[RI(0,SUITSETS.length-1)];
+    this.hair=Math.random()<.5?P.hairD:P.hairL;
+    this.hat=boss?true:Math.random()<.4;           // ~40% wear a fedora; the boss always does
+    this.hatC=Math.random()<.5?'#20242f':'#2b2118';
     this.dir=Math.random()<.5?-1:1;
     this.state='idle'; this.t=rnd(0,3); this.frame=0; this.fa=0;
     this.carry=null; this.busy=false; this.home=this.x; this.speed=rnd(34,46);
+    this.prop=Math.random()<.5?'mug':'paper';      // what they hold while working
   }
   goto(tx,lane,then){ this.tx=tx; this.tlane=lane; this.state='walk'; this.then=then; }
   update(dt){
@@ -297,35 +306,78 @@ class Worker{
     this.frame=Math.floor(this.fa)%4;
   }
   draw(ctx){
-    const x=Math.round(this.x), y=Math.round(this.y), d=this.dir;
-    const walking=this.state==='walk';
-    const bob=walking?(this.frame===1||this.frame===3?1:0):(this.state==='work'?(Math.sin(this.fa)>0?1:0):0);
+    const x=Math.round(this.x), y=Math.round(this.y), d=this.dir, s=this.ss;
+    const walking=this.state==='walk', working=this.state==='work';
+    // sub-pixel gait: two leg poses while walking, a gentle breathing bob at rest
+    const step=walking?(this.frame%2):-1;
+    const bob=walking?(step?0:1):(working?(Math.sin(this.fa)>0?1:0):(Math.sin(T*.002+x)>.7?1:0));
     const yy=y-bob;
-    // shadow
-    ctx.fillStyle='rgba(0,0,0,.34)'; ctx.fillRect(x-5,y-1,11,2);
-    // legs
-    const sw=walking?[[-2,2],[0,0],[2,-2],[0,0]][this.frame]:[0,0];
-    r(ctx,x-3+sw[0],yy-6,3,6,P.ink); r(ctx,x+1+sw[1],yy-6,3,6,P.ink);
-    r(ctx,x-3+sw[0],yy-6,3,5,'#1e2238'); r(ctx,x+1+sw[1],yy-6,3,5,'#1e2238');
-    // body
-    r(ctx,x-5,yy-16,10,11,P.ink);
-    r(ctx,x-4,yy-15,8,9,this.suit);
-    r(ctx,x-1,yy-15,2,9,P.shirt);            // shirt placket
-    r(ctx,x-1,yy-14,2,3,'#b8452f');          // tie
-    // arms
-    const aw=walking?[[1,-1],[0,0],[-1,1],[0,0]][this.frame]:[0,0];
-    r(ctx,x-6,yy-14+aw[0],2,7,this.suit);
-    r(ctx,x+4,yy-14+aw[1],2,7,this.suit);
-    // head
-    r(ctx,x-4,yy-24,8,9,P.ink);
-    r(ctx,x-3,yy-23,6,7,P.skin);
-    r(ctx,x-3,yy-23,6,2,'#3a2a1c');          // hair
-    r(ctx,x-3+(d>0?3:1),yy-20,1,1,P.ink);    // eye
-    // carried offering
-    if(this.carry){ r(ctx,x+(d>0?4:-9),yy-12,6,6,P.brassD); r(ctx,x+(d>0?5:-8),yy-11,4,4,P.brass); }
+    // rim light falls on the maw side (east) + top from the pendants
+    const rimX=x+2;                          // right edge catches the warm light
+
+    // soft contact shadow (two rects = a squashed ellipse)
+    ctx.fillStyle='rgba(0,0,0,.30)'; ctx.fillRect(x-5,y-1,10,2); ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(x-6,y,12,1);
+
+    // ---- legs (trousers) ----
+    const lsw=walking?(step?2:-2):0;
+    r(ctx,x-3-(step?lsw:0),yy-7,3,7,P.ink); r(ctx,x-2-(step?lsw:0),yy-7,2,6,s.d);      // back leg
+    r(ctx,x+1+(step?lsw:0),yy-7,3,7,P.ink); r(ctx,x+1+(step?lsw:0),yy-7,2,6,s.b);      // front leg
+    r(ctx,x-3-(step?lsw:0),yy-2,3,2,'#12100c'); r(ctx,x+1+(step?lsw:0),yy-2,3,2,'#12100c'); // shoes
+
+    // ---- torso: base / shadow-left / rim-right, with lapels + tie ----
+    r(ctx,x-5,yy-18,10,12,P.ink);            // outline
+    r(ctx,x-4,yy-17,8,10,s.b);               // suit base
+    r(ctx,x-4,yy-17,3,10,s.d);               // left shadow
+    r(ctx,x+2,yy-17,2,10,s.l);               // right rim-light plane
+    r(ctx,x-1,yy-17,2,10,P.shirt);           // shirt placket
+    r(ctx,x-3,yy-17,2,4,s.d); r(ctx,x+1,yy-17,2,4,s.d);   // lapel Vs
+    r(ctx,x-1,yy-16,2,4,s.t);                // tie
+    if(this.boss){ for(let i=0;i<3;i++) r(ctx,x-3+i*3,yy-16,1,9,'rgba(230,201,107,.35)'); } // pinstripes
+
+    // ---- arms ----
+    const asw=walking?(step?-1:1):(working?(Math.sin(this.fa*2)>0?-1:0):0);
+    r(ctx,x-6,yy-16+asw,2,7,s.d);            // back arm (shadow tone)
+    r(ctx,x+4,yy-16-asw,2,7,s.b);            // front arm
+    r(ctx,x+4,yy-16-asw,2,1,s.l);            // arm rim
+    if(!this.carry){                          // hands
+      r(ctx,x-6,yy-9+asw,2,2,P.skinD); r(ctx,x+4,yy-9-asw,2,2,P.skin);
+    }
+
+    // ---- head ----
+    const hy=yy-27;
+    r(ctx,x-4,hy,8,9,P.ink);                  // outline
+    r(ctx,x-3,hy+1,6,7,P.skin);               // face
+    r(ctx,x-3,hy+1,2,7,P.skinD);              // left cheek shadow
+    r(ctx,x+2,hy+1,1,7,P.skinL);              // right cheek highlight (lit)
+    r(ctx,x+(d>0?1:-2),hy+3,1,2,P.ink);       // eye (faces dir)
+    r(ctx,x+(d>0?-2:1),hy+3,1,1,'rgba(11,9,6,.5)'); // far eye hint
+    r(ctx,x-3,hy+6,6,1,P.skinD);              // jaw shade
+    if(this.hat){                              // fedora
+      r(ctx,x-5,hy+1,10,2,this.hatC);          // brim
+      r(ctx,x-5,hy+2,10,1,'rgba(0,0,0,.35)');  // brim underside
+      r(ctx,x-3,hy-2,6,3,this.hatC);           // crown
+      r(ctx,x-3,hy-2,6,1,'rgba(255,255,255,.10)');
+      r(ctx,x-3,hy,6,1,s.t);                   // hat band (tie colour)
+    } else {
+      r(ctx,x-3,hy,6,2,this.hair);             // hair top
+      r(ctx,x-3,hy,2,2,'rgba(0,0,0,.3)'); r(ctx,x+2,hy,1,2,P.hairL);
+    }
+
+    // ---- warm rim on the maw side (ties the figure into the lighting story) ----
+    ctx.fillStyle='rgba(255,207,138,.22)'; ctx.fillRect(rimX+1,hy+1,1,7); ctx.fillRect(rimX+1,yy-16,1,10);
+
+    // ---- what they hold ----
+    if(this.carry){                            // the offering: a glowing strongbox
+      const bx=x+(d>0?4:-10);
+      r(ctx,bx,yy-13,7,7,P.bronzeK); r(ctx,bx+1,yy-12,5,5,P.brass); r(ctx,bx+1,yy-12,5,1,P.brassL);
+      r(ctx,bx+2,yy-11,1,1,'#fff2c8');         // glint
+    } else if(working){
+      if(this.prop==='mug'){ r(ctx,x+4,yy-10,3,3,P.paper); r(ctx,x+7,yy-9,1,1,P.paper); r(ctx,x+4,yy-11,3,1,'rgba(230,220,200,.5)'); }
+      else { r(ctx,x+3,yy-9,5,2,P.shirt); r(ctx,x+3,yy-10,5,1,'#fff4d8'); }   // papers
+    }
   }
 }
-const workers=[]; for(let i=0;i<11;i++) workers.push(new Worker(i));
+const workers=[]; for(let i=0;i<11;i++) workers.push(new Worker(i, i===0));   // #0 is the boss (gold pinstripe)
 
 /* ============================ PARTICLES ============================ */
 const parts=[];
@@ -435,24 +487,51 @@ function frame(dt){
   g.save(); g.translate(Math.round(-cam.x),Math.round(-cam.y));
   g.drawImage(bg,0,0);
 
-  // maw interior fire (behind grate)
+  // ---- the maw: a molten furnace that CHURNS, and a jaw that opens to swallow ----
   const heat=.42+mawHeat*.58+Math.sin(T*.004)*.05;
+  const jaw=mawHeat;                                        // 0..1 how wide the jaw gapes on an offering
   const m=MOL.maw;
-  r(g,m.x,m.y,m.w,m.h,'#1c0a03');
-  for(let i=0;i<m.h;i+=2){
-    const t=1-i/m.h, a=(t*heat);
-    g.fillStyle='rgba(255,'+Math.round(70+150*t)+','+Math.round(20+60*t)+','+a.toFixed(2)+')';
-    g.fillRect(m.x+RI(0,2), m.y+m.h-i-2, m.w-RI(0,4), 2);
+  const open=Math.round(jaw*7);                             // jaw drops the lower teeth away
+  r(g,m.x,m.y,m.w,m.h+open,'#1c0a03');
+  // three molten layers scrolling at different speeds = churning lava, not a flat gradient
+  for(let L=0;L<3;L++){
+    const spd=.02+L*.015, amp=3+L*2, base=['#4a1403','#8a2c06','#c24a0a'][L];
+    g.fillStyle=base;
+    for(let cx=0;cx<m.w;cx+=3){
+      const hgt=(m.h-8)*(.35+.5*Math.abs(Math.sin(cx*.14+T*spd)))*(0.7+heat*.5);
+      g.globalAlpha=.5+L*.2;
+      g.fillRect(m.x+cx, m.y+m.h+open-hgt, 3, hgt);
+    }
   }
-  for(let i=0;i<7;i++) r(g,m.x+3+i*7,m.y,3,m.h,P.bronzeK);   // grate bars in front of fire
+  g.globalAlpha=1;
+  // hot cap + rising licks
+  for(let cx=0;cx<m.w;cx+=4){
+    const lick=Math.max(0,Math.sin(cx*.3+T*.05))*(6+mawHeat*14);
+    g.fillStyle=heat>.7?P.fire3:P.fire2; g.globalAlpha=.4+mawHeat*.5;
+    g.fillRect(m.x+cx, m.y+m.h+open-lick-8, 3, lick);
+  }
+  g.globalAlpha=1;
+  // grate bars (in front of the fire) recede as the jaw opens
+  for(let i=0;i<7;i++) r(g,m.x+3+i*7,m.y,3,m.h-open,P.bronzeK);
+  // teeth: upper fixed, lower drop with the jaw
+  for(let i=0;i<9;i++){ r(g,m.x+2+i*6,m.y,4,4,P.bronzeL); r(g,m.x+2+i*6,m.y+m.h+open-4,4,4,P.bronzeD); }
+  // heat shimmer above the maw — horizontal jitter on a few scanlines
+  if(mawHeat>.05) for(let sy=m.y-14;sy<m.y;sy+=2){ const jx=Math.sin(T*.02+sy)*mawHeat*2; g.drawImage(cv, m.x,sy,m.w,1, m.x+jx,sy,m.w,1); }
 
-  // eyes
+  // ---- chest runes: deco glyphs that pulse with each offering ----
+  const runeA=.25+mawHeat*.7+Math.sin(T*.003)*.1;
+  g.fillStyle='rgba(255,150,60,'+Math.min(1,runeA).toFixed(2)+')';
+  const rc=MOL.x+MOL.w/2;
+  [[-24,150],[-8,158],[8,158],[24,150]].forEach(([dx,dy],i)=>{ g.fillRect(rc+dx-1,MOL.y+dy,2,6); g.fillRect(rc+dx-3,MOL.y+dy+2,6,2); });
+
+  // eyes — brighten and narrow when feeding
   MOL.eyes.forEach(e=>{
-    const a=.45+molochWake*.5+mawHeat*.4;
+    const a=.45+molochWake*.5+mawHeat*.45;
     r(g,e.x-1,e.y-1,10,6,P.bronzeK);
-    g.fillStyle='rgba(255,'+Math.round(120+90*mawHeat)+',40,'+Math.min(1,a).toFixed(2)+')';
+    g.fillStyle='rgba(255,'+Math.round(110+110*mawHeat)+',40,'+Math.min(1,a).toFixed(2)+')';
     g.fillRect(e.x,e.y,8,4);
     r(g,e.x+ (Math.sin(T*.0007)>0?5:1), e.y+1,2,2,'#2a0f04');   // slit pupil drifts
+    r(g,e.x,e.y,8,1,'rgba(255,240,180,'+(mawHeat*.6).toFixed(2)+')');  // hot glint when fed
   });
   // gauge needles react to heat
   MOL.gauges.forEach(([gx,gy],i)=>{
