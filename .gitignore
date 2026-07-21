@@ -1,4 +1,4 @@
-.env
+.env*
 x-thread.js
 thread-floor.json
 node_modules/
@@ -8,3 +8,4 @@ data-local/
 HANDOFF.md
 
 MONITORING.md
+.broker-*-state.json
