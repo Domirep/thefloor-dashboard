@@ -27,6 +27,7 @@
   #feed .l{opacity:0;transform:translateY(4px);animation:in .45s ease-out forwards}
   #feed .l b{color:#e6c96b;font-weight:600}
   #feed .l.burn b{color:#ff9d4a}
+  #feed .l.q{filter:opacity(.55)}          /* quiet replay of a recent action, not a live one */
   @keyframes in{to{opacity:1;transform:none}}
   #hint{right:1.6%;bottom:4.5%;font-size:calc(var(--u)*4.5);letter-spacing:calc(var(--u)*.4);color:#5f563f;text-align:right}
   a{color:#8d7f61;text-decoration:none;pointer-events:auto}
@@ -842,7 +843,7 @@ function frame(dt){
   elevOpen=Math.max(0,elevOpen-dt*.5);
   shake*=Math.pow(.0016,dt);
   molochWake=Math.max(.3,molochWake-dt*.004);
-  updParts(dt);
+  updParts(dt); updFloats(dt);
   workers.forEach(w=>w.update(dt));
 
   const sx=(Math.random()-.5)*shake, sy=(Math.random()-.5)*shake;
@@ -932,6 +933,7 @@ function frame(dt){
   // y-sorted actors
   workers.slice().sort((a,b)=>a.y-b.y).forEach(w=>w.draw(g));
   drawLabels(g);                                           // identity plates, capped + collision-skipped
+  drawFloats(g);                                           // rising -N / +N FLOOR numbers
   drawParts(g);
   drawFern(g);                                             // foreground frame
   g.restore();
@@ -1022,29 +1024,49 @@ function postFX(){
 
 /* ============================ CHOREOGRAPHY ============================ */
 function freeWorker(){ const f=workers.filter(w=>!w.busy); return f.length?f[RI(0,f.length-1)]:null; }
-function offering(amount){
+/* rising damage-numbers: -N FLOOR into the maw, +N FLOOR out of the terminal */
+const floats=[];
+function popText(x,y,txt,col){ floats.push({x,y,txt,col,life:2.2,max:2.2}); }
+function updFloats(dt){
+  for(let i=floats.length-1;i>=0;i--){ const f=floats[i]; f.life-=dt; f.y-=dt*8; if(f.life<=0) floats.splice(i,1); }
+}
+function drawFloats(ctx){
+  floats.forEach(f=>{
+    const t=Math.max(0,f.life/f.max);
+    ctx.globalAlpha = t<.35 ? t/.35 : 1;
+    const wpx=f.txt.length*4-1, x0=Math.round(f.x-wpx/2), y0=Math.round(f.y);
+    for(let i=0;i<f.txt.length;i++) glyph(ctx,f.txt[i],x0+i*4,y0+1,'#0a0806');   // shadow for legibility
+    for(let i=0;i<f.txt.length;i++) glyph(ctx,f.txt[i],x0+i*4,y0,f.col);
+    ctx.globalAlpha=1;
+  });
+}
+
+function offering(amount,quiet){
   const w=freeWorker(); if(!w) return;
   w.busy=true; w.carry=true;
   const alt=MOL.x+MOL.w/2-52;
   w.goto(alt,1,()=>{
     w.state='work'; w.t=.5;
     setTimeout(()=>{
-      mawHeat=1; roomSurge=1; molochWake=Math.min(1,molochWake+.06); kick(3.2);
-      spawn(MOL.maw.x+MOL.maw.w/2, MOL.maw.y+MOL.maw.h/2, 34,'ember');
+      mawHeat=1; roomSurge=quiet?.55:1; molochWake=Math.min(1,molochWake+.06); kick(quiet?1.5:3.2);
+      spawn(MOL.maw.x+MOL.maw.w/2, MOL.maw.y+MOL.maw.h/2, quiet?18:34,'ember');
       spawn(MOL.maw.x+MOL.maw.w/2, MOL.maw.y-6, 10,'steam');
       w.carry=null;
-      pushFeed('<b>'+(amount?fmt(amount)+' ':'')+'$FLOOR</b> offered to Moloch','burn');
+      if(amount) popText(w.x, w.y-w.size-14, '-'+fmt(amount)+' FLOOR', '#ff9d4a');
+      pushFeed('<b>'+(amount?fmt(amount)+' ':'')+'$FLOOR</b> offered to Moloch','burn'+(quiet?' q':''));
       setTimeout(()=>{ w.goto(rnd(70,290), RI(0,1), ()=>{ w.busy=false; }); },700);
     },520);
   });
 }
 let termFlash=0, elevOpen=0;
-function toTerminal(){
+function toTerminal(amount,quiet){
   const w=freeWorker(); if(!w) return;
   w.busy=true;
   w.goto(TERM.x+TERM.w/2,1,()=>{
     w.state='work'; w.t=1.4; termFlash=1;
     spawn(TERM.x+TERM.w/2,TERM.y+8,7,'dust');
+    if(amount) popText(w.x, w.y-w.size-14, '+'+fmt(amount)+' FLOOR', '#7fe0a0');
+    pushFeed('<b>'+(amount?'+'+fmt(amount)+' $FLOOR':'PnL')+'</b> collected at the terminal',(quiet?'q':''));
     setTimeout(()=>{ w.goto(rnd(70,290),RI(0,1),()=>{w.busy=false;}); },900);
   });
 }
@@ -1088,26 +1110,42 @@ setInterval(()=>{
   (evq.shift())();
 },1400);
 
+/* One on-chain action -> one bit of choreography. Shared by the live queue AND the
+   quiet-replay loop so both stage identically; replays just land softer. */
+function playAction(a,quiet){
+  const kind=(a.t||a.kind||'').toLowerCase();
+  const amt=a.amt||a.amount||a.value||0;                 // API field is .amt — .amount/.value are always undefined
+  if(kind.includes('burn')) offering(amt,quiet);
+  else if(kind.includes('collect')||kind.includes('claim')) toTerminal(amt,quiet);
+  else if(kind.includes('newdesk')){ arrival(); pushFeed('<b>New desk</b> opened',quiet?'q':''); }
+  else if(kind.includes('recruit')||kind.includes('seat')||kind.includes('starter')) pushFeed('<b>Operator seated</b>',quiet?'q':'');
+  else if(kind.includes('upgrade')) pushFeed('<b>Desk upgraded</b>',quiet?'q':'');
+  else if(kind.includes('referral')) pushFeed('<b>Referral paid</b>',quiet?'q':'');
+  else if(kind.includes('unseat')) pushFeed('<b>Operator left</b> the floor',quiet?'q':'');
+}
+let recentActions=[];
 async function poll(){
   try{
     const j=await (await fetch('/api/live-actions',{cache:'no-store'})).json();
     const acts=(j&&j.actions)||[];
+    recentActions=acts;
     if(firstLoad){ acts.forEach(a=>seen.add(a.tx||JSON.stringify(a))); firstLoad=false; return; }
     acts.slice().reverse().forEach(a=>{
       const k=a.tx||JSON.stringify(a); if(seen.has(k))return; seen.add(k);
-      const kind=(a.t||a.kind||'').toLowerCase();
       if(evq.length>6) return;
-      const amt=a.amt||a.amount||a.value||0;              // API field is .amt (fixed: burns were reading undefined -> 0)
-      if(kind.includes('burn')) evq.push(()=>offering(amt));
-      else if(kind.includes('collect')||kind.includes('claim')) evq.push(()=>{ toTerminal(); pushFeed('<b>PnL collected</b> at the terminal'); });
-      else if(kind.includes('newdesk')) evq.push(()=>{ arrival(); pushFeed('<b>New desk</b> opened'); });
-      else if(kind.includes('recruit')||kind.includes('seat')||kind.includes('starter')) evq.push(()=>pushFeed('<b>Operator seated</b>'));
-      else if(kind.includes('upgrade')) evq.push(()=>pushFeed('<b>Desk upgraded</b>'));
-      else if(kind.includes('referral')) evq.push(()=>pushFeed('<b>Referral paid</b>'));
-      else if(kind.includes('unseat')) evq.push(()=>pushFeed('<b>Operator left</b> the floor'));
+      evq.push(()=>playAction(a,false));
     });
   }catch(e){}
 }
+/* ⚠ The chain goes quiet for long stretches (the newest action can be ~19k blocks
+   old) and first-load seeds every known action as `seen` — so on live events alone
+   the floor just wanders and NOBODY ever walks to Moloch. Replay a recent REAL
+   action on a timer, staged softer, so the ritual is always visible. */
+setInterval(()=>{
+  if(evq.length || !recentActions.length) return;
+  if(workers.some(w=>w.busy)) return;
+  playAction(recentActions[RI(0,Math.min(recentActions.length,24)-1)], true);
+},7000);
 async function stats(){
   try{
     const j=await (await fetch('/api/token-stats',{cache:'no-store'})).json();
