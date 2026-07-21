@@ -410,11 +410,26 @@ function cabinet(x,base,h){
   for(let dy=base-h+3; dy<base-3; dy+=8){ R(x+1,dy,w-2,7,'#2e2212'); R(x+1,dy,w-2,1,P.cabL); R(x+w/2-2,dy+2,4,2,P.brass); }
   R(x,base-1,w,1,'rgba(0,0,0,.35)');
 }
+const disc=(cx,cy,rr,col)=>{ for(let yy=-rr;yy<=rr;yy++){ const xw=Math.floor(Math.sqrt(Math.max(0,rr*rr-yy*yy))); R(cx-xw,cy+yy,xw*2+1,1,col); } };
 function clockFace(cx,cy,rad){
-  for(let yy=-rad;yy<=rad;yy++){ const xw=Math.floor(Math.sqrt(rad*rad-yy*yy)); R(cx-xw,cy+yy,xw*2+1,1,'#241a0e'); }
-  for(let yy=-rad+1;yy<=rad-1;yy++){ const xw=Math.floor(Math.sqrt((rad-1)*(rad-1)-yy*yy)); R(cx-xw,cy+yy,xw*2+1,1,P.paper); }
-  R(cx-1,cy-rad,2,1,P.brassL); R(cx-1,cy+rad,2,1,P.brassD); R(cx-rad,cy-1,1,2,P.brass); R(cx+rad,cy-1,1,2,P.brass);
-  for(let a=0;a<12;a++){ const an=a/12*6.2832; const tx=cx+Math.round(Math.sin(an)*(rad-2)); const ty=cy-Math.round(Math.cos(an)*(rad-2)); R(tx,ty,1,1, a%3===0?P.brass:'#8a6d16'); }
+  R(cx-1,cy-rad-4,2,4,P.bronzeD);                    // hanger
+  disc(cx,cy,rad+1,'#15100a');                       // drop shadow / outline
+  disc(cx,cy,rad,P.brassD);                          // outer bezel
+  disc(cx,cy,rad-1,P.brass);                         // inner bezel
+  disc(cx,cy,rad-2,P.paper);                         // face
+  for(let yy=1;yy<=rad-2;yy++){                      // soft shade in the lower half
+    const xw=Math.floor(Math.sqrt(Math.max(0,(rad-2)*(rad-2)-yy*yy)));
+    R(cx-xw,cy+yy,xw*2+1,1,'rgba(120,100,60,.09)');
+  }
+  for(let a=0;a<12;a++){                             // markers — cardinals longer + darker
+    const an=a/12*6.2832, card=(a%3===0);
+    const r1=rad-2, r2=rad-(card?4.5:3);
+    const x1=cx+Math.round(Math.sin(an)*r1), y1=cy-Math.round(Math.cos(an)*r1);
+    const x2=cx+Math.round(Math.sin(an)*r2), y2=cy-Math.round(Math.cos(an)*r2);
+    R(Math.min(x1,x2),Math.min(y1,y2),Math.abs(x2-x1)+1,Math.abs(y2-y1)+1, card?'#1a1409':'#7a6a46');
+  }
+  R(cx-rad+3,cy-rad+2,3,1,'rgba(255,255,255,.32)');  // glass highlight
+  R(cx-rad+2,cy-rad+3,1,2,'rgba(255,255,255,.20)');
 }
 
 /* ============================ MOLOCH ============================ */
@@ -608,7 +623,12 @@ class Worker{
     this.state='idle'; this.t=rnd(0,3); this.frame=0; this.fa=0;
     this.carry=null; this.busy=false; this.home=this.x; this.speed=rnd(34,46);
     this.prop=Math.random()<.5?'mug':'paper';      // what they hold while working
-    this.player=null; this.op=null; this.label=''; this.size=20;    // filled in by castRoster()
+    /* ⚠ size MUST stay 22 — the operator art is a pixel grid cropped to a 22-unit
+       viewBox, so 22px is exactly 1:1. Drawing it at 20 (or a "depth" 17-21) is a
+       FRACTIONAL downscale of pixel art: every source pixel lands on 0.9 of a screen
+       pixel and 1px features — eyes, mouths, the whale's face — get dropped outright.
+       Any depth/scale effect here has to use integer multiples (22, 44) or none. */
+    this.player=null; this.op=null; this.label=''; this.size=22;    // filled in by castRoster()
     this.act=null; this.wind=0;                     // act = x of what they're facing/working; wind = throw wind-up
     this.riding=null;                               // set when they step into the lift; fades them out
   }
@@ -645,16 +665,18 @@ class Worker{
        and stood there pointing whichever way they happened to arrive from. */
     const fdir=(this.act!=null) ? (this.act>this.x?1:-1) : d;
     const lean=this.wind ? -3*fdir : (this.act!=null ? fdir : 0);
-    const yy=y-bob, S=this.size, bx=x-(S>>1)+lean, by=yy-6-S;
+    const hov=this.floater?Math.round(Math.sin(T*.0016+x*.3)*2):0;   // the whale hovers
+    const yy=y-bob, S=this.size, bx=x-(S>>1)+lean, by=yy-(this.floater?3:6)-S+hov;
     if(this.riding!=null) ctx.globalAlpha=Math.max(0,1-this.riding);
 
     // soft contact shadow (two rects = a squashed ellipse)
     ctx.fillStyle='rgba(0,0,0,.32)'; ctx.fillRect(x-7,y-1,14,2); ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(x-8,y,16,1);
 
-    // legs
-    const lsw=walking?(step?2:-2):0;
-    r(ctx,x-4-(step?lsw:0),yy-6,3,6,'#16130d'); r(ctx,x+1+(step?lsw:0),yy-6,3,6,'#1d1811');
-    r(ctx,x-4-(step?lsw:0),yy-1,3,1,'#090705'); r(ctx,x+1+(step?lsw:0),yy-1,3,1,'#090705');
+    if(!this.floater){                                                // legs — a whale hasn't got any
+      const lsw=walking?(step?2:-2):0;
+      r(ctx,x-4-(step?lsw:0),yy-6,3,6,'#16130d'); r(ctx,x+1+(step?lsw:0),yy-6,3,6,'#1d1811');
+      r(ctx,x-4-(step?lsw:0),yy-1,3,1,'#090705'); r(ctx,x+1+(step?lsw:0),yy-1,3,1,'#090705');
+    }
 
     // the operator sprite (transparent-backed, so it reads as a person not a picture)
     const e=this.op;
@@ -759,7 +781,7 @@ function drawClockHands(ctx){
   hand(hr/12*6.2832, rad-5,'#1a140a');
   hand(min/60*6.2832, rad-2,'#1a140a');
   hand(sec/60*6.2832, rad-2,'#8a2c06');
-  r(ctx,cx,cy,1,1,P.brass);
+  r(ctx,cx-1,cy-1,3,3,'#1a1409'); r(ctx,cx,cy,1,1,P.brassL);   // hub cap
 }
 function drawCoolerBubbles(ctx){
   const cx=COOL.x, cb=COOL.y;
@@ -864,6 +886,9 @@ function opImage(name){
   }).catch(()=>{});
   return e;
 }
+/* Not every operator is a person. The Activist Whale is a whale — giving it two
+   little walking legs looked absurd, so it hovers instead. */
+const FLOATERS=new Set(['activist-whale']);
 const shortAddr=a=>{ const s=String(a||''); return s.length>=6?('0X'+s.slice(-4)).toUpperCase():s.toUpperCase(); };
 function actorLabel(p){ return p ? (p.handle ? '@'+p.handle.toUpperCase() : shortAddr(p.a)) : ''; }
 
@@ -911,38 +936,58 @@ function updatePlates(){
    operator's personality. Shouts fire at the maw and at the terminal. */
 const pickOne=a=>a[RI(0,a.length-1)];
 const OPLINE={
-  'the closer':["always be closing","coffee's for closers","i don't do maybes"],
-  'terminal wizard':["i typed one command and made rent","the terminal talks back now","four monitors, one keyboard, no sleep"],
-  'activist whale':["i'd like a word with the treasury","i'm not a whale, i'm a concerned shareholder","put me on the board"],
-  'prop desk killer':["risk limits are more of a vibe","size is a personality trait","i size up when i'm sad"],
-  'dark pool dealer':["you didn't see that fill","off exchange, off the record","ask me no questions"],
-  'quant goblin':["the model says buy, and the model is me","backtested. mostly.","i overfit and i'm not sorry"],
-  'compliance guy':["i'm going to have to flag that","put that in writing","nobody tell me about the burn"],
-  'sell-side analyst':["strong buy. it's always strong buy.","raising my target to whatever it is now","initiating coverage: bullish"],
-  'etf boomer':["in my day we had settlement periods","just buy the index","i don't understand any of this and i'm up"],
-  'market maker':["i'm on both sides of you","the spread IS the business","you're welcome for the liquidity"],
-  'options degen':["weeklies. obviously.","theta is a made-up problem","assignment is a state of mind"],
-  'cold caller':["got five minutes to talk about $FLOOR?","leaving a voicemail for the void","no is just a slow yes"],
-  'chart intern':["it's a cup and handle, trust me","i drew a line and it went up","this candle has a story"],
-  'junior broker':["i'll have to ask my boss","still on probation","i just do what the screen says"],
-  'retail analyst':["i actually read the docs","buying the dip. the whole dip.","i'm early, not wrong"],
+  'the closer':["always be closing","coffee's for closers","i don't do maybes","second place is the first loser","i close on weekends too","put that on my tab, i'm good for it"],
+  'terminal wizard':["i typed one command and made rent","the terminal talks back now","four monitors, one keyboard, no sleep","i wrote a script to do my job","hotkeys are a personality","i haven't used a mouse since march"],
+  'activist whale':["i'd like a word with the treasury","i'm not a whale, i'm a concerned shareholder","put me on the board","i've written a letter to management","my position is a governance issue","slippage is a me problem"],
+  'prop desk killer':["risk limits are more of a vibe","size is a personality trait","i size up when i'm sad","stop losses are for people with feelings","i don't hedge, i commit","my risk manager quit"],
+  'dark pool dealer':["you didn't see that fill","off exchange, off the record","ask me no questions","i print where nobody's looking","that trade never happened","i work in the quiet part of the book"],
+  'quant goblin':["the model says buy, and the model is me","backtested. mostly.","i overfit and i'm not sorry","the sharpe was beautiful in sample","i added one more feature and it fixed everything","correlation is causation if you're brave"],
+  'compliance guy':["i'm going to have to flag that","put that in writing","nobody tell me about the burn","i didn't see any of this","that's three forms, minimum","i'm required to disapprove of the ritual"],
+  'sell-side analyst':["strong buy. it's always strong buy.","raising my target to whatever it is now","initiating coverage: bullish","i've never issued a sell in my life","the thesis is intact","reiterating, obviously"],
+  'etf boomer':["in my day we had settlement periods","just buy the index","i don't understand any of this and i'm up","back then a burn was a fire","what's a moloch","my broker was a man named gerald"],
+  'market maker':["i'm on both sides of you","the spread IS the business","you're welcome for the liquidity","i don't have a view, i have inventory","i quote, therefore i am","someone has to be there"],
+  'options degen':["weeklies. obviously.","theta is a made-up problem","assignment is a state of mind","i'm not gambling, i'm expressing a view","zero days to expiry, infinite conviction","the greeks work for me now"],
+  'cold caller':["got five minutes to talk about $FLOOR?","leaving a voicemail for the void","no is just a slow yes","i have your number, i have all the numbers","circling back on that","just following up!"],
+  'chart intern':["it's a cup and handle, trust me","i drew a line and it went up","this candle has a story","the fibonacci says soon","that's a bull flag if you squint","i have SEVEN indicators"],
+  'junior broker':["i'll have to ask my boss","still on probation","i just do what the screen says","is this normal? is any of this normal?","i'm learning so much","nobody told me about the bull"],
+  'retail analyst':["i actually read the docs","buying the dip. the whole dip.","i'm early, not wrong","i did my own research and it took hours","conviction is free","i'll be right eventually"],
 };
+const GENERAL=["another day on the floor","who moved my chair","the coffee here is a war crime",
+  "don't look at the chart. don't look at the chart.","alpha up, rent paid, life good",
+  "i'm not addicted, i just check it often","the floor never closes","i dreamt about bandwidth again",
+  "somebody's printing and it isn't me","my desk plant is the only one thriving",
+  "the printer's been broken since launch","i've made peace with the noise",
+  "there's a bull in the wall and we all just work here","i said good morning to moloch. he said nothing.",
+  "does anyone else hear chewing","new guy asked what the fire was for","standing meeting, sitting desk",
+  "my seat's still warm from the last guy","i'm one upgrade from being insufferable"];
 function chatFor(p){
   const pool=[], dl=(p.dl==null?5:p.dl), rk=p.rank||999;
-  if(dl<=2)      pool.push("i need more desk space","this desk is a card table","kitchen-table energy","my desk has one drawer and it's empty","upgrading the second i can afford it");
-  else if(dl<=5) pool.push("one more level and i get a window seat","saving for the upgrade","the upgrade's looking cheap right now","getting crowded over here");
-  else if(dl<=8) pool.push("the desk finally pays for itself","almost at the bell","room to breathe up here");
-  else           pool.push("bell room. i made it.","top floor — don't talk to me.","i have a view AND a bell");
-  if(rk<=3)       pool.push("check the leaderboard, i'll wait","someone tell the whale i said hi","rank one is a lifestyle");
-  else if(rk<=25) pool.push("top twenty-five and climbing","grinding","i can see the top from here");
-  else if(rk>100) pool.push("i'm here for the vibes","still early, right?","one good week and i'm top ten");
-  if(!p.handle) pool.push("should probably link my X","anon and staying that way");
+  pool.push(...GENERAL);
+  if(dl<=2)      pool.push("i need more desk space","this desk is a card table","kitchen-table energy","my desk has one drawer and it's empty","upgrading the second i can afford it","i'd kill for one more seat","my whole operation fits in a shoebox");
+  else if(dl<=5) pool.push("one more level and i get a window seat","saving for the upgrade","the upgrade's looking cheap right now","getting crowded over here","bandwidth's tight this week","i've outgrown this desk and it knows it");
+  else if(dl<=8) pool.push("the desk finally pays for itself","almost at the bell","room to breathe up here","i remember when this was an upgrade","the seats fill themselves now");
+  else           pool.push("bell room. i made it.","top floor — don't talk to me.","i have a view AND a bell","i ring it for no reason sometimes","eleven tiers. i counted.");
+  if(rk<=3)       pool.push("check the leaderboard, i'll wait","someone tell the whale i said hi","rank one is a lifestyle","i'm not competitive, i'm just first","the leaderboard is my diary");
+  else if(rk<=25) pool.push("top twenty-five and climbing","grinding","i can see the top from here","give me a quiet week and i'm top ten");
+  else if(rk>100) pool.push("i'm here for the vibes","still early, right?","one good week and i'm top ten","i'm building quietly","rank is a construct");
+  if(!p.handle) pool.push("should probably link my X","anon and staying that way","no name, no problems");
+  /* pertinent to the CLOCK — there's a real day cycle now */
+  const hr=dayT*24;
+  if(hr<5)       pool.push("who else is still here","3am and the bull's still hungry","night shift pays the same","i'll sleep after the halving");
+  else if(hr<9)  pool.push("sun's up and i never left","first coffee of the day","morning. allegedly.");
+  else if(hr<17) pool.push("busiest part of the day","the floor's loud today","lunch is a rumour");
+  else           pool.push("staying late again","the lights are prettier at night","one more collect then home");
+  /* pertinent to the WEATHER */
+  if(wxr>.45) pool.push("raining again","good day to stay inside and compound","the glass is doing that thing again","storm out, fire in");
+  /* pertinent to the MARKET */
+  if(tk.burned)  pool.push("supply's down again","that's another few thousand gone forever","the burn ledger only goes one way");
+  if(tk.price)   pool.push("price is price","i don't check the price. i check it constantly.");
   const ol=OPLINE[String(p.op||'').toLowerCase()];
-  if(ol) pool.push(...ol,...ol);                     // weight the operator's own flavour
+  if(ol) pool.push(...ol,...ol,...ol);              // weight the operator's own voice heavily
   return pickOne(pool);
 }
-const BURN_SHOUT=["EARN AND BURN","FOR THE GOOD OF THE FIRM","TAKE IT, MOLOCH","SUPPLY GOES DOWN","FEED THE BULL","THIS ONE'S FOR THE HOLDERS","DEFLATION, BABY","GONE FOREVER — LOVE THAT","SEE YOU IN THE SUPPLY CHART","MY WIFE CANNOT KNOW ABOUT THIS","BURN IT ALL","IT'S NOT A LOSS, IT'S A RITUAL","ANOTHER DAY, ANOTHER OFFERING"];
-const COLLECT_SHOUT=["PAID","THAT'S THE GOOD STUFF","RENT COVERED","COMPOUNDING, BABY","STRAIGHT BACK IN","SEE? PASSIVE INCOME","I'LL TAKE IT","MOMMA NEEDS A NEW DESK"];
+const BURN_SHOUT=["EARN AND BURN","FOR THE GOOD OF THE FIRM","TAKE IT, MOLOCH","SUPPLY GOES DOWN","FEED THE BULL","THIS ONE'S FOR THE HOLDERS","DEFLATION, BABY","GONE FOREVER — LOVE THAT","SEE YOU IN THE SUPPLY CHART","MY WIFE CANNOT KNOW ABOUT THIS","BURN IT ALL","IT'S NOT A LOSS, IT'S A RITUAL","ANOTHER DAY, ANOTHER OFFERING","EAT WELL, OLD FRIEND","THE LEDGER REMEMBERS","LESS OF IT, MORE FOR US","I DO THIS FOR THE CHART","TAKE IT BEFORE I CHANGE MY MIND","STRAIGHT INTO THE FIRE","NO REFUNDS","SCARCITY IS A CHOICE","HE'S HUNGRY TODAY","THIS IS FINE. THIS IS THE PLAN.","BURNED IT SO YOU DON'T HAVE TO","MY THERAPIST KNOWS ABOUT THIS ONE","ONE FEWER IN CIRCULATION","FOR THE BULL"];
+const COLLECT_SHOUT=["PAID","THAT'S THE GOOD STUFF","RENT COVERED","COMPOUNDING, BABY","STRAIGHT BACK IN","SEE? PASSIVE INCOME","I'LL TAKE IT","MOMMA NEEDS A NEW DESK","THE MACHINE WORKS","EVERY TEN MINUTES, FOREVER","THIS IS WHY I SIT HERE","DON'T SPEND IT ALL AT ONCE","ALPHA DOES ALPHA THINGS","IT ADDS UP, I PROMISE","BANKED","MORE WHERE THAT CAME FROM"];
 
 const bubbleEls=[];
 function ensureBubbles(){
@@ -973,7 +1018,7 @@ setInterval(()=>{                                     // idle chatter
 },6500);
 
 let roster=[];
-function castPlayer(w,p){ w.player=p; w.op=opImage(p.op); w.label=actorLabel(p); }
+function castPlayer(w,p){ w.player=p; w.op=opImage(p.op); w.label=actorLabel(p); w.floater=FLOATERS.has(opSlug(p.op)); }
 function castRoster(){
   if(!roster.length) return;
   // X-linked wallets first, then ONE per distinct operator: casting purely by alpha
@@ -1419,14 +1464,23 @@ const CAST_MIN=7, CAST_MAX=12;
 const elevMid=ELEV.x+ELEV.w/2;
 function drawElevator(ctx){
   const E=ELEV, eo=Math.round(elevOpen*(E.w/2-2));
-  if(elevOpen>.04){                                    // an actual car, not a flat glow panel
+  if(elevOpen>.04){                                    // a furnished car, not a flat glow panel
     const ix=E.x+E.w/2-eo, iw=eo*2;
-    r(ctx,ix,E.y,iw,E.h,'#3a2a14');                    // back wall
-    r(ctx,ix,E.y,iw,2,'#6a5228');                      // ceiling
-    r(ctx,ix,E.y+E.h-3,iw,3,'#241a0c');                // car floor
-    r(ctx,ix,E.y+Math.round(E.h*.55),iw,1,'#8a6d2e');  // handrail
-    ctx.fillStyle='rgba(255,206,124,'+(.16+elevOpen*.28).toFixed(2)+')';
-    ctx.fillRect(ix,E.y,iw,E.h);                       // warm spill over it
+    if(iw>3){
+      r(ctx,ix,E.y,iw,E.h,'#3a2a14');                              // back wall
+      for(let px=ix+2; px<ix+iw-2; px+=6){                         // brass panelling
+        r(ctx,px,E.y+4,1,E.h-10,'#4c3a1c'); r(ctx,px+1,E.y+4,1,E.h-10,'#2d2010');
+      }
+      r(ctx,ix,E.y,iw,2,'#6a5228');                                // ceiling
+      r(ctx,ix+Math.max(1,(iw>>1)-3),E.y+2,6,2,'#ffe6a8');         // ceiling light
+      r(ctx,ix,E.y+E.h-4,iw,4,'#241a0c');                          // car floor
+      r(ctx,ix,E.y+E.h-4,iw,1,'#4a3620');
+      const hr=E.y+Math.round(E.h*.56);
+      r(ctx,ix+1,hr,iw-2,1,'#8a6d2e');                             // handrail
+      r(ctx,ix+2,hr+1,1,2,'#5a4520'); r(ctx,ix+iw-3,hr+1,1,2,'#5a4520');
+      ctx.fillStyle='rgba(255,206,124,'+(.14+elevOpen*.26).toFixed(2)+')';
+      ctx.fillRect(ix,E.y,iw,E.h);                                 // warm spill over it
+    }
   }
   r(ctx,E.x,E.y,E.w/2-eo,E.h,'#2a1d10');               // door panels
   r(ctx,E.x+E.w/2+eo,E.y,E.w/2-eo,E.h,'#2a1d10');
