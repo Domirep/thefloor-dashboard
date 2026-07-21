@@ -114,10 +114,10 @@
 
 <script>
 /* ============================================================================
-   THE NIGHT SHIFT — a living pixel diorama of The Floor.
-   Rendered at 480x270 and integer-scaled, so every pixel lands on the grid.
+   THE FLOOR — a living pixel diorama, rendered at 480x270 and scaled to fill.
 
-   The story: the floor never closes. In the east wall sits MOLOCH, a bull-headed
+   The story: the floor never closes — it just turns over. A full day passes every
+   six minutes, rain rolls through in spells. In the east wall sits MOLOCH, a bull-headed
    idol-machine that devours $FLOOR. Brokers carry offerings to its maw; it
    swallows, the room surges with light, and supply falls. Emissions are what it
    gives back. The halving is Moloch getting sleepy.
@@ -801,7 +801,7 @@ function buildTicker(){
     const up=(f.pnlUsd||0)>=0;
     seg.push(escH(f.name||'Firm')+' <span class="'+(up?'up':'dn')+'">'+(up?'▲':'▼')+usdK(f.pnlUsd)+'</span>');
   });
-  if(!seg.length) seg.push('THE FLOOR · THE NIGHT SHIFT · ROBINHOOD CHAIN');
+  if(!seg.length) seg.push('THE FLOOR · ROBINHOOD CHAIN · LIVE');
   const one=seg.join('<i>·</i>')+'<i>·</i>';
   tickerRun.innerHTML=one+one;
   tickerW=tickerRun.scrollWidth/2;
