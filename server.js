@@ -776,10 +776,18 @@ async function refreshFirms() {
        — which does not read as "the scan failed", it reads as "nobody is in a firm". That shipped:
        inFirm() matched nothing and the scouting board served all 246 desk owners as free agents,
        rival firm members included. Gate the scan on its own coverage and keep the last-good map. */
-    const coverage = players.length ? resolved / players.length : 1;
+    const coverage = players.length ? resolved / players.length : 0;   // no players enumerated IS a failure
     const priorMap = (firms && firms.firmByAddr) || null;
     const priorSize = priorMap ? Object.keys(priorMap).length : 0;
-    if (coverage < 0.8) {
+    /* Coverage alone is not enough. Two ways it lies: the player-enumeration getLogs can come back
+       empty (0/0 read as "fully covered", which shipped members=0 scan=100%), and every call can
+       succeed while returning nothing useful. The firms themselves tell us how many members to
+       expect, so cross-check the map against that rather than trusting the scan's own account. */
+    const expectMembers = firmList.reduce((s, fm) => s + (Number(fm.members) || 0), 0);
+    const gotMembers = Object.keys(firmByAddr).length;
+    const implausible = expectMembers > 0 && gotMembers < expectMembers * 0.5;
+    if (coverage < 0.8 || implausible) {
+      if (implausible && coverage >= 0.8) console.log('FIRMS membership implausible: mapped ' + gotMembers + ' of ~' + expectMembers + ' reported members');
       if (priorSize) {                                  // carry membership forward; log reads are still fresh
         fresh.firmByAddr = priorMap;
         fresh.freeAgentCount = firms.freeAgentCount;
