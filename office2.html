@@ -13,38 +13,76 @@
   html,body{height:100%;background:#05060b;overflow:hidden;font-family:'IBM Plex Mono',ui-monospace,monospace;color:#e8dcc0}
   #stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
   canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
-  .hud{position:fixed;pointer-events:none;text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.9)}
-  #title{top:18px;left:22px}
-  #title h1{font-size:15px;letter-spacing:4px;color:#e6c96b;font-weight:700}
-  #title p{font-size:10.5px;letter-spacing:1.6px;color:#8d7f61;margin-top:3px}
-  #stats{top:18px;right:22px;text-align:right;font-size:10.5px;letter-spacing:1.2px;line-height:1.85;color:#9c8c68}
+  /* the overlay tracks the canvas rect 1:1 so every HUD element scales with the scene (--u = one canvas px) */
+  #ov{position:fixed;pointer-events:none;--u:4px}
+  .hud{position:absolute;text-shadow:0 2px 0 #000,0 0 12px rgba(0,0,0,.9)}
+  #title{top:5.5%;left:1.6%}
+  #title h1{font-size:calc(var(--u)*9);letter-spacing:calc(var(--u)*1.1);color:#e6c96b;font-weight:700}
+  #title p{font-size:calc(var(--u)*5);letter-spacing:calc(var(--u)*.5);color:#8d7f61;margin-top:calc(var(--u)*1.5)}
+  /* left column on purpose: the right third of the canvas belongs to Moloch, and a
+     top-right stats block sat directly over his horns. */
+  #stats{top:17%;left:1.6%;text-align:left;font-size:calc(var(--u)*5);letter-spacing:calc(var(--u)*.35);line-height:1.9;color:#9c8c68}
   #stats b{color:#e6c96b;font-weight:600}
-  #feed{left:22px;bottom:18px;font-size:10.5px;letter-spacing:1px;line-height:1.9;color:#9c8c68;max-width:44vw}
+  #feed{left:1.6%;bottom:4.5%;font-size:calc(var(--u)*5);letter-spacing:calc(var(--u)*.3);line-height:1.95;color:#9c8c68;max-width:44%}
   #feed .l{opacity:0;transform:translateY(4px);animation:in .45s ease-out forwards}
   #feed .l b{color:#e6c96b;font-weight:600}
   #feed .l.burn b{color:#ff9d4a}
   @keyframes in{to{opacity:1;transform:none}}
-  #hint{right:22px;bottom:18px;font-size:10px;letter-spacing:1.4px;color:#5f563f;text-align:right}
+  #hint{right:1.6%;bottom:4.5%;font-size:calc(var(--u)*4.5);letter-spacing:calc(var(--u)*.4);color:#5f563f;text-align:right}
   a{color:#8d7f61;text-decoration:none;pointer-events:auto}
   a:hover{color:#e6c96b}
-  @media(max-width:700px){#title h1{font-size:12px;letter-spacing:2.5px}#stats,#feed{font-size:9px}#feed{max-width:60vw}}
+
+  /* ---- firm panel: opens on a DESK CLICK. Always-on plates floating over every
+         desk buried the room, so firm identity now lives behind a click. ---- */
+  #hitlayer{position:absolute;inset:0;pointer-events:auto;cursor:pointer}
+  #panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);
+      width:min(calc(var(--u)*200),88%);pointer-events:auto;opacity:0;visibility:hidden;
+      transition:opacity .16s ease,transform .16s ease;
+      background:linear-gradient(170deg,rgba(26,19,9,.975),rgba(10,8,5,.975));
+      border:1px solid #6b5426;border-radius:calc(var(--u)*3);
+      box-shadow:0 calc(var(--u)*6) calc(var(--u)*16) rgba(0,0,0,.75);
+      padding:calc(var(--u)*6);color:#e8dcc0;font-size:calc(var(--u)*5)}
+  #panel.show{opacity:1;visibility:visible;transform:translate(-50%,-50%) scale(1)}
+  #panel .ph{display:flex;align-items:center;gap:calc(var(--u)*3);margin-bottom:calc(var(--u)*4)}
+  #panel .em{width:calc(var(--u)*16);height:calc(var(--u)*16);border-radius:50%;flex:none;display:grid;place-items:center;
+      font-size:calc(var(--u)*8);font-weight:700;color:#0c0906;position:relative;overflow:hidden;
+      background:linear-gradient(150deg,#e6c96b,#7a5c10);border:1px solid rgba(0,0,0,.45)}
+  #panel .em img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#1d1914}
+  #panel .nm{font-size:calc(var(--u)*7);font-weight:700;color:#f4dd9a;line-height:1.15}
+  #panel .rk{font-size:calc(var(--u)*4.5);color:#9c8c68;margin-top:calc(var(--u)*1)}
+  #panel .big{font-size:calc(var(--u)*11);font-weight:700;line-height:1;margin:calc(var(--u)*2) 0 calc(var(--u)*4)}
+  #panel .big.up{color:#7fe0a0}#panel .big.dn{color:#ff6a5a}
+  #panel .grid{display:grid;grid-template-columns:1fr 1fr;gap:calc(var(--u)*3) calc(var(--u)*4);
+      border-top:1px solid #3a2d16;padding-top:calc(var(--u)*4)}
+  #panel .k{color:#8d7f61;font-size:calc(var(--u)*4);letter-spacing:calc(var(--u)*.2)}
+  #panel .v{color:#e8dcc0;font-weight:600}
+  #panel .memo{margin-top:calc(var(--u)*4);color:#c9b98d;font-style:italic;
+      border-left:2px solid #6b5426;padding-left:calc(var(--u)*3);line-height:1.45}
+  #panel .note{margin-top:calc(var(--u)*4);color:#7a6f55;font-size:calc(var(--u)*3.8);line-height:1.5}
+  #panel .x{position:absolute;top:calc(var(--u)*3);right:calc(var(--u)*4);color:#8d7f61;
+      font-size:calc(var(--u)*7);cursor:pointer;line-height:1}
+  #panel .x:hover{color:#e6c96b}
 </style>
 </head>
 <body>
 <div id="stage"><canvas id="c"></canvas></div>
 
-<div class="hud" id="title">
-  <h1>THE NIGHT SHIFT</h1>
-  <p>THE FLOOR · ROBINHOOD CHAIN</p>
+<div id="ov">
+  <div id="hitlayer"></div>
+  <div class="hud" id="title">
+    <h1>THE NIGHT SHIFT</h1>
+    <p>THE FLOOR · ROBINHOOD CHAIN</p>
+  </div>
+  <div class="hud" id="stats">
+    <div>OFFERED TO MOLOCH <b id="sBurn">—</b></div>
+    <div>SUPPLY <b id="sSupply">—</b></div>
+    <div>ON THE FLOOR <b id="sPlayers">—</b></div>
+    <div>EPOCH ENDS <b id="sHalve">—</b></div>
+  </div>
+  <div class="hud" id="feed"></div>
+  <div class="hud" id="hint"><a href="/">← dashboard</a> · <a href="/brokers">brokers</a> · <span style="pointer-events:auto;cursor:default" title="Click a desk for its firm · press F to toggle post-processing">click a desk</span></div>
+  <div id="panel"><span class="x" id="panelX">×</span><div id="panelBody"></div></div>
 </div>
-<div class="hud" id="stats">
-  <div>OFFERED TO MOLOCH <b id="sBurn">—</b></div>
-  <div>SUPPLY <b id="sSupply">—</b></div>
-  <div>ON THE FLOOR <b id="sPlayers">—</b></div>
-  <div>EPOCH ENDS <b id="sHalve">—</b></div>
-</div>
-<div class="hud" id="feed"></div>
-<div class="hud" id="hint"><a href="/">← dashboard</a> · <a href="/brokers">brokers</a></div>
 
 <script>
 /* ============================================================================
@@ -55,17 +93,23 @@
    idol-machine that devours $FLOOR. Brokers carry offerings to its maw; it
    swallows, the room surges with light, and supply falls. Emissions are what it
    gives back. The halving is Moloch getting sleepy.
+
+   The seven desks ARE the seven firms of the weekly PnL championship (live from
+   /api/firm-competition): each monitor trades its firm's P&L in the green or the
+   red, a brass nameplate names it, and the week's leader sits at the big desk
+   under a gold lamp. Above it all, an LED ticker crawls the tape.
    ========================================================================== */
 const W=480,H=270;
-const cv=document.getElementById('c'), g=cv.getContext('2d');
+const cv=document.getElementById('c'), g=cv.getContext('2d',{willReadFrequently:true,alpha:false});
 const bg=document.createElement('canvas'); bg.width=W; bg.height=H; const bgx=bg.getContext('2d');
 const lig=document.createElement('canvas'); lig.width=W; lig.height=H; const ligx=lig.getContext('2d');
 const bl=document.createElement('canvas'); bl.width=W>>2; bl.height=H>>2; const blx=bl.getContext('2d');
 [g,bgx,ligx,blx].forEach(x=>x.imageSmoothingEnabled=false);
+const ov=document.getElementById('ov');
 
 /* ---- palette ---- */
-/* Palette. Base art is painted BRIGHT because the multiply lighting pass darkens
-   everything — too-dark raw colours turn the room to mud (learned: avg luminance 10 -> 36). */
+/* Base art is painted BRIGHT because the multiply lighting pass darkens everything —
+   too-dark raw colours turn the room to mud (learned: avg luminance 10 -> 36). */
 const P={
   sky0:'#080b18', sky1:'#101833', sky2:'#1b2648',
   cityD:'#1d2740', cityM:'#27334f', cityL:'#36456a', win:'#ffd98a', win2:'#ffb84d',
@@ -75,20 +119,21 @@ const P={
   floorD:'#402f1c', floor:'#523c26', floorL:'#63492e',
   brass:'#c9a227', brassL:'#e6c96b', brassD:'#7a5c10',
   bronze:'#7a5c2e', bronzeL:'#a8813f', bronzeD:'#3f2f18', bronzeK:'#231a0e',
-  fire0:'#7a2a08', fire1:'#ff6a1a', fire2:'#ffab3a', fire3:'#ffe6a8',
   skin:'#e8b487', skinD:'#c08a56', skinL:'#f4cfa4',
   shirt:'#efe6cf', collar:'#d9cba6', ink:'#0b0906', rim:'#ffcf8a',
-  crt:'#7fe0a0', crtD:'#1d3a2a', paper:'#d9cba6', hairD:'#2a1d12', hairL:'#4a3420'
+  crt:'#7fe0a0', crtD:'#1d3a2a', paper:'#d9cba6', hairD:'#2a1d12', hairL:'#4a3420',
+  cab:'#3a2c1a', cabL:'#54402a', cabD:'#2a2010',
+  leaf:'#2f6f3f', leafL:'#48915a', leafD:'#1c3f28', pot:'#7a4a2a', potD:'#502e18',
+  aqua:'#7fc4ec', aquaD:'#4a9fd8', up:'#7fe0a0', dn:'#ff6a5a', amber:'#e6c96b'
 };
 // suited brokers — each has a base/shadow/rim-light tone + a tie colour, so bodies read 3D under the maw's light
 const SUITSETS=[
-  {b:'#39405f',d:'#242a44',l:'#5761864',t:'#9a3a2a'},   // navy
-  {b:'#463a52',d:'#2c2436',l:'#6a5a7c',t:'#3a6a52'},    // plum
-  {b:'#2c3a44',d:'#1b2730',l:'#47606f',t:'#b58a1e'},    // teal-grey
-  {b:'#4c3634',d:'#2f2020',l:'#6e4c48',t:'#c9a227'},    // oxblood
-  {b:'#42402f',d:'#2a2820',l:'#5f5c46',t:'#7a5220'},    // olive-charcoal
+  {b:'#39405f',d:'#242a44',l:'#576186',t:'#9a3a2a'},   // navy
+  {b:'#463a52',d:'#2c2436',l:'#6a5a7c',t:'#3a6a52'},   // plum
+  {b:'#2c3a44',d:'#1b2730',l:'#47606f',t:'#b58a1e'},   // teal-grey
+  {b:'#4c3634',d:'#2f2020',l:'#6e4c48',t:'#c9a227'},   // oxblood
+  {b:'#42402f',d:'#2a2820',l:'#5f5c46',t:'#7a5220'},   // olive-charcoal
 ];
-SUITSETS[0].l='#576186';
 const BOSS_SUIT={b:'#54421e',d:'#332810',l:'#7a6230',t:'#e6c96b'};   // gold pinstripe — the principal
 
 const R=(x,y,w,h,c)=>{ bgx.fillStyle=c; bgx.fillRect(x|0,y|0,w|0,h|0); };
@@ -99,9 +144,18 @@ const RI=(a,b)=>Math.floor(rnd(a,b+1));
 /* ---- world geometry ---- */
 const FLOOR_Y=186;              // where the back wall meets the floor
 const LANE=[204,236];           // feet Y for back / front lanes
-const MOL={x:330,y:26,w:150,h:206};   // Moloch's alcove
+const MOL={x:326,y:22,w:154,h:210};   // Moloch's alcove
 const ELEV={x:10,y:120,w:40,h:66};
 const TERM={x:150,y:150,w:44,h:36};
+/* Ticker baseline. The barrel warp samples inward at the edges, so anything above
+   y~10 gets pushed off the top of the frame (y=5 rendered half-clipped). x1 stops
+   it short of Moloch's alcove so the tape never crosses his face. */
+const TICK={y:12, x1:316};
+const CLK={x:210,y:44,r:9};           // wall clock, mounted on the pier
+const COOL={x:52,y:190};              // water cooler foot
+const CABS=[288,306];                 // filing-cabinet bank (right, before the alcove)
+const PEND=[40,106,172,238,304];      // pendant lamp x positions
+const FERN={x:15,y:267};              // foreground fern foot
 
 /* ============================ STATIC BACKDROP ============================ */
 let cityFar=[],cityNear=[];
@@ -179,72 +233,185 @@ function paintStatic(){
   R(E.x+E.w/2-1,E.y+1,2,E.h-2,'#120c06');       // door split
   R(E.x,E.y-4,E.w,2,P.brass);
   for(let i=0;i<5;i++) R(E.x+6+i*7,E.y-9,4,3,i===2?P.brassL:P.brassD);   // floor indicator
+
+  paintProps();
+}
+
+/* ---- set dressing: filing cabinets, cooler, wall clock, pendants, ticker housing ---- */
+function paintProps(){
+  /* pendant lamp fixtures over the warm pools (cord + brass cone) */
+  PEND.forEach(px=>{
+    R(px,16,1,8,'#0e0a06');                            // cord
+    R(px-3,24,7,2,P.bronzeD); R(px-4,26,9,2,P.cab);    // shade
+    R(px-4,26,9,1,P.brassL);                           // brass rim highlight
+    R(px-1,28,3,1,'rgba(255,222,150,.85)');            // filament
+  });
+
+  /* LED ticker housing across the top ceiling band */
+  R(0,10,TICK.x1,10,'#08070c');
+  R(0,10,TICK.x1,1,P.brassD); R(0,19,TICK.x1,1,'#02020a');
+  for(let x=2;x<TICK.x1;x+=6) R(x,11,1,8,'rgba(255,255,255,.015)');   // faint LED grid
+
+  /* wall clock on the pier */
+  clockFace(CLK.x,CLK.y,CLK.r);
+
+  /* water cooler by the elevator */
+  const cx=COOL.x, cb=COOL.y;
+  R(cx-1,cb-14,12,15,P.ink);
+  R(cx,cb-13,10,13,'#cfc3a0'); R(cx,cb-13,10,2,'#e6dcc0'); R(cx,cb-4,10,4,'#9c8c68');   // base cabinet
+  R(cx+3,cb-9,4,3,'#2a2418'); R(cx+4,cb-8,1,3,P.brass); R(cx+6,cb-8,1,3,'#3a6a52');     // taps
+  R(cx+1,cb-26,8,13,'rgba(120,180,220,.30)'); R(cx+2,cb-25,6,11,'rgba(150,200,235,.5)');// bottle
+  R(cx+2,cb-25,2,11,'rgba(205,232,250,.6)');                                            // highlight
+  R(cx+3,cb-28,4,3,'#6aa8d0');                                                          // neck
+  R(cx-2,cb-1,14,1,'rgba(0,0,0,.3)');                                                   // contact shadow
+
+  /* filing-cabinet bank (right) */
+  CABS.forEach(x=>cabinet(x,186,30));
+  // clutter on top: ledgers + a little succulent
+  R(CABS[0]+1,153,6,3,P.paper); R(CABS[0]+1,152,6,1,'#efe3c2'); R(CABS[0]+8,154,3,2,'#7a2a1a');
+  R(CABS[1]+5,152,4,4,P.pot); R(CABS[1]+4,149,2,3,P.leaf); R(CABS[1]+6,148,2,4,P.leafL); R(CABS[1]+8,150,2,2,P.leafD);
+}
+function cabinet(x,base,h){
+  const w=16;
+  R(x-1,base-h-1,w+2,h+2,P.ink);
+  R(x,base-h,w,h,P.cab); R(x,base-h,w,2,P.cabL); R(x,base-h,2,h,P.cabD);
+  for(let dy=base-h+3; dy<base-3; dy+=8){ R(x+1,dy,w-2,7,'#2e2212'); R(x+1,dy,w-2,1,P.cabL); R(x+w/2-2,dy+2,4,2,P.brass); }
+  R(x,base-1,w,1,'rgba(0,0,0,.35)');
+}
+function clockFace(cx,cy,rad){
+  for(let yy=-rad;yy<=rad;yy++){ const xw=Math.floor(Math.sqrt(rad*rad-yy*yy)); R(cx-xw,cy+yy,xw*2+1,1,'#241a0e'); }
+  for(let yy=-rad+1;yy<=rad-1;yy++){ const xw=Math.floor(Math.sqrt((rad-1)*(rad-1)-yy*yy)); R(cx-xw,cy+yy,xw*2+1,1,P.paper); }
+  R(cx-1,cy-rad,2,1,P.brassL); R(cx-1,cy+rad,2,1,P.brassD); R(cx-rad,cy-1,1,2,P.brass); R(cx+rad,cy-1,1,2,P.brass);
+  for(let a=0;a<12;a++){ const an=a/12*6.2832; const tx=cx+Math.round(Math.sin(an)*(rad-2)); const ty=cy-Math.round(Math.cos(an)*(rad-2)); R(tx,ty,1,1, a%3===0?P.brass:'#8a6d16'); }
 }
 
 /* ============================ MOLOCH ============================ */
-/* A bull-headed idol-machine set into the east wall. Bronze, riveted, stepped
-   deco shoulders, horns, and a furnace maw that opens to swallow offerings. */
+/* A colossal blackened-bronze idol built INTO the east wall — bull skull, heavy
+   sweeping horns, a throne base with an offering altar, and a furnace maw that
+   opens to swallow what the floor feeds it.
+   ⚠ PAINTED DARK ON PURPOSE: the multiply lighting pass washes bright bronze out
+   to beige (v1 read as a boxy robot). Everything menacing here comes from GLOW —
+   the maw, the eye-slits and the molten seams — not from the base pigment. */
 function paintMoloch(){
-  const {x,y,w,h}=MOL;
-  // alcove recess
-  R(x-6,16,w+12,FLOOR_Y-16,'#120d08');
-  R(x-6,16,2,FLOOR_Y-16,P.wallL);
-  // stepped deco surround
-  for(let i=0;i<4;i++){ R(x-4+i*3, 20+i*5, w+8-i*6, 4, i%2?P.brassD:P.trim); }
-  // body / chest plate
-  R(x+10,y+70,w-20,h-70,P.bronzeD);
-  R(x+14,y+74,w-28,h-78,P.bronze);
-  // shoulder steps
-  for(let i=0;i<5;i++){ R(x+6+i*4, y+66+i*6, w-12-i*8, 5, i%2?P.bronze:P.bronzeD); }
-  // rivets down the chest
-  for(let ry=y+86;ry<y+h-16;ry+=14){
-    for(let rx=x+22;rx<x+w-22;rx+=18) R(rx,ry,2,2,P.bronzeL);
+  const {x,y,w,h}=MOL, cx=x+(w>>1);
+  const K='#0e0c08', D='#191509', M='#241f14', L='#332c1c', S='#443a24';
+  const bE='#8a6d16', bH='#c9a227', bHL='#f2dc90';
+
+  /* Alcove is BACKLIT by the furnace — warm at the bottom, cold-black at the top.
+     The idol then reads as a black silhouette against it. (Painting both the idol
+     AND the recess near-black made the whole thing vanish into one dark slab.) */
+  for(let yy=16; yy<y+h+2; yy++){
+    const t=(yy-16)/(y+h-16);
+    const c = t<.30?'#0d0a07' : t<.52?'#17100a' : t<.70?'#24140a' : t<.86?'#33190b' : '#3d1d0c';
+    R(x-10,yy,w+20,1,c);
   }
-  // pistons either side
-  [x+14,x+w-22].forEach(px=>{
-    R(px,y+92,8,80,P.bronzeK); R(px+1,y+94,6,76,P.bronzeD);
-    for(let k=0;k<5;k++) R(px+1,y+98+k*15,6,3,P.bronzeL);
-  });
-  // --- head: bull skull, stylised ---
-  const hx=x+30, hy=y+8, hw=w-60, hh=64;
-  R(hx-2,hy-2,hw+4,hh+4,P.bronzeK);
-  R(hx,hy,hw,hh,P.bronze);
-  R(hx,hy,hw,3,P.bronzeL);
-  // brow ridge
-  R(hx+4,hy+16,hw-8,7,P.bronzeD);
-  R(hx+4,hy+16,hw-8,2,P.bronzeL);
-  // cheek plates
-  R(hx+2,hy+30,10,26,P.bronzeD);
-  R(hx+hw-12,hy+30,10,26,P.bronzeD);
-  // horns
-  for(let i=0;i<14;i++){
-    const t=i/13;
-    R(hx-4-i*2, hy+14-i*1.6, 4-t*1.5, 5-t*2, i>9?P.brassL:P.brass);
-    R(hx+hw+i*2, hy+14-i*1.6, 4-t*1.5, 5-t*2, i>9?P.brassL:P.brass);
+  R(x-10,16,3,y+h-16,'#2a1f12');
+  R(x-10,16,w+20,10,'#15100a'); R(x-10,16,w+20,2,bE); R(x-10,24,w+20,2,'#070604');
+
+  /* deco sunburst halo behind the head — warm, so the horns silhouette against it */
+  for(let a=0;a<15;a++){
+    const an=-Math.PI+(a/14)*Math.PI;
+    for(let k=28;k<78;k+=2){
+      const rx=cx+Math.cos(an)*k*1.15, ry=(y+58)+Math.sin(an)*k*0.85;
+      if(ry<20||rx<x-8||rx>x+w+6) continue;
+      R(rx,ry,1,1, k>60?'#2b1a0b':'#3a230e');
+    }
   }
-  // muzzle
-  R(hx+hw/2-13,hy+44,26,18,P.bronzeD);
-  R(hx+hw/2-11,hy+46,22,14,P.bronzeK);
-  R(hx+hw/2-8,hy+50,5,4,'#0a0705'); R(hx+hw/2+3,hy+50,5,4,'#0a0705');   // nostrils
-  // --- the maw (dynamic glow drawn per-frame) ---
-  MOL.maw={x:x+w/2-26,y:y+108,w:52,h:44};
-  R(MOL.maw.x-4,MOL.maw.y-4,MOL.maw.w+8,MOL.maw.h+8,P.bronzeK);
-  R(MOL.maw.x-2,MOL.maw.y-2,MOL.maw.w+4,MOL.maw.h+4,P.bronzeD);
-  R(MOL.maw.x,MOL.maw.y,MOL.maw.w,MOL.maw.h,'#150a04');
-  // grate bars over the maw
-  for(let i=0;i<7;i++) R(MOL.maw.x+3+i*7,MOL.maw.y,3,MOL.maw.h,P.bronzeK);
-  // teeth
-  for(let i=0;i<9;i++){ R(MOL.maw.x+2+i*6,MOL.maw.y,4,4,P.bronzeL); R(MOL.maw.x+2+i*6,MOL.maw.y+MOL.maw.h-4,4,4,P.bronzeD); }
-  // offering slab / altar step
-  R(x+w/2-40,y+h-16,80,10,P.bronzeD);
-  R(x+w/2-40,y+h-16,80,2,P.bronzeL);
-  R(x+w/2-46,y+h-6,92,6,P.bronzeK);
-  // gauges
-  [[x+20,y+150],[x+w-30,y+150]].forEach(([gx,gy])=>{
-    R(gx-1,gy-1,12,12,P.bronzeK); R(gx,gy,10,10,'#2b1f12'); R(gx+2,gy+2,6,6,P.brassD);
-  });
-  MOL.eyes=[{x:hx+12,y:hy+20},{x:hx+hw-20,y:hy+20}];
-  MOL.gauges=[[x+20,y+150],[x+w-30,y+150]];
+
+  /* THE FACE IS THE IDOL. v2 put a small head on a big blank torso with a furnace
+     in its chest — it read as a fireplace in a cabinet. Now the maw IS the mouth,
+     the eyes sit right above it, and the horns come off the skull corners, so the
+     whole upper structure resolves as one enormous face at a glance. */
+  /* Skull is deliberately NARROWER than the alcove: the horns sweep ~21px outward,
+     and a wider skull pushed the right horn past x=480 where the canvas clipped it
+     (the left one looked fine, which made the bug read as "only one horn drew"). */
+  const fx0=348, fx1=452, fw=fx1-fx0;
+  const skTop=y+22, jawY=y+90, chinY=y+156;
+
+  /* cranium — TAPERED (a plain rectangle read as a cabinet); narrow crown widening to the brow */
+  const chH=jawY-skTop;
+  for(let yy=0; yy<chH; yy++){
+    const t=yy/chH, ins=Math.round(11*(1-t)*(1-t));
+    R(fx0+ins-3, skTop+yy, fw-ins*2+6, 1, K);
+  }
+  for(let yy=0; yy<chH; yy++){
+    const t=yy/chH, ins=Math.round(11*(1-t)*(1-t));
+    R(fx0+ins, skTop+yy, fw-ins*2, 1, yy<2?L : (yy<5?S : M));
+    R(fx0+ins, skTop+yy, 2, 1, D);                    // left plane falls away
+    R(fx0+fw-ins-2, skTop+yy, 2, 1, D);
+  }
+
+  /* heavy brow ridge — throws the sockets into shadow */
+  R(fx0+2,skTop+22,fw-4,12,K);
+  R(fx0+2,skTop+22,fw-4,2,L);
+  R(fx0+6,skTop+34,fw-12,2,'#6b4a1e');                // hot under-brow catch
+
+  /* eye sockets (glow drawn per-frame) */
+  const ew=38, eh=20, eyY=skTop+38;
+  R(fx0+6,eyY,ew,eh,'#050302'); R(fx1-6-ew,eyY,ew,eh,'#050302');
+  R(fx0+6,eyY,ew,1,'#0e0a06');  R(fx1-6-ew,eyY,ew,1,'#0e0a06');
+
+  /* nasal ridge between the eyes */
+  R(cx-7,skTop+30,14,jawY-skTop-24,D); R(cx-7,skTop+30,3,jawY-skTop-24,M); R(cx+4,skTop+30,3,jawY-skTop-24,K);
+  R(cx-5,jawY-16,4,5,'#040302'); R(cx+2,jawY-16,4,5,'#040302');   // nostrils
+
+  /* temple / cheek plates */
+  R(fx0,eyY+eh+2,12,26,D); R(fx1-12,eyY+eh+2,12,26,D);
+  R(fx0,eyY+eh+2,2,26,L);   R(fx1-2,eyY+eh+2,2,26,L);
+
+  /* muzzle / jaw mass, narrower than the cranium */
+  const mx0=cx-48, mx1=cx+48;
+  R(mx0-3,jawY-3,(mx1-mx0)+6,(chinY-jawY)+6,K);
+  R(mx0,jawY,mx1-mx0,chinY-jawY,D);
+  R(mx0+3,jawY+3,(mx1-mx0)-6,(chinY-jawY)-8,M);
+  R(mx0+3,jawY+3,(mx1-mx0)-6,1,S);
+  R(mx0+6,chinY-8,(mx1-mx0)-12,4,D);                  // chin plate
+  R(mx0+6,chinY-8,(mx1-mx0)-12,1,'#6b4a1e');
+
+  /* horns — a genuine curve (out fast, then up) with a dark outline so they read
+     against the alcove. Straight stubby ones just looked like brass brackets. */
+  /* ⚠ Draw the horn in THREE passes (outline / fill / highlight), never per-segment.
+     Segments advance only ~1-2px, so an outline-then-fill loop lets each segment's
+     1px-larger outline erase the PREVIOUS segment's brass — the horn then renders
+     as a thin dark streak with only its final segment filled. */
+  const horn=[];
+  for(let i=0;i<30;i++){
+    const t=i/29, dx=25*Math.sin(t*1.25), dy=28*t*t+8*t, sz=Math.max(2,Math.round(10-t*8));
+    horn.push({t,sz, lx:fx0+5-dx-sz/2, rx:fx1-5+dx-sz/2, hy:skTop+8-dy});
+  }
+  horn.forEach(h=>{ R(h.lx-1,h.hy-1,h.sz+2,h.sz+2,'#0a0806'); R(h.rx-1,h.hy-1,h.sz+2,h.sz+2,'#0a0806'); });
+  horn.forEach(h=>{ const c= h.t>.72?bHL : h.t>.34?bH : bE; R(h.lx,h.hy,h.sz,h.sz,c); R(h.rx,h.hy,h.sz,h.sz,c); });
+  horn.forEach((h,i)=>{ if(i%3) return; R(h.lx,h.hy,h.sz,1,'#f7e49a'); R(h.rx,h.hy,h.sz,1,'#f7e49a'); });
+  R(fx0-5,skTop+2,20,15,M); R(fx1-15,skTop+2,20,15,M);            // horn roots
+  R(fx0-5,skTop+2,20,2,S);  R(fx1-15,skTop+2,20,2,S);
+
+  /* deco crest + finial between the horns */
+  for(let i=0;i<4;i++){ const hw2=4+i*5; R(cx-hw2, skTop-9+i*3, hw2*2, 3, i%2?bE:M); }
+  R(cx-2,skTop-14,4,6,bH); R(cx-1,skTop-15,2,2,bHL);
+
+  /* ---- the mouth: a furnace maw set into the jaw (fire drawn per-frame) ---- */
+  MOL.maw={x:cx-38, y:jawY+10, w:76, h:48};
+  const mw=MOL.maw;
+  R(mw.x-5,mw.y-5,mw.w+10,mw.h+10,K);
+  R(mw.x-2,mw.y-2,mw.w+4,mw.h+4,'#120d07'); R(mw.x-2,mw.y-2,mw.w+4,1,'#5a4626');
+  R(mw.x,mw.y,mw.w,mw.h,'#0d0402');
+
+  /* ---- collar + throne base + offering altar ---- */
+  const bY=chinY+6;
+  for(let i=0;i<5;i++) R(x+4+i*5, bY+i*4, w-8-i*10, 5, i%2?M:D);   // stepped collar/shoulders
+  R(x+4,bY,w-8,2,S);
+  const aY=y+h-30;
+  R(x+2,aY,w-4,30,D); R(x+2,aY,w-4,2,S);
+  for(let i=0;i<3;i++) R(x+i*7,aY+7+i*8,w-i*14,4, i%2?M:K);
+  R(cx-34,aY-7,68,8,M); R(cx-34,aY-7,68,2,S); R(cx-38,aY+1,76,4,K);
+  R(cx-34,aY-7,68,1,'rgba(230,201,107,.35)');
+  [cx-56,cx+46].forEach(px=>{ R(px,aY-13,10,4,M); R(px-1,aY-9,12,3,D); R(px+3,aY-1,4,9,K); });
+  MOL.braziers=[{x:cx-51,y:aY-13},{x:cx+51,y:aY-13}];             // flames + light drawn per-frame
+
+  MOL.eyes=[{x:fx0+6,y:eyY,w:ew,h:eh},{x:fx1-6-ew,y:eyY,w:ew,h:eh}];
+  MOL.seams=[];
+  for(let k=0;k<8;k++) MOL.seams.push({x:mx0+6+((k*29)%((mx1-mx0)-18)), y:jawY+6+((k*17)%(chinY-jawY-14)), w:2+((k*5)%7)});
+  MOL.altarY=aY-7; MOL.gauges=[];
 }
 
 /* ============================ DESKS ============================ */
@@ -252,6 +419,11 @@ const DESKS=[
   {x:64,y:LANE[0],t:2},{x:104,y:LANE[0],t:1},{x:214,y:LANE[0],t:3},{x:254,y:LANE[0],t:1},
   {x:88,y:LANE[1],t:2},{x:186,y:LANE[1],t:4},{x:256,y:LANE[1],t:1}
 ];
+// desk prominence order: the championship leader gets the big centre-front desk, then out from there
+const DESK_ORDER=[5,4,6,2,0,1,3];
+let leaderDesk=null;
+function medalCol(rank){ return rank===1?'#e6c96b':rank===2?'#cdd3da':rank===3?'#c9853f':'#8d9099'; }
+
 function drawDesk(ctx,d){
   const x=d.x,y=d.y,w=30,h=13;
   r(ctx,x-1,y-h-1,w+2,h+2,P.ink);
@@ -260,11 +432,30 @@ function drawDesk(ctx,d){
   r(ctx,x+2,y-2,3,2,'#2a1c0c'); r(ctx,x+w-5,y-2,3,2,'#2a1c0c');
   // monitor
   const mw=d.t>2?14:11, mh=d.t>2?10:8;
-  r(ctx,x+w/2-mw/2-1,y-h-mh-1,mw+2,mh+2,P.ink);
-  r(ctx,x+w/2-mw/2,y-h-mh,mw,mh,P.crtD);
-  const flick=(Math.sin(T*0.006+x)*0.5+0.5);
-  r(ctx,x+w/2-mw/2+1,y-h-mh+1,mw-2,mh-2, flick>.5?'#2a5f42':'#255339');
-  for(let i=0;i<3;i++) r(ctx,x+w/2-mw/2+2,y-h-mh+2+i*2, RI(3,mw-4),1, P.crt);
+  const sx=x+w/2-mw/2, sy=y-h-mh;
+  r(ctx,sx-1,sy-1,mw+2,mh+2,P.ink);
+  r(ctx,sx,sy,mw,mh,P.crtD);
+  if(d.firm){
+    // this monitor trades its firm's P&L — green in the black, red in the hole
+    const f=d.firm, up=(f.pnlUsd||0)>=0, line=up?P.crt:P.dn;
+    r(ctx,sx+1,sy+1,mw-2,mh-2, up?'#123a24':'#3a1414');
+    r(ctx,sx+1,sy+mh-3,mw-2,1,'rgba(0,0,0,.5)');                         // baseline
+    for(let k=0;k<mw-2;k++){                                             // a live-looking P&L squiggle, trending with the sign
+      const t=k/(mw-3), wob=Math.sin(k*0.9+(f.id||0)+T*0.004)*1.1;
+      let yy=sy+mh-3 - (up? t*(mh-4) : (1-t)*(mh-4)) - wob - 1;
+      yy=Math.max(sy+1,Math.min(sy+mh-2,yy));
+      r(ctx,sx+1+k, yy|0, 1,1, line);
+    }
+    r(ctx,sx+1,sy+1,2,2, medalCol(f.rank));                             // rank medal chip
+    if(f.rank===1){                                                     // gold pennant on the leader's rig
+      r(ctx,sx+mw-1,sy-4,1,4,P.brassD);
+      r(ctx,sx+mw-5,sy-4,4,3,P.brassL); r(ctx,sx+mw-5,sy-4,4,1,'#fff2c8');
+    }
+  } else {
+    const flick=(Math.sin(T*0.006+x)*0.5+0.5);
+    r(ctx,sx+1,sy+1,mw-2,mh-2, flick>.5?'#2a5f42':'#255339');
+    for(let i=0;i<3;i++) r(ctx,sx+2,sy+2+i*2, RI(3,mw-4),1, P.crt);
+  }
   // desk lamp for higher tiers
   if(d.t>=2){ r(ctx,x+w-6,y-h-7,2,7,P.brassD); r(ctx,x+w-9,y-h-9,8,3,P.brass); }
   // paper stack
@@ -285,6 +476,7 @@ class Worker{
     this.state='idle'; this.t=rnd(0,3); this.frame=0; this.fa=0;
     this.carry=null; this.busy=false; this.home=this.x; this.speed=rnd(34,46);
     this.prop=Math.random()<.5?'mug':'paper';      // what they hold while working
+    this.player=null; this.op=null; this.label=''; this.size=20;    // filled in by castRoster()
   }
   goto(tx,lane,then){ this.tx=tx; this.tlane=lane; this.state='walk'; this.then=then; }
   update(dt){
@@ -305,79 +497,40 @@ class Worker{
     }
     this.frame=Math.floor(this.fa)%4;
   }
+  /* The figure IS the player's highest operator — the game's own pixel-art bust,
+     served same-origin from /opart/ so drawing it never taints the canvas (postFX
+     reads pixels back every frame). Little legs underneath so the portrait walks. */
   draw(ctx){
-    const x=Math.round(this.x), y=Math.round(this.y), d=this.dir, s=this.ss;
+    const x=Math.round(this.x), y=Math.round(this.y), d=this.dir;
     const walking=this.state==='walk', working=this.state==='work';
-    // sub-pixel gait: two leg poses while walking, a gentle breathing bob at rest
     const step=walking?(this.frame%2):-1;
     const bob=walking?(step?0:1):(working?(Math.sin(this.fa)>0?1:0):(Math.sin(T*.002+x)>.7?1:0));
-    const yy=y-bob;
-    // rim light falls on the maw side (east) + top from the pendants
-    const rimX=x+2;                          // right edge catches the warm light
+    const yy=y-bob, S=this.size, bx=x-(S>>1), by=yy-6-S;
 
     // soft contact shadow (two rects = a squashed ellipse)
-    ctx.fillStyle='rgba(0,0,0,.30)'; ctx.fillRect(x-5,y-1,10,2); ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(x-6,y,12,1);
+    ctx.fillStyle='rgba(0,0,0,.32)'; ctx.fillRect(x-7,y-1,14,2); ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(x-8,y,16,1);
 
-    // ---- legs (trousers) ----
+    // legs
     const lsw=walking?(step?2:-2):0;
-    r(ctx,x-3-(step?lsw:0),yy-7,3,7,P.ink); r(ctx,x-2-(step?lsw:0),yy-7,2,6,s.d);      // back leg
-    r(ctx,x+1+(step?lsw:0),yy-7,3,7,P.ink); r(ctx,x+1+(step?lsw:0),yy-7,2,6,s.b);      // front leg
-    r(ctx,x-3-(step?lsw:0),yy-2,3,2,'#12100c'); r(ctx,x+1+(step?lsw:0),yy-2,3,2,'#12100c'); // shoes
+    r(ctx,x-4-(step?lsw:0),yy-6,3,6,'#16130d'); r(ctx,x+1+(step?lsw:0),yy-6,3,6,'#1d1811');
+    r(ctx,x-4-(step?lsw:0),yy-1,3,1,'#090705'); r(ctx,x+1+(step?lsw:0),yy-1,3,1,'#090705');
 
-    // ---- torso: base / shadow-left / rim-right, with lapels + tie ----
-    r(ctx,x-5,yy-18,10,12,P.ink);            // outline
-    r(ctx,x-4,yy-17,8,10,s.b);               // suit base
-    r(ctx,x-4,yy-17,3,10,s.d);               // left shadow
-    r(ctx,x+2,yy-17,2,10,s.l);               // right rim-light plane
-    r(ctx,x-1,yy-17,2,10,P.shirt);           // shirt placket
-    r(ctx,x-3,yy-17,2,4,s.d); r(ctx,x+1,yy-17,2,4,s.d);   // lapel Vs
-    r(ctx,x-1,yy-16,2,4,s.t);                // tie
-    if(this.boss){ for(let i=0;i<3;i++) r(ctx,x-3+i*3,yy-16,1,9,'rgba(230,201,107,.35)'); } // pinstripes
+    // the operator sprite (transparent-backed, so it reads as a person not a picture)
+    const e=this.op;
+    if(e && e.ok){ ctx.drawImage(e.img,bx,by,S,S); }
+    else { r(ctx,bx+4,by+3,S-8,S-4,'#241d14'); r(ctx,bx+4,by+3,S-8,1,'#3d3422'); }
+    ctx.fillStyle='rgba(255,207,138,.18)'; ctx.fillRect(bx+S-1,by+3,1,S-7);   // warm rim on the maw side
 
-    // ---- arms ----
-    const asw=walking?(step?-1:1):(working?(Math.sin(this.fa*2)>0?-1:0):0);
-    r(ctx,x-6,yy-16+asw,2,7,s.d);            // back arm (shadow tone)
-    r(ctx,x+4,yy-16-asw,2,7,s.b);            // front arm
-    r(ctx,x+4,yy-16-asw,2,1,s.l);            // arm rim
-    if(!this.carry){                          // hands
-      r(ctx,x-6,yy-9+asw,2,2,P.skinD); r(ctx,x+4,yy-9-asw,2,2,P.skin);
+    // the offering they carry to the maw
+    if(this.carry){
+      const cxp=x+(d>0?(S>>1)-1:-(S>>1)-6);
+      r(ctx,cxp,yy-12,7,7,P.bronzeK); r(ctx,cxp+1,yy-11,5,5,P.brass);
+      r(ctx,cxp+1,yy-11,5,1,P.brassL); r(ctx,cxp+2,yy-10,1,1,'#fff2c8');
     }
 
-    // ---- head ----
-    const hy=yy-27;
-    r(ctx,x-4,hy,8,9,P.ink);                  // outline
-    r(ctx,x-3,hy+1,6,7,P.skin);               // face
-    r(ctx,x-3,hy+1,2,7,P.skinD);              // left cheek shadow
-    r(ctx,x+2,hy+1,1,7,P.skinL);              // right cheek highlight (lit)
-    r(ctx,x+(d>0?1:-2),hy+3,1,2,P.ink);       // eye (faces dir)
-    r(ctx,x+(d>0?-2:1),hy+3,1,1,'rgba(11,9,6,.5)'); // far eye hint
-    r(ctx,x-3,hy+6,6,1,P.skinD);              // jaw shade
-    if(this.hat){                              // fedora
-      r(ctx,x-5,hy+1,10,2,this.hatC);          // brim
-      r(ctx,x-5,hy+2,10,1,'rgba(0,0,0,.35)');  // brim underside
-      r(ctx,x-3,hy-2,6,3,this.hatC);           // crown
-      r(ctx,x-3,hy-2,6,1,'rgba(255,255,255,.10)');
-      r(ctx,x-3,hy,6,1,s.t);                   // hat band (tie colour)
-    } else {
-      r(ctx,x-3,hy,6,2,this.hair);             // hair top
-      r(ctx,x-3,hy,2,2,'rgba(0,0,0,.3)'); r(ctx,x+2,hy,1,2,P.hairL);
-    }
-
-    // ---- warm rim on the maw side (ties the figure into the lighting story) ----
-    ctx.fillStyle='rgba(255,207,138,.22)'; ctx.fillRect(rimX+1,hy+1,1,7); ctx.fillRect(rimX+1,yy-16,1,10);
-
-    // ---- what they hold ----
-    if(this.carry){                            // the offering: a glowing strongbox
-      const bx=x+(d>0?4:-10);
-      r(ctx,bx,yy-13,7,7,P.bronzeK); r(ctx,bx+1,yy-12,5,5,P.brass); r(ctx,bx+1,yy-12,5,1,P.brassL);
-      r(ctx,bx+2,yy-11,1,1,'#fff2c8');         // glint
-    } else if(working){
-      if(this.prop==='mug'){ r(ctx,x+4,yy-10,3,3,P.paper); r(ctx,x+7,yy-9,1,1,P.paper); r(ctx,x+4,yy-11,3,1,'rgba(230,220,200,.5)'); }
-      else { r(ctx,x+3,yy-9,5,2,P.shirt); r(ctx,x+3,yy-10,5,1,'#fff4d8'); }   // papers
-    }
   }
 }
-const workers=[]; for(let i=0;i<11;i++) workers.push(new Worker(i, i===0));   // #0 is the boss (gold pinstripe)
+const workers=[]; for(let i=0;i<9;i++) workers.push(new Worker(i, i===0));   // 9 keeps the floor busy without crowding
 
 /* ============================ PARTICLES ============================ */
 const parts=[];
@@ -404,7 +557,7 @@ function drawParts(ctx){
   parts.forEach(p=>{
     const t=p.life/p.max;
     let c;
-    if(p.kind==='ember') c= t>.66?P.fire3 : t>.33?P.fire2 : P.fire1;
+    if(p.kind==='ember') c= t>.66?'#ffe6a8' : t>.33?'#ffab3a' : '#ff6a1a';
     else if(p.kind==='steam') c='rgba(190,200,220,'+(t*.20).toFixed(2)+')';
     else c='rgba(230,201,107,'+(t*.30).toFixed(2)+')';
     r(ctx,p.x,p.y,p.s,p.s,c);
@@ -414,7 +567,7 @@ function drawParts(ctx){
 /* ============================ CAMERA + STATE ============================ */
 let T=0, shake=0, mawHeat=0, roomSurge=0, molochWake=.35;
 // ---- weather: rain on the deco glass + occasional lightning over the city ----
-const WIN_BANDS=[0,1,2,3,4].map(i=>({x0:24+i*66,x1:24+i*66+42}));   // the 5 window bays
+const WIN_BANDS=[0,1,2,3,4].map(i=>({x0:24+i*66,x1:24+i*66+42}));
 const inWindow=x=>WIN_BANDS.some(b=>x>=b.x0&&x<=b.x1);
 const rain=[]; for(let i=0;i<90;i++) rain.push({x:rnd(0,330),y:rnd(16,FLOOR_Y),v:rnd(150,240),len:RI(3,6)});
 let lightning=0, nextBolt=2.5;
@@ -432,51 +585,248 @@ function drawRain(ctx){
 const cam={x:0,y:0};
 function kick(a){ shake=Math.max(shake,a); }
 
-/* offering ritual: a worker carries FLOOR to Moloch and feeds the maw */
-/* pick a worker who isn't already mid-errand, so events never swarm the whole floor */
-function freeWorker(){ const f=workers.filter(w=>!w.busy); return f.length?f[RI(0,f.length-1)]:null; }
-function offering(amount,who){
-  const w=freeWorker();
-  if(!w) return;
-  w.busy=true; w.carry=true;
-  const alt=MOL.x+MOL.w/2-52;
-  w.goto(alt,1,()=>{
-    w.state='work'; w.t=.5;
-    setTimeout(()=>{
-      mawHeat=1; roomSurge=1; molochWake=Math.min(1,molochWake+.06); kick(3.2);
-      spawn(MOL.maw.x+MOL.maw.w/2, MOL.maw.y+MOL.maw.h/2, 34,'ember');
-      spawn(MOL.maw.x+MOL.maw.w/2, MOL.maw.y-6, 10,'steam');
-      w.carry=null;
-      pushFeed('<b>'+fmt(amount)+' $FLOOR</b> offered to Moloch','burn');
-      setTimeout(()=>{ w.goto(rnd(70,290), RI(0,1), ()=>{ w.busy=false; }); },700);
-    },520);
+/* ============================ SET-DRESSING MOTION ============================ */
+function drawClockHands(ctx){
+  const d=new Date(), cx=CLK.x, cy=CLK.y, rad=CLK.r;
+  const sec=d.getSeconds()+d.getMilliseconds()/1000;
+  const min=d.getMinutes()+sec/60, hr=(d.getHours()%12)+min/60;
+  const hand=(ang,len,col)=>{ for(let k=0;k<=len;k++) r(ctx, cx+Math.round(Math.sin(ang)*k), cy-Math.round(Math.cos(ang)*k),1,1,col); };
+  hand(hr/12*6.2832, rad-5,'#1a140a');
+  hand(min/60*6.2832, rad-2,'#1a140a');
+  hand(sec/60*6.2832, rad-2,'#8a2c06');
+  r(ctx,cx,cy,1,1,P.brass);
+}
+function drawCoolerBubbles(ctx){
+  const cx=COOL.x, cb=COOL.y;
+  for(let i=0;i<2;i++){
+    const ph=((T*0.00045)+i*0.53)%1;
+    if(ph<0.06) continue;
+    const bx=cx+3+((i+((T*0.001|0)%3))%4);
+    r(ctx,bx, (cb-14-ph*11)|0, 1,1, 'rgba(220,240,255,'+(0.55*(1-ph)).toFixed(2)+')');
+  }
+}
+// foreground fern — drawn LAST, in front of everyone, gently swaying (frames the shot)
+function drawFern(ctx){
+  const x=FERN.x, base=FERN.y;
+  r(ctx,x-5,base-6,12,7,P.potD); r(ctx,x-5,base-6,12,2,P.pot); r(ctx,x-5,base-6,12,1,'#8a5836'); // pot
+  r(ctx,x-6,base+0,14,1,'rgba(0,0,0,.4)');
+  const sway=Math.sin(T*0.0009)*0.10;
+  for(let f=0;f<9;f++){
+    const a=(-1.35 + f*0.34) + sway*(1+ (f%2?0.4:0));
+    const len=15+((f*7)%5)*2;
+    const col= f%2?P.leaf:P.leafL;
+    let px=x, py=base-6;
+    for(let k=0;k<len;k++){
+      const t=k/len;
+      const ang=a - t*0.5;                     // fronds arc outward then droop
+      px+=Math.sin(ang)*1.05; py-=Math.cos(ang)*1.0*(1-t*0.35);
+      r(ctx,px|0,py|0,1,1, k>len-4?P.leafD:col);
+      if(k%3===1){ r(ctx,(px+Math.cos(ang)*2)|0,(py+Math.sin(ang)*2)|0,1,1,P.leafD); r(ctx,(px-Math.cos(ang)*2)|0,(py-Math.sin(ang)*2)|0,1,1,col); } // leaflets
+    }
+  }
+}
+
+/* ============================ LED TICKER ============================ */
+/* a 3x5 pixel LED font — enough for the tape (digits, caps, a few symbols, up/down) */
+const GLY={
+ '0':[7,5,5,5,7],'1':[2,6,2,2,7],'2':[7,1,7,4,7],'3':[7,1,3,1,7],'4':[5,5,7,1,1],
+ '5':[7,4,7,1,7],'6':[7,4,7,5,7],'7':[7,1,2,2,2],'8':[7,5,7,5,7],'9':[7,5,7,1,7],
+ 'A':[2,5,7,5,5],'B':[6,5,6,5,6],'C':[3,4,4,4,3],'D':[6,5,5,5,6],'E':[7,4,6,4,7],
+ 'F':[7,4,6,4,4],'G':[3,4,5,5,3],'H':[5,5,7,5,5],'I':[7,2,2,2,7],'J':[1,1,1,5,2],
+ 'K':[5,5,6,5,5],'L':[4,4,4,4,7],'M':[5,7,7,5,5],'N':[5,7,7,7,5],'O':[7,5,5,5,7],
+ 'P':[6,5,6,4,4],'Q':[7,5,5,7,1],'R':[6,5,6,5,5],'S':[3,4,2,1,6],'T':[7,2,2,2,2],
+ 'U':[5,5,5,5,7],'V':[5,5,5,5,2],'W':[5,5,7,7,5],'X':[5,5,2,5,5],'Y':[5,5,2,2,2],
+ 'Z':[7,1,2,4,7],' ':[0,0,0,0,0],
+ '$':[3,6,2,3,6],'.':[0,0,0,0,2],',':[0,0,0,2,4],':':[0,2,0,2,0],'%':[5,1,2,4,5],
+ '+':[0,2,7,2,0],'-':[0,0,7,0,0],'/':[1,1,2,4,4],'#':[5,7,5,7,5],
+ '\x01':[2,7,7,0,0],'\x02':[0,0,7,7,2]      // ▲ ▼
+};
+function glyph(ctx,ch,x,y,col){
+  const G=GLY[ch]||GLY[' ']; ctx.fillStyle=col;
+  for(let ry=0;ry<5;ry++){ const b=G[ry]; if(!b)continue;
+    if(b&4)ctx.fillRect(x,y+ry,1,1); if(b&2)ctx.fillRect(x+1,y+ry,1,1); if(b&1)ctx.fillRect(x+2,y+ry,1,1); }
+}
+let tickerGly=[], tickerW=4;
+function tSeg(txt,col,arr){ for(const ch of String(txt).toUpperCase()) arr.push({c:ch,col}); }
+function buildTicker(){
+  const A=[]; const dim='#6a5210';
+  const sep=()=>tSeg('    ',dim,A);
+  if(tk.price){ tSeg('FLOOR $'+tk.price.toFixed(4), P.amber, A); sep(); }
+  if(tk.burned){ tSeg('OFFERED '+fmt(tk.burned), '#ff9d4a', A); sep(); }
+  if(tk.supply){ tSeg('SUPPLY '+fmt(tk.supply), P.amber, A); sep(); }
+  (tk.firms||[]).forEach(f=>{
+    const up=(f.pnlUsd||0)>=0;
+    tSeg((f.name||'FIRM').slice(0,20)+' ', P.amber, A);
+    A.push({c: up?'\x01':'\x02', col: up?P.up:P.dn});
+    tSeg(' '+usdK(f.pnlUsd), up?P.up:P.dn, A);
+    sep();
+  });
+  if(A.length<6) tSeg('THE FLOOR    THE NIGHT SHIFT    ROBINHOOD CHAIN    ', P.amber, A);
+  tickerGly=A; tickerW=Math.max(4,A.length*4);
+}
+function drawTicker(ctx){
+  const n=tickerGly.length; if(!n) return;
+  const off=(T*0.026)%tickerW;                   // ~26 px/s crawl
+  for(let base=2-off; base<TICK.x1; base+=tickerW){
+    for(let i=0;i<n;i++){ const gx=(base+i*4)|0; if(gx>-4 && gx<TICK.x1-3){ const gg=tickerGly[i]; glyph(ctx,gg.c,gx,TICK.y,gg.col); } }
+  }
+}
+
+/* ============================ PLAYERS & OPERATORS ============================ */
+/* Real wallets from /api/leaderboard, wearing their highest operator's own pixel
+   bust. Art is fetched from the SAME-ORIGIN /opart/ proxy on purpose — pulling it
+   straight from thefloor.sh would taint the canvas and break the postFX readback. */
+/* The operator art is a 24x24 pixel grid whose outer ring is the rarity colour and
+   whose backdrop is an opaque #13100c — drawn raw it reads as a framed PAINTING on
+   legs. So we fetch the markup (same-origin), crop the frame ring via the viewBox
+   and drop the backdrop to transparent, which yields an actual sprite. Rendering
+   from a data: URI keeps the canvas untainted, same as /opart/ would. */
+const OPIMG={};
+const opSlug=n=>String(n||'Retail Analyst').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+function opImage(name){
+  const s=opSlug(name);
+  let e=OPIMG[s];
+  if(e) return e;
+  e={img:null, ok:false, rar:'#8d9099'};                 // rar = rarity colour, reused for the rim + plate
+  OPIMG[s]=e;
+  fetch('/opart/'+s+'.svg').then(r=>r.text()).then(t=>{
+    const m=t.match(/fill="(#[0-9a-fA-F]{6})"/);         // first fill is the border = rarity colour
+    if(m) e.rar=m[1];
+    t=t.replace(/viewBox="0 0 24 24"/,'viewBox="1 1 22 22"').replace(/fill="#13100c"/g,'fill="none"');
+    const im=new Image();
+    im.onload=()=>{ e.ok=true; };                        // ⚠ SVGs report naturalWidth 0 — gate on this flag
+    im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(t);
+    e.img=im;
+  }).catch(()=>{});
+  return e;
+}
+const shortAddr=a=>{ const s=String(a||''); return s.length>=6?('0X'+s.slice(-4)).toUpperCase():s.toUpperCase(); };
+function actorLabel(p){ return p ? (p.handle ? '@'+p.handle.toUpperCase() : shortAddr(p.a)) : ''; }
+
+/* Plates collide badly once a dozen actors bunch up — the first pass turned the
+   middle of the room into an unreadable smear of hex. So cap how many draw, put
+   the X-linked wallets first, and skip any plate overlapping one already placed. */
+let labelRects=[];
+function drawLabel(ctx,txt,cxp,ty,col){
+  const wpx=txt.length*4-1, x0=Math.round(cxp-wpx/2);
+  const q0={x:x0-3,y:ty-3,w:wpx+6,h:11};
+  for(const q of labelRects) if(q0.x<q.x+q.w && q.x<q0.x+q0.w && q0.y<q.y+q.h && q.y<q0.y+q0.h) return false;
+  labelRects.push(q0);
+  r(ctx,x0-2,ty-2,wpx+4,9,'rgba(6,5,9,.78)');
+  r(ctx,x0-2,ty-2,wpx+4,1,'rgba(201,162,39,.26)');
+  for(let i=0;i<txt.length;i++) glyph(ctx,txt[i],x0+i*4,ty,col);
+  return true;
+}
+const LABEL_CAP=6;
+function drawLabels(ctx){
+  labelRects=[]; let n=0;
+  workers.slice().sort((a,b)=>{
+    const ah=(a.player&&a.player.handle)?1:0, bh=(b.player&&b.player.handle)?1:0;
+    if(ah!==bh) return bh-ah;                     // named wallets win the space
+    return b.y-a.y;                               // then whoever is nearest the camera
+  }).forEach(w=>{
+    if(n>=LABEL_CAP || !w.label) return;
+    const by=Math.round(w.y)-6-w.size;
+    if(drawLabel(ctx,w.label,Math.round(w.x),by-11,(w.player&&w.player.handle)?'#8fd6ff':'#b3a482')) n++;
   });
 }
-function toTerminal(label){
-  const w=freeWorker(); if(!w) return;
-  w.busy=true;
-  w.goto(TERM.x+TERM.w/2,1,()=>{
-    w.state='work'; w.t=1.4; termFlash=1;
-    spawn(TERM.x+TERM.w/2,TERM.y+8,7,'dust');
-    setTimeout(()=>{ w.goto(rnd(70,290),RI(0,1),()=>{w.busy=false;}); },900);
-  });
+
+let roster=[];
+function castPlayer(w,p){ w.player=p; w.op=opImage(p.op); w.label=actorLabel(p); }
+function castRoster(){
+  if(!roster.length) return;
+  // X-linked wallets first, then ONE per distinct operator: casting purely by alpha
+  // put nine identical "The Closer"s on the floor, since every whale runs the top op.
+  // Each figure is still a real wallet wearing its own highest operator.
+  const pool=roster.filter(p=>p.handle).concat(roster.filter(p=>!p.handle));
+  const seen=new Set(), cast=[];
+  pool.forEach(p=>{ if(!seen.has(p.op)){ seen.add(p.op); cast.push(p); } });
+  pool.forEach(p=>{ if(cast.indexOf(p)<0) cast.push(p); });
+  workers.forEach((w,i)=>castPlayer(w, cast[i%cast.length]));
 }
-let termFlash=0, elevOpen=0;
-function arrival(){
-  elevOpen=1; kick(1.1);
-  const w=new Worker(workers.length); w.x=ELEV.x+ELEV.w/2; w.y=LANE[0]; w.lane=0;
-  workers.push(w); if(workers.length>16){ const o=workers.shift(); }
-  w.goto(rnd(80,280),RI(0,1));
+async function fetchRoster(){
+  try{
+    const [lbj,hsj]=await Promise.all([
+      fetch('/api/leaderboard',{cache:'no-store'}).then(r=>r.json()).catch(()=>null),
+      fetch('/api/handles',{cache:'no-store'}).then(r=>r.json()).catch(()=>null)
+    ]);
+    const arr=(lbj&&lbj.lb&&lbj.lb.byAlpha)||[], H=(hsj&&hsj.handles)||{};
+    if(!arr.length) return;
+    roster=arr.slice(0,60).map(p=>{
+      const h=H[String(p.a||'').toLowerCase()];
+      return { a:p.a, op:p.op||'Retail Analyst', alpha:p.alpha, dl:p.dl, rank:p.rank, handle:(h&&h.handle)||null };
+    });
+    document.getElementById('sPlayers').textContent=arr.length;
+    castRoster();
+  }catch(e){}
 }
 
 /* ============================ FEED / HUD ============================ */
 const feedEl=document.getElementById('feed'); const lines=[];
 const fmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:0});
+function usdK(v){ const n=Number(v)||0, s=n<0?'-':'', a=Math.abs(n);
+  if(a>=1e6) return s+'$'+(a/1e6).toFixed(1)+'M';
+  if(a>=1e3) return s+'$'+(a/1e3).toFixed(1)+'K';
+  return s+'$'+a.toFixed(0); }
 function pushFeed(html,cls){
   lines.unshift('<div class="l '+(cls||'')+'">'+html+'</div>');
   if(lines.length>5) lines.pop();
   feedEl.innerHTML=lines.join('');
 }
+
+/* ============================ FIRM PANEL (click a desk) ============================ */
+const panel=document.getElementById('panel'), panelBody=document.getElementById('panelBody');
+const mk=(cls,txt)=>{ const e=document.createElement('div'); if(cls)e.className=cls; if(txt!=null)e.textContent=txt; return e; };
+function assignFirms(firms){
+  DESK_ORDER.forEach((di,i)=>{ DESKS[di].firm=firms[i]||null; });
+  leaderDesk = firms.length ? DESKS[DESK_ORDER[0]] : null;
+}
+function closePanel(){ panel.classList.remove('show'); }
+document.getElementById('panelX').onclick=closePanel;
+
+function openFirm(f){
+  if(!f) return;
+  panelBody.innerHTML='';                                    // our own nodes only; all firm text goes in via textContent
+  const head=mk('ph');
+  const em=mk('em'); em.textContent=((f.name||'?').trim().charAt(0)||'?').toUpperCase();
+  if(f.emblem && /^https:\/\//i.test(f.emblem)){
+    const im=new Image(); im.referrerPolicy='no-referrer'; im.alt=''; im.onerror=()=>im.remove(); im.src=f.emblem; em.appendChild(im);
+  }
+  const meta=document.createElement('div');
+  meta.appendChild(mk('nm', f.name||'Firm'));
+  const medal=f.rank===1?'🥇 ':f.rank===2?'🥈 ':f.rank===3?'🥉 ':'';
+  meta.appendChild(mk('rk', medal+'Rank #'+(f.rank||'—')+' this week'));
+  head.append(em,meta); panelBody.appendChild(head);
+
+  const up=(f.pnlUsd||0)>=0;
+  panelBody.appendChild(mk('big '+(up?'up':'dn'), (up?'▲ ':'▼ ')+usdK(f.pnlUsd)));
+
+  const grid=mk('grid');
+  const cell=(k,v)=>{ const c=document.createElement('div'); c.appendChild(mk('k',k)); c.appendChild(mk('v',v)); return c; };
+  const mem=Array.isArray(f.members)?f.members.length:(f.members!=null?f.members:'—');
+  grid.appendChild(cell('MEMBERS', String(mem)));
+  grid.appendChild(cell('PRIZE SHARE', f.prizeShareBps?(f.prizeShareBps/100)+'%':'—'));
+  grid.appendChild(cell('PROJECTED PRIZE', (f.prizeFloor!=null&&f.prizeFloor>0)?fmt(f.prizeFloor)+' FLOOR':'—'));
+  grid.appendChild(cell('≈ USD', f.prizeUsd!=null?usdK(f.prizeUsd):'—'));
+  panelBody.appendChild(grid);
+
+  if(f.message) panelBody.appendChild(mk('memo','“'+f.message+'”'));
+  panelBody.appendChild(mk('note',"PnL is reported by thefloor.sh — indexed off-chain and revalued live (mark-to-market), so a firm's rank can move even when it isn't trading. Prize is a 65/25/10 projection of the current pool."));
+  panel.classList.add('show');
+}
+
+/* click -> canvas-pixel space -> desk hit test */
+function sceneXY(ev){
+  const rct=cv.getBoundingClientRect();
+  return { x:(ev.clientX-rct.left)/rct.width*W, y:(ev.clientY-rct.top)/rct.height*H };
+}
+document.getElementById('hitlayer').addEventListener('click', ev=>{
+  const p=sceneXY(ev);
+  let hit=null;
+  DESKS.forEach(d=>{ if(p.x>=d.x-4 && p.x<=d.x+34 && p.y>=d.y-32 && p.y<=d.y+5) hit=d; });
+  if(hit && hit.firm) openFirm(hit.firm); else closePanel();
+});
+addEventListener('keydown',e=>{ if(e.key==='Escape') closePanel(); });
 
 /* ============================ RENDER ============================ */
 function light(ctx,x,y,rad,col,a){
@@ -504,16 +854,18 @@ function frame(dt){
   g.drawImage(bg,0,0);
   updateWeather(dt);
   drawRain(g);                                             // rain streaks on the deco glass
+  drawTicker(g);                                           // LED tape across the ceiling
+  drawClockHands(g);                                       // real time on the wall clock
+  drawCoolerBubbles(g);
 
   // ---- the maw: a molten furnace that CHURNS, and a jaw that opens to swallow ----
   const heat=.42+mawHeat*.58+Math.sin(T*.004)*.05;
-  const jaw=mawHeat;                                        // 0..1 how wide the jaw gapes on an offering
+  const jaw=mawHeat;
   const m=MOL.maw;
-  const open=Math.round(jaw*7);                             // jaw drops the lower teeth away
+  const open=Math.round(jaw*7);
   r(g,m.x,m.y,m.w,m.h+open,'#1c0a03');
-  // three molten layers scrolling at different speeds = churning lava, not a flat gradient
   for(let L=0;L<3;L++){
-    const spd=.02+L*.015, amp=3+L*2, base=['#4a1403','#8a2c06','#c24a0a'][L];
+    const spd=.02+L*.015, base=['#4a1403','#8a2c06','#c24a0a'][L];
     g.fillStyle=base;
     for(let cx=0;cx<m.w;cx+=3){
       const hgt=(m.h-8)*(.35+.5*Math.abs(Math.sin(cx*.14+T*spd)))*(0.7+heat*.5);
@@ -522,40 +874,44 @@ function frame(dt){
     }
   }
   g.globalAlpha=1;
-  // hot cap + rising licks
   for(let cx=0;cx<m.w;cx+=4){
     const lick=Math.max(0,Math.sin(cx*.3+T*.05))*(6+mawHeat*14);
-    g.fillStyle=heat>.7?P.fire3:P.fire2; g.globalAlpha=.4+mawHeat*.5;
+    g.fillStyle=heat>.7?'#ffe6a8':'#ffab3a'; g.globalAlpha=.4+mawHeat*.5;
     g.fillRect(m.x+cx, m.y+m.h+open-lick-8, 3, lick);
   }
   g.globalAlpha=1;
-  // grate bars (in front of the fire) recede as the jaw opens
-  for(let i=0;i<7;i++) r(g,m.x+3+i*7,m.y,3,m.h-open,P.bronzeK);
-  // teeth: upper fixed, lower drop with the jaw
-  for(let i=0;i<9;i++){ r(g,m.x+2+i*6,m.y,4,4,P.bronzeL); r(g,m.x+2+i*6,m.y+m.h+open-4,4,4,P.bronzeD); }
-  // heat shimmer above the maw — horizontal jitter on a few scanlines
-  if(mawHeat>.05) for(let sy=m.y-14;sy<m.y;sy+=2){ const jx=Math.sin(T*.02+sy)*mawHeat*2; g.drawImage(cv, m.x,sy,m.w,1, m.x+jx,sy,m.w,1); }
+  // fangs: upper fixed, lower drop away as the jaw gapes (tapered, not wispy)
+  const fn=9, fp=m.w/fn;
+  for(let i=0;i<fn;i++){
+    const fx=m.x+Math.round(i*fp)+1, fwd=Math.max(3,Math.round(fp)-1);
+    for(let k=0;k<6;k++){ const ww=Math.max(1,fwd-k*1.5); r(g,fx+(fwd-ww)/2, m.y+k, ww,1, k<2?'#544628':'#3a3120'); }
+    const by=m.y+m.h+open;
+    for(let k=0;k<7;k++){ const ww=Math.max(1,fwd-k*1.4); r(g,fx+(fwd-ww)/2, by-1-k, ww,1, k<2?'#2f2718':'#211b10'); }
+  }
+  if(mawHeat>.05) for(let syy=m.y-14;syy<m.y;syy+=2){ const jx=Math.sin(T*.02+syy)*mawHeat*2; g.drawImage(cv, m.x,syy,m.w,1, m.x+jx,syy,m.w,1); }
 
-  // ---- chest runes: deco glyphs that pulse with each offering ----
-  const runeA=.25+mawHeat*.7+Math.sin(T*.003)*.1;
-  g.fillStyle='rgba(255,150,60,'+Math.min(1,runeA).toFixed(2)+')';
-  const rc=MOL.x+MOL.w/2;
-  [[-24,150],[-8,158],[8,158],[24,150]].forEach(([dx,dy],i)=>{ g.fillRect(rc+dx-1,MOL.y+dy,2,6); g.fillRect(rc+dx-3,MOL.y+dy+2,6,2); });
+  // molten seams: hairline cracks in the iron that breathe with the furnace
+  const seamA=Math.min(1,.20+mawHeat*.75+Math.sin(T*.003)*.08);
+  g.fillStyle='rgba(255,120,34,'+seamA.toFixed(2)+')';
+  MOL.seams.forEach((s,i)=>{ const f=0.6+0.4*Math.sin(T*.002+i); g.fillRect(s.x,s.y,s.w*f+1,1); });
 
-  // eyes — brighten and narrow when feeding
+  // eyes burning in the deep sockets — they flare when the maw is fed
   MOL.eyes.forEach(e=>{
-    const a=.45+molochWake*.5+mawHeat*.45;
-    r(g,e.x-1,e.y-1,10,6,P.bronzeK);
-    g.fillStyle='rgba(255,'+Math.round(110+110*mawHeat)+',40,'+Math.min(1,a).toFixed(2)+')';
-    g.fillRect(e.x,e.y,8,4);
-    r(g,e.x+ (Math.sin(T*.0007)>0?5:1), e.y+1,2,2,'#2a0f04');   // slit pupil drifts
-    r(g,e.x,e.y,8,1,'rgba(255,240,180,'+(mawHeat*.6).toFixed(2)+')');  // hot glint when fed
+    const a=Math.min(1,.45+molochWake*.45+mawHeat*.5);
+    r(g,e.x,e.y,e.w,e.h,'#050302');
+    const gy=e.y+Math.round(e.h*.34), gh=Math.max(4,Math.round(e.h*.36));
+    g.fillStyle='rgba(255,'+Math.round(88+125*mawHeat)+',28,'+a.toFixed(2)+')';
+    g.fillRect(e.x+3,gy,e.w-6,gh);
+    r(g,e.x+3+(Math.sin(T*.0006)>0?e.w-13:4), gy,4,gh,'#380f04');          // slit pupil drifts
+    r(g,e.x+3,gy,e.w-6,1,'rgba(255,240,190,'+(.22+mawHeat*.6).toFixed(2)+')');
   });
-  // gauge needles react to heat
-  MOL.gauges.forEach(([gx,gy],i)=>{
-    const ang=-2.2+ (mawHeat*1.6) + Math.sin(T*.003+i)*.12;
-    r(g,gx+5,gy+5,1,1,P.brassL);
-    r(g,gx+5+Math.cos(ang)*3, gy+5+Math.sin(ang)*3,1,1,P.fire2);
+
+  // brazier flames flanking the altar — they also throw light onto the throne steps
+  (MOL.braziers||[]).forEach((b,i)=>{
+    for(let k=0;k<8;k++){
+      const fh=3+Math.abs(Math.sin(T*.012+i*2.1+k*.8))*5;
+      r(g,b.x-4+k, b.y-fh, 1, fh, (k===3||k===4)?'#ffe6a8':(k%2?'#ffab3a':'#ff6a1a'));
+    }
   });
 
   DESKS.forEach(d=>drawDesk(g,d));
@@ -575,32 +931,40 @@ function frame(dt){
 
   // y-sorted actors
   workers.slice().sort((a,b)=>a.y-b.y).forEach(w=>w.draw(g));
+  drawLabels(g);                                           // identity plates, capped + collision-skipped
   drawParts(g);
+  drawFern(g);                                             // foreground frame
   g.restore();
 
   /* 2. lighting map (multiply) */
   ligx.setTransform(1,0,0,1,0,0);
   ligx.globalCompositeOperation='source-over';
-  ligx.fillStyle='#8b83a6'; ligx.fillRect(0,0,W,H);       // night ambient (keeps shadows readable)
+  ligx.fillStyle='#9c94b8'; ligx.fillRect(0,0,W,H);        // lifted: the set dressing was too dim to earn its keep
   ligx.globalCompositeOperation='lighter';
-  // ceiling pendants pour warm pools down the room
-  for(let i=0;i<5;i++) light(ligx,40+i*66,26,86,'rgba(255,214,140,.95)',.85);
-  light(ligx,W*.42,FLOOR_Y+30,150,'rgba(255,196,120,.5)',.5);   // general floor fill
-  // moloch maw is the dominant source
+  for(let i=0;i<5;i++) light(ligx,40+i*66,28,98,'rgba(255,214,140,.95)',.95);
+  light(ligx,W*.42,FLOOR_Y+30,165,'rgba(255,196,120,.55)',.6);
+  light(ligx,60,FLOOR_Y-6,86,'rgba(255,206,138,.7)',.42);   // west end (cooler + fern) was falling into the dark
   light(ligx,m.x+m.w/2,m.y+m.h/2, 108+mawHeat*70,'rgba(255,150,60,1)',.55+mawHeat*.45);
+  light(ligx,MOL.x+MOL.w/2,MOL.y+78,132,'rgba(255,140,64,.9)',.52+mawHeat*.30);   // must cover the WHOLE idol incl. horn tips, or they fall outside the falloff and vanish
+  (MOL.braziers||[]).forEach(b=>light(ligx,b.x,b.y-6,40,'rgba(255,150,60,.9)',.45));
+  light(ligx,MOL.x+MOL.w/2,MOL.y+14,124,'rgba(255,180,110,.85)',.50);            // crown + horns sit past the face light's falloff
   light(ligx,TERM.x+TERM.w/2,TERM.y+10,34,'rgba(120,240,170,.9)',.3+termFlash*.4);
+  if(leaderDesk) light(ligx,leaderDesk.x+15,leaderDesk.y-16,46,'rgba(255,224,150,.95)',.55);   // gold lamp on the week's leader
   if(elevOpen>.05) light(ligx,ELEV.x+ELEV.w/2,ELEV.y+ELEV.h/2,40,'rgba(255,210,120,1)',elevOpen*.6);
   if(roomSurge>0) { ligx.fillStyle='rgba(255,170,80,'+(roomSurge*.30).toFixed(3)+')'; ligx.fillRect(0,0,W,H); }
-  if(lightning>.02){ ligx.fillStyle='rgba(150,180,230,'+(lightning*.6).toFixed(3)+')'; ligx.fillRect(0,0,330,FLOOR_Y); }  // cold flash through the windows
+  if(lightning>.02){ ligx.fillStyle='rgba(150,180,230,'+(lightning*.6).toFixed(3)+')'; ligx.fillRect(0,0,330,FLOOR_Y); }
   g.globalCompositeOperation='multiply'; g.drawImage(lig,0,0);
   g.globalCompositeOperation='source-over';
 
   /* 3. additive glow + god-ray shafts */
   g.globalCompositeOperation='lighter';
   light(g,m.x+m.w/2,m.y+m.h/2,60+mawHeat*46,'rgba(255,120,40,.55)',.5+mawHeat*.5);
+  light(g,MOL.x+MOL.w/2,MOL.y+70,50,'rgba(255,110,40,.30)',.26+mawHeat*.26);      // halo so the horns silhouette
+  MOL.eyes.forEach(e=>light(g,e.x+e.w/2,e.y+e.h/2,16+mawHeat*12,'rgba(255,105,28,.55)',.38+mawHeat*.45));
+  (MOL.braziers||[]).forEach(b=>light(g,b.x,b.y-5,15,'rgba(255,120,40,.5)',.40));
   for(let i=0;i<5;i++) light(g,40+i*66,20,20,'rgba(255,214,140,.5)',.32);
   light(g,TERM.x+TERM.w/2,TERM.y+8,16,'rgba(120,240,170,.5)',.25+termFlash*.5);
-  // volumetric shafts angling down from each window (brighter on a lightning flash)
+  if(leaderDesk) light(g,leaderDesk.x+15,leaderDesk.y-16,26,'rgba(255,214,140,.5)',.35);
   const shaftA=.05+lightning*.35+Math.sin(T*.0006)*.02;
   for(let i=0;i<5;i++){ const wx=45+i*66; const grd=g.createLinearGradient(wx,24,wx-26,FLOOR_Y);
     grd.addColorStop(0,'rgba(190,205,235,'+shaftA.toFixed(3)+')'); grd.addColorStop(1,'rgba(190,205,235,0)');
@@ -613,12 +977,83 @@ function frame(dt){
   g.globalCompositeOperation='lighter'; g.globalAlpha=.30;
   g.drawImage(bl,0,0,W,H); g.globalAlpha=1; g.globalCompositeOperation='source-over';
 
-  /* 5. grade: vignette + scanlines */
-  const vg=g.createRadialGradient(W/2,H/2,H*.34,W/2,H/2,H*.92);
-  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(4,3,10,.42)');
-  g.fillStyle=vg; g.fillRect(0,0,W,H);
-  g.fillStyle='rgba(0,0,0,.055)';
-  for(let y=0;y<H;y+=2) g.fillRect(0,y,W,1);
+  /* 5. post: barrel + chromatic aberration + film grain + vignette + scanlines */
+  if(FX && idxG){ postFX(); }
+  else {
+    const vg=g.createRadialGradient(W/2,H/2,H*.34,W/2,H/2,H*.92);
+    vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(4,3,10,.42)');
+    g.fillStyle=vg; g.fillRect(0,0,W,H);
+    g.fillStyle='rgba(0,0,0,.055)'; for(let y=0;y<H;y+=2) g.fillRect(0,y,W,1);
+  }
+}
+
+/* ---- post-processing: precomputed warp/CA/vignette maps + animated grain (one getImageData pass) ---- */
+let FX=true, idxR,idxG,idxB,vigA,grainBuf,GNMASK,fxOut;
+function buildWarp(){
+  const N=W*H; idxR=new Int32Array(N); idxG=new Int32Array(N); idxB=new Int32Array(N); vigA=new Float32Array(N);
+  const cx=(W-1)/2, cy=(H-1)/2, K=0.08, CA=0.75, VIG=0.30;
+  const cl=(v,mx)=>v<0?0:(v>mx?mx:v)|0;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const i=y*W+x, nx=(x-cx)/cx, ny=(y-cy)/cy, r2=nx*nx+ny*ny;
+    const f=1 - K*r2*0.5;                                   // barrel: sample nearer centre at the edges (gentle CRT bulge)
+    const sxg=cx+(x-cx)*f, syg=cy+(y-cy)*f;
+    const cao=CA*r2*(nx>=0?1:-1);                           // chromatic aberration ramps with radius
+    idxG[i]=cl(syg,H-1)*W+cl(sxg,W-1);
+    idxR[i]=cl(syg,H-1)*W+cl(sxg+cao,W-1);
+    idxB[i]=cl(syg,H-1)*W+cl(sxg-cao,W-1);
+    let v=1 - VIG*r2; if(v<0)v=0; if(y&1)v*=0.90; vigA[i]=v; // vignette + scanline baked in
+  }
+  const GN=1<<16; GNMASK=GN-1; grainBuf=new Float32Array(GN);
+  for(let k=0;k<GN;k++) grainBuf[k]=(Math.random()*2-1)*5.5;
+  fxOut=g.createImageData(W,H);
+}
+function postFX(){
+  const src=g.getImageData(0,0,W,H).data, o=fxOut.data, N=W*H, go=RI(0,GNMASK);
+  for(let i=0;i<N;i++){
+    const q=i<<2, v=vigA[i], gn=grainBuf[(i+go)&GNMASK];
+    let Rr=src[idxR[i]<<2]*v+gn, Gg=src[(idxG[i]<<2)+1]*v+gn, Bb=src[(idxB[i]<<2)+2]*v+gn;
+    o[q]  =Rr<0?0:Rr>255?255:Rr;
+    o[q+1]=Gg<0?0:Gg>255?255:Gg;
+    o[q+2]=Bb<0?0:Bb>255?255:Bb;
+    o[q+3]=255;
+  }
+  g.putImageData(fxOut,0,0);
+}
+
+/* ============================ CHOREOGRAPHY ============================ */
+function freeWorker(){ const f=workers.filter(w=>!w.busy); return f.length?f[RI(0,f.length-1)]:null; }
+function offering(amount){
+  const w=freeWorker(); if(!w) return;
+  w.busy=true; w.carry=true;
+  const alt=MOL.x+MOL.w/2-52;
+  w.goto(alt,1,()=>{
+    w.state='work'; w.t=.5;
+    setTimeout(()=>{
+      mawHeat=1; roomSurge=1; molochWake=Math.min(1,molochWake+.06); kick(3.2);
+      spawn(MOL.maw.x+MOL.maw.w/2, MOL.maw.y+MOL.maw.h/2, 34,'ember');
+      spawn(MOL.maw.x+MOL.maw.w/2, MOL.maw.y-6, 10,'steam');
+      w.carry=null;
+      pushFeed('<b>'+(amount?fmt(amount)+' ':'')+'$FLOOR</b> offered to Moloch','burn');
+      setTimeout(()=>{ w.goto(rnd(70,290), RI(0,1), ()=>{ w.busy=false; }); },700);
+    },520);
+  });
+}
+let termFlash=0, elevOpen=0;
+function toTerminal(){
+  const w=freeWorker(); if(!w) return;
+  w.busy=true;
+  w.goto(TERM.x+TERM.w/2,1,()=>{
+    w.state='work'; w.t=1.4; termFlash=1;
+    spawn(TERM.x+TERM.w/2,TERM.y+8,7,'dust');
+    setTimeout(()=>{ w.goto(rnd(70,290),RI(0,1),()=>{w.busy=false;}); },900);
+  });
+}
+function arrival(){
+  elevOpen=1; kick(1.1);
+  const w=new Worker(workers.length); w.x=ELEV.x+ELEV.w/2; w.y=LANE[0]; w.lane=0;
+  if(roster.length) castPlayer(w, roster[RI(0,roster.length-1)]);   // whoever just stepped off the lift is a real wallet too
+  workers.push(w); if(workers.length>16){ workers.shift(); }
+  w.goto(rnd(80,280),RI(0,1));
 }
 
 /* ============================ SCALING ============================ */
@@ -627,16 +1062,22 @@ function fit(){
   cv.width=W; cv.height=H;
   cv.style.width=(W*s)+'px'; cv.style.height=(H*s)+'px';
   g.imageSmoothingEnabled=false;
+  syncOverlay();
+}
+function syncOverlay(){
+  const rct=cv.getBoundingClientRect();
+  ov.style.left=rct.left+'px'; ov.style.top=rct.top+'px'; ov.style.width=rct.width+'px'; ov.style.height=rct.height+'px';
+  ov.style.setProperty('--u',(rct.width/W)+'px');
 }
 addEventListener('resize',fit);
+addEventListener('keydown',e=>{ if(e.key==='f'||e.key==='F') FX=!FX; });
 
 /* ============================ LIVE CHAIN DATA ============================ */
-/* Chain events arrive in bursts. Queue them and release one at a time so the floor
-   stages a sequence of errands instead of every broker sprinting off at once. */
+const tk={price:0,burned:0,supply:0,firms:[]};   // ticker + nameplate source
 let seen=new Set(), firstLoad=true; const evq=[];
 setInterval(()=>{
   if(!evq.length) return;
-  if(workers.filter(w=>w.busy).length>=2) return;   // at most two errands running
+  if(workers.filter(w=>w.busy).length>=2) return;
   (evq.shift())();
 },1400);
 
@@ -644,17 +1085,19 @@ async function poll(){
   try{
     const j=await (await fetch('/api/live-actions',{cache:'no-store'})).json();
     const acts=(j&&j.actions)||[];
-    // seed EVERY known action on first load, or the backlog replays as a stampede
     if(firstLoad){ acts.forEach(a=>seen.add(a.tx||JSON.stringify(a))); firstLoad=false; return; }
     acts.slice().reverse().forEach(a=>{
       const k=a.tx||JSON.stringify(a); if(seen.has(k))return; seen.add(k);
-      const kind=(a.kind||a.t||'').toLowerCase();
-      if(evq.length>6) return;                       // don't hoard a huge backlog
-      if(kind.includes('burn')) evq.push(()=>offering(a.amount||a.value||0));
+      const kind=(a.t||a.kind||'').toLowerCase();
+      if(evq.length>6) return;
+      const amt=a.amt||a.amount||a.value||0;              // API field is .amt (fixed: burns were reading undefined -> 0)
+      if(kind.includes('burn')) evq.push(()=>offering(amt));
       else if(kind.includes('collect')||kind.includes('claim')) evq.push(()=>{ toTerminal(); pushFeed('<b>PnL collected</b> at the terminal'); });
       else if(kind.includes('newdesk')) evq.push(()=>{ arrival(); pushFeed('<b>New desk</b> opened'); });
       else if(kind.includes('recruit')||kind.includes('seat')||kind.includes('starter')) evq.push(()=>pushFeed('<b>Operator seated</b>'));
       else if(kind.includes('upgrade')) evq.push(()=>pushFeed('<b>Desk upgraded</b>'));
+      else if(kind.includes('referral')) evq.push(()=>pushFeed('<b>Referral paid</b>'));
+      else if(kind.includes('unseat')) evq.push(()=>pushFeed('<b>Operator left</b> the floor'));
     });
   }catch(e){}
 }
@@ -662,16 +1105,23 @@ async function stats(){
   try{
     const j=await (await fetch('/api/token-stats',{cache:'no-store'})).json();
     if(j&&j.ok!==false){
+      tk.price=Number(j.price)||tk.price; tk.burned=Number(j.burned)||tk.burned; tk.supply=Number(j.supply)||tk.supply;
       document.getElementById('sBurn').textContent=fmt(j.burned||0);
       document.getElementById('sSupply').textContent=fmt(j.supply||0);
       if(j.halveAt){ const d=Math.max(0,j.halveAt-Date.now()); const dd=Math.floor(d/86400000), hh=Math.floor(d/3600000)%24;
         document.getElementById('sHalve').textContent=dd+'d '+hh+'h'; }
+      buildTicker();
     }
   }catch(e){}
+}
+async function fetchFirms(){
   try{
-    const l=await (await fetch('/api/leaderboard',{cache:'no-store'})).json();
-    const n=(l&&l.lb&&l.lb.byAlpha&&l.lb.byAlpha.length)||0;
-    if(n) document.getElementById('sPlayers').textContent=n;
+    const j=await (await fetch('/api/firm-competition',{cache:'no-store'})).json();
+    if(j&&j.ok&&Array.isArray(j.firms)&&j.firms.length){
+      tk.firms=j.firms.slice(0,7);                          // API already sorted rank-1 first
+      assignFirms(tk.firms);
+      buildTicker();
+    }
   }catch(e){}
 }
 
@@ -683,9 +1133,11 @@ setInterval(()=>{
 },240);
 
 /* boot */
-buildCity(); paintStatic(); paintMoloch(); fit();
+buildCity(); paintStatic(); paintMoloch(); fit(); buildWarp();
+buildTicker();
 pushFeed('<b>The night shift</b> is on the floor');
-poll(); stats(); setInterval(poll,20000); setInterval(stats,60000);
+poll(); stats(); fetchFirms(); fetchRoster();
+setInterval(poll,20000); setInterval(stats,60000); setInterval(fetchFirms,120000); setInterval(fetchRoster,300000);
 let last=performance.now();
 (function loop(now){ const dt=Math.min(.05,(now-last)/1000); last=now; frame(dt); requestAnimationFrame(loop); })(performance.now());
 </script>

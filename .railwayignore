@@ -6,3 +6,5 @@ data-local/
 node_modules/
 server.json
 REGISTRY.md
+HANDOFF.md
+shot.ps1
