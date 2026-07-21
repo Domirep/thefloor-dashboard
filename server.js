@@ -794,7 +794,7 @@ async function refreshFirmComp() {
     const ids = rawFirms.map(f => f.id).filter(id => id !== undefined && id !== null);
     // On a meta-only failure carry the prior snapshot's emblems forward; on meta success trust it verbatim.
     const priorMeta = {};
-    if (firmComp && Array.isArray(firmComp.firms)) firmComp.firms.forEach(f => { if (f.emblem || f.message) priorMeta[f.id] = { emblem: f.emblem, message: f.message }; });
+    if (firmComp && Array.isArray(firmComp.firms)) firmComp.firms.forEach(f => { if (f.emblem || f.message) priorMeta[f.id] = { emblem: f.emblem, message: f.message, messageAt: f.messageAt }; });
     let meta = {};
     if (ids.length) { try { meta = (await sfetch(FC_META_URL + ids.join(','))) || {}; } catch (e) { meta = priorMeta; console.log('firm-comp meta failed (emblems kept last-good): ' + e.message); } }
 
@@ -807,8 +807,11 @@ async function refreshFirmComp() {
     const sorted = rawFirms.slice().sort((a, b) => (Number(b.pnlUsd) || 0) - (Number(a.pnlUsd) || 0));
     const firmsOut = sorted.map((f, i) => {
       const m = meta[f.id] || {};
+      // messageAt rides along with the memo: a firm note with no age reads as current forever,
+      // and these are often dated ("deadline July 23"), so the client stamps it.
       const row = { id: f.id, name: f.name, members: f.members, pnlUsd: Number(f.pnlUsd) || 0,
-        emblem: m.emblem || null, message: m.message || null };
+        emblem: m.emblem || null, message: m.message || null,
+        messageAt: (m.message && Number(m.messageAt)) ? Number(m.messageAt) : null };
       if (!configured) { row.rank = null; row.prizeShareBps = null; row.prizeFloor = null; row.prizeUsd = null; return row; }
       const rank = i + 1;
       const shareBps = rank <= 3 ? FC_SPLIT_BPS[rank - 1] : 0;

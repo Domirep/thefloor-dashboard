@@ -437,6 +437,8 @@ a.rst-nm:hover{color:var(--brass-light);text-decoration:underline}
 #competition .firm-meta{min-width:0}
 #competition .firm-name{color:var(--paper);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
 #competition .firm-memo{font-style:italic;font-size:11px;color:var(--muted-cream);white-space:normal;line-height:1.4;margin-top:2px;max-width:270px}
+/* upright + dimmer so the age never reads as part of the quoted memo */
+#competition .memo-age{font-style:normal;font-family:var(--font-mono);font-size:9.5px;letter-spacing:.3px;color:var(--muted);margin-left:5px;white-space:nowrap}
 #competition td.c-prize .prize-floor{color:var(--brass-light);font-variant-numeric:tabular-nums}
 #competition td.c-prize .prize-floor .unit{color:var(--muted-cream);font-size:11px}
 #competition td.c-prize .prize-usd{display:block;color:var(--muted-cream);font-size:11px;margin-top:2px;font-variant-numeric:tabular-nums}
@@ -754,7 +756,16 @@ a.rst-nm:hover{color:var(--brass-light);text-decoration:underline}
     const medalOf=(r)=>r===1?'🥇':r===2?'🥈':r===3?'🥉':'';
     const initialOf=(name)=>{ const s=String(name||'').trim(); return s?s.charAt(0).toUpperCase():'?'; };
     const pad2=(x)=>(x<10?'0':'')+x;
-    const agoText=(ms)=>{ ms=Number(ms); if(!isFinite(ms)||ms<0) return ''; const s=Math.round(ms/1000); return s<60?`${s}s`:s<3600?`${Math.round(s/60)}m`:`${Math.round(s/3600)}h`; };
+    const agoText=(ms)=>{ ms=Number(ms); if(!isFinite(ms)||ms<0) return ''; const s=Math.round(ms/1000);
+      return s<60?`${s}s`:s<3600?`${Math.round(s/60)}m`:s<86400?`${Math.round(s/3600)}h`:`${Math.round(s/86400)}d`; };
+    /* Firm memos are written by hand and often carry their own dates ("deadline July 23"), so an
+       undated one reads as current no matter how old it is. Stamp every memo with its age; the
+       exact local time goes in the tooltip. Upstream sends seconds — tolerate ms just in case. */
+    const memoStamp=(at)=>{ at=Number(at); if(!isFinite(at)||at<=0) return null;
+      const ms=at>1e12?at:at*1000; const d=new Date(ms); if(isNaN(d.getTime())) return null;
+      const rel=agoText(Date.now()-ms); if(!rel) return null;
+      let abs; try{ abs=d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }catch(_){ abs=d.toISOString(); }
+      return {rel,abs}; };
     let compTarget=null;
     const fmtCountdown=(ms)=>{ if(!(ms>0)) return null; const s=Math.floor(ms/1000); return `${Math.floor(s/86400)}d ${pad2(Math.floor((s%86400)/3600))}h ${pad2(Math.floor((s%3600)/60))}m ${pad2(s%60)}s`; };
     const paintCountdown=()=>{ const el=$('#compCountdown'); if(!el||compTarget==null) return; const txt=fmtCountdown(compTarget-Date.now()); if(txt==null){ el.textContent='Window closed — payout pending'; el.classList.add('closed'); } else { el.textContent=txt; el.classList.remove('closed'); } };
@@ -776,7 +787,10 @@ a.rst-nm:hover{color:var(--brass-light);text-decoration:underline}
       const url=safeUrl(f.emblem);
       const ini=escH(initialOf(f.name));
       const emblem=`<span class="emblem-wrap" data-ini="${ini}">`+(url?`<img class="emblem" src="${escH(url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">`:'')+`</span>`;
-      const memo=f.message?`<div class="firm-memo" title="Memo from the corner office">“${escH(f.message)}”</div>`:'';
+      const stamp=f.message?memoStamp(f.messageAt):null;
+      const memoTitle=stamp?`Memo from the corner office — posted ${stamp.abs}`:'Memo from the corner office';
+      const memoAge=stamp?`<span class="memo-age">${escH(stamp.rel)} ago</span>`:'';
+      const memo=f.message?`<div class="firm-memo" title="${escH(memoTitle)}">“${escH(f.message)}”${memoAge}</div>`:'';
       const mem=Array.isArray(f.members)?f.members.length:(f.members!=null?f.members:0);
       const pnl=Number(f.pnlUsd)||0;
       const pnlCls=pnl>=0?'pos':'neg';
