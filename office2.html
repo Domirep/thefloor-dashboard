@@ -1057,10 +1057,17 @@ function arrival(){
 }
 
 /* ============================ SCALING ============================ */
+/* ⚠ Integer-ONLY scaling looked fine in a full-bleed 1920x1080 test render (exactly 4x)
+   but collapsed to 2x in a real browser window — chrome eats ~120px of height, 810 is
+   the 3x threshold, so the scene drew at 960x540 marooned in black and read as "smaller
+   / missing things". Fill the viewport instead, and only snap to an integer when we're
+   already within a hair of one (image-rendering:pixelated keeps it crisp either way). */
 function fit(){
-  const s=Math.max(1,Math.min(Math.floor(innerWidth/W),Math.floor(innerHeight/H)));
+  const s=Math.max(1,Math.min(innerWidth/W, innerHeight/H));
+  const si=Math.floor(s);
+  const use=(si>=1 && s-si<0.12) ? si : s;
   cv.width=W; cv.height=H;
-  cv.style.width=(W*s)+'px'; cv.style.height=(H*s)+'px';
+  cv.style.width=Math.round(W*use)+'px'; cv.style.height=Math.round(H*use)+'px';
   g.imageSmoothingEnabled=false;
   syncOverlay();
 }
