@@ -1002,31 +1002,34 @@ const saidRecently=[];
 function freshPick(pool){
   if(!pool || !pool.length) return '';
   let c=null;
-  for(let tries=0;tries<14;tries++){
+  for(let tries=0;tries<40;tries++){
     const cand=pool[RI(0,pool.length-1)];
     if(saidRecently.indexOf(cand)<0){ c=cand; break; }
   }
-  if(c===null) c=pool[RI(0,pool.length-1)];        // pool smaller than the memory — allow a repeat
+  if(c===null){                                     // random draw kept colliding — take the
+    const fresh=pool.filter(x=>saidRecently.indexOf(x)<0);   // first genuinely unused one
+    c = fresh.length ? fresh[RI(0,fresh.length-1)] : pool[RI(0,pool.length-1)];
+  }
   saidRecently.push(c);
-  if(saidRecently.length>26) saidRecently.shift();
+  if(saidRecently.length>90) saidRecently.shift();  // ~9 speakers, so 26 cycled in about two minutes
   return c;
 }
 const OPLINE={
-  'the closer':["always be closing","coffee's for closers","i don't do maybes","second place is the first loser","i close on weekends too","put that on my tab, i'm good for it"],
-  'terminal wizard':["i typed one command and made rent","the terminal talks back now","four monitors, one keyboard, no sleep","i wrote a script to do my job","hotkeys are a personality","i haven't used a mouse since march"],
-  'activist whale':["i'd like a word with the treasury","i'm not a whale, i'm a concerned shareholder","put me on the board","i've written a letter to management","my position is a governance issue","slippage is a me problem"],
-  'prop desk killer':["risk limits are more of a vibe","size is a personality trait","i size up when i'm sad","stop losses are for people with feelings","i don't hedge, i commit","my risk manager quit"],
-  'dark pool dealer':["you didn't see that fill","off exchange, off the record","ask me no questions","i print where nobody's looking","that trade never happened","i work in the quiet part of the book"],
-  'quant goblin':["the model says buy, and the model is me","backtested. mostly.","i overfit and i'm not sorry","the sharpe was beautiful in sample","i added one more feature and it fixed everything","correlation is causation if you're brave"],
-  'compliance guy':["i'm going to have to flag that","put that in writing","nobody tell me about the burn","i didn't see any of this","that's three forms, minimum","i'm required to disapprove of the ritual"],
-  'sell-side analyst':["strong buy. it's always strong buy.","raising my target to whatever it is now","initiating coverage: bullish","i've never issued a sell in my life","the thesis is intact","reiterating, obviously"],
-  'etf boomer':["in my day we had settlement periods","just buy the index","i don't understand any of this and i'm up","back then a burn was a fire","what's a moloch","my broker was a man named gerald"],
-  'market maker':["i'm on both sides of you","the spread IS the business","you're welcome for the liquidity","i don't have a view, i have inventory","i quote, therefore i am","someone has to be there"],
-  'options degen':["weeklies. obviously.","theta is a made-up problem","assignment is a state of mind","i'm not gambling, i'm expressing a view","zero days to expiry, infinite conviction","the greeks work for me now"],
-  'cold caller':["got five minutes to talk about $FLOOR?","leaving a voicemail for the void","no is just a slow yes","i have your number, i have all the numbers","circling back on that","just following up!"],
-  'chart intern':["it's a cup and handle, trust me","i drew a line and it went up","this candle has a story","the fibonacci says soon","that's a bull flag if you squint","i have SEVEN indicators"],
-  'junior broker':["i'll have to ask my boss","still on probation","i just do what the screen says","is this normal? is any of this normal?","i'm learning so much","nobody told me about the bull"],
-  'retail analyst':["i actually read the docs","buying the dip. the whole dip.","i'm early, not wrong","i did my own research and it took hours","conviction is free","i'll be right eventually"],
+  'the closer':["always be closing","coffee's for closers","i don't do maybes","second place is the first loser","i close on weekends too","put that on my tab, i'm good for it","the deal was done before you sat down","i don't chase, i collect","every seat i fill pays me twice","nobody has ever said no to me twice"],
+  'terminal wizard':["i typed one command and made rent","the terminal talks back now","four monitors, one keyboard, no sleep","i wrote a script to do my job","hotkeys are a personality","i haven't used a mouse since march","my alerts have alerts","i automated the boring 90%","the machine and i have an understanding","i read the chain faster than it writes"],
+  'activist whale':["i'd like a word with the treasury","i'm not a whale, i'm a concerned shareholder","put me on the board","i've written a letter to management","my position is a governance issue","slippage is a me problem","i move the price by existing","when i buy, everyone finds out","i'm not early, i'm structural","my exit would be a news event"],
+  'prop desk killer':["risk limits are more of a vibe","size is a personality trait","i size up when i'm sad","stop losses are for people with feelings","i don't hedge, i commit","my risk manager quit","half measures cost more than full ones","conviction is the only position sizing","i've been stopped out of better than this","scared money doesn't seat operators"],
+  'dark pool dealer':["you didn't see that fill","off exchange, off the record","ask me no questions","i print where nobody's looking","that trade never happened","i work in the quiet part of the book","the tape doesn't tell you everything","by the time it prints, i'm done","discretion IS the product","i like it better when nobody's watching"],
+  'quant goblin':["the model says buy, and the model is me","backtested. mostly.","i overfit and i'm not sorry","the sharpe was beautiful in sample","i added one more feature and it fixed everything","correlation is causation if you're brave","the residuals are fine, don't look","i trust the numbers i chose","p-hacked with love","it works until it doesn't and then it works again"],
+  'compliance guy':["i'm going to have to flag that","put that in writing","nobody tell me about the burn","i didn't see any of this","that's three forms, minimum","i'm required to disapprove of the ritual","who signed off on the bull","this is not in the handbook","i've raised a concern. formally.","technically none of this is prohibited"],
+  'sell-side analyst':["strong buy. it's always strong buy.","raising my target to whatever it is now","initiating coverage: bullish","i've never issued a sell in my life","the thesis is intact","reiterating, obviously","the fundamentals support whatever just happened","i'll revise upward after it moves","my model has one input and it's vibes","conviction: high. accuracy: pending."],
+  'etf boomer':["in my day we had settlement periods","just buy the index","i don't understand any of this and i'm up","back then a burn was a fire","what's a moloch","my broker was a man named gerald","i still print my statements","diversify, they said, so i bought two","this is just a mutual fund with extra steps","i've seen four of these cycles"],
+  'market maker':["i'm on both sides of you","the spread IS the business","you're welcome for the liquidity","i don't have a view, i have inventory","i quote, therefore i am","someone has to be there","i get paid whichever way you're wrong","flat by close, always","your urgency is my margin","i'm not against you, i'm just opposite you"],
+  'options degen':["weeklies. obviously.","theta is a made-up problem","assignment is a state of mind","i'm not gambling, i'm expressing a view","zero days to expiry, infinite conviction","the greeks work for me now","i only need to be right once","max pain is a suggestion","i sized it so it matters","defined risk, undefined judgement"],
+  'cold caller':["got five minutes to talk about $FLOOR?","leaving a voicemail for the void","no is just a slow yes","i have your number, i have all the numbers","circling back on that","just following up!","per my last message","i'll try you again after lunch","the list doesn't call itself","one yes in fifty and i eat"],
+  'chart intern':["it's a cup and handle, trust me","i drew a line and it went up","this candle has a story","the fibonacci says soon","that's a bull flag if you squint","i have SEVEN indicators","the pattern completes tomorrow, probably","support becomes resistance, spiritually","i redrew the trendline and now it works","volume confirms it. some volume. a volume."],
+  'junior broker':["i'll have to ask my boss","still on probation","i just do what the screen says","is this normal? is any of this normal?","i'm learning so much","nobody told me about the bull","i said yes before i understood the question","everyone here seems very confident","my first week was the halving","i'm mostly here to watch"],
+  'retail analyst':["i actually read the docs","buying the dip. the whole dip.","i'm early, not wrong","i did my own research and it took hours","conviction is free","i'll be right eventually","i've read the tokenomics twice","averaging down is just believing","i understand this better than my job","i'm not selling, so it isn't a loss"],
 };
 /* Grounded in the actual game — alpha, emissions, bandwidth, seats, the burn, the
    halving. Generic office gags ("who moved my chair") were funny-for-its-own-sake and
@@ -1047,29 +1050,60 @@ const GENERAL=[
   "everything in this building is priced in FLOOR",
   "there's a bull in the wall and we all just work here",
   "the floor never closes, it just changes shift",
+  "my whole strategy is: don't stop",
+  "the pool doesn't get bigger, only your share does",
+  "i measure my life in alpha per day now",
+  "bandwidth is the real constraint, nobody believes me",
+  "you don't beat emissions, you just take more of them",
+  "the desk pays whether i'm here or not — i'm here anyway",
+  "everyone's yield is everyone else's problem",
+  "seat it, forget it, collect it",
+  "i've stopped converting this to real money in my head",
+  "the burn ledger is the only honest chart",
+  "somebody founded a firm just to burn more, respect",
+  "i came for the yield and stayed for the bull",
+  "alpha compounds, doubt doesn't",
+  "half this floor is one upgrade from quitting their job",
+  "the halving is the only deadline nobody negotiates",
+  "operators don't take holidays and neither do i",
+  "the smart money left and came back twice",
+  "if you're not seated you're just watching",
+  "my alpha went up and i felt nothing, which worries me",
+  "i keep a spreadsheet nobody asked about",
+  "we all work for the same fire",
+  "there's no top signal, there's just the leaderboard",
+  "i'd explain what i do here but you'd leave",
+  "the floor rewards patience and punishes cleverness",
+  "one more seat. always one more seat.",
+  "nobody here has ever sold at the top",
+  "the emissions clock doesn't blink",
+  "i'm long the room, basically",
+  "you can hear the supply going down if you listen",
+  "every upgrade felt expensive until the day after",
 ];
 function chatFor(p){
   const pool=[], dl=(p.dl==null?5:p.dl), rk=p.rank||999;
   pool.push(...GENERAL);
-  if(dl<=2)      pool.push("i need more desk space","this desk is a card table","kitchen-table energy","my desk has one drawer and it's empty","upgrading the second i can afford it","i'd kill for one more seat","my whole operation fits in a shoebox");
-  else if(dl<=5) pool.push("one more level and i get a window seat","saving for the upgrade","the upgrade's looking cheap right now","getting crowded over here","bandwidth's tight this week","i've outgrown this desk and it knows it");
-  else if(dl<=8) pool.push("the desk finally pays for itself","almost at the bell","room to breathe up here","i remember when this was an upgrade","the seats fill themselves now");
-  else           pool.push("bell room. i made it.","top floor — don't talk to me.","i have a view AND a bell","i ring it for no reason sometimes","eleven tiers. i counted.");
-  if(rk<=3)       pool.push("check the leaderboard, i'll wait","someone tell the whale i said hi","rank one is a lifestyle","i'm not competitive, i'm just first","the leaderboard is my diary");
-  else if(rk<=25) pool.push("top twenty-five and climbing","grinding","i can see the top from here","give me a quiet week and i'm top ten");
-  else if(rk>100) pool.push("i'm here for the vibes","still early, right?","one good week and i'm top ten","i'm building quietly","rank is a construct");
-  if(!p.handle) pool.push("should probably link my X","anon and staying that way","no name, no problems");
+  if(dl<=2)      pool.push("i need more desk space","this desk is a card table","kitchen-table energy","my desk has one drawer and it's empty","upgrading the second i can afford it","i'd kill for one more seat","my whole operation fits in a shoebox","two seats and a dream","i'm running this off a folding table, basically","every operator i want needs bandwidth i haven't got");
+  else if(dl<=5) pool.push("one more level and i get a window seat","saving for the upgrade","the upgrade's looking cheap right now","getting crowded over here","bandwidth's tight this week","i've outgrown this desk and it knows it","middle of the ladder is the worst place to stand","i can afford the operator or the seat, not both","the next tier pays for itself in a fortnight","halfway up and it's all upgrades from here");
+  else if(dl<=8) pool.push("the desk finally pays for itself","almost at the bell","room to breathe up here","i remember when this was an upgrade","the seats fill themselves now","prestige is a nice word for compound interest","i stopped counting the payback days","this tier was a fantasy six weeks ago","bandwidth's not the problem any more");
+  else           pool.push("bell room. i made it.","top floor — don't talk to me.","i have a view AND a bell","i ring it for no reason sometimes","eleven tiers. i counted.","there is nothing left to upgrade and i hate it","from up here the burn looks small","i built this desk one collect at a time","the prestige multiplier does the talking now");
+  if(rk<=3)       pool.push("check the leaderboard, i'll wait","someone tell the whale i said hi","rank one is a lifestyle","i'm not competitive, i'm just first","the leaderboard is my diary","being caught is the only thing i think about","i got here early and never sat down","everyone below me is a rounding error, affectionately");
+  else if(rk<=25) pool.push("top twenty-five and climbing","grinding","i can see the top from here","give me a quiet week and i'm top ten","close enough to smell it","the top ten aren't smarter, they're earlier","one upgrade from the front page");
+  else if(rk<=100)pool.push("middle of the table, quietly compounding","nobody's watching me and that's the advantage","top hundred, working on the rest","i'll be dangerous in a month");
+  else            pool.push("i'm here for the vibes","still early, right?","one good week and i'm top ten","i'm building quietly","rank is a construct","i started late and i'm making peace with it","everyone on that leaderboard started here");
+  if(!p.handle) pool.push("should probably link my X","anon and staying that way","no name, no problems","i'd rather the wallet spoke for me");
   /* pertinent to the CLOCK — there's a real day cycle now */
   const hr=dayT*24;
-  if(hr<5)       pool.push("who else is still here","3am and the bull's still hungry","night shift pays the same","i'll sleep after the halving");
-  else if(hr<9)  pool.push("sun's up and i never left","first coffee of the day","morning. allegedly.");
-  else if(hr<17) pool.push("busiest part of the day","the floor's loud today","lunch is a rumour");
-  else           pool.push("staying late again","the lights are prettier at night","one more collect then home");
+  if(hr<5)       pool.push("who else is still here","3am and the bull's still hungry","night shift pays the same","i'll sleep after the halving","the emissions don't know it's late","nobody collects at this hour except us");
+  else if(hr<9)  pool.push("sun's up and i never left","first coffee of the day","morning. allegedly.","overnight yield is the sweetest yield","the floor looks honest in daylight");
+  else if(hr<17) pool.push("busiest part of the day","the floor's loud today","lunch is a rumour","everyone's collecting at once again","peak hours, peak noise");
+  else           pool.push("staying late again","the lights are prettier at night","one more collect then home","the city's on and so am i","evening shift, same alpha");
   /* pertinent to the WEATHER */
-  if(wxr>.45) pool.push("raining again","good day to stay inside and compound","the glass is doing that thing again","storm out, fire in");
+  if(wxr>.45) pool.push("raining again","good day to stay inside and compound","the glass is doing that thing again","storm out, fire in","nobody's leaving early in this","the rain makes the fire louder somehow");
   /* pertinent to the MARKET */
-  if(tk.burned)  pool.push("supply's down again","that's another few thousand gone forever","the burn ledger only goes one way");
-  if(tk.price)   pool.push("price is price","i don't check the price. i check it constantly.");
+  if(tk.burned)  pool.push("supply's down again","that's another few thousand gone forever","the burn ledger only goes one way","more has burned than exists, think about that","every offering is somebody's upgrade");
+  if(tk.price)   pool.push("price is price","i don't check the price. i check it constantly.","the price is a distraction from the alpha","i've stopped reacting to green candles");
   /* pertinent to the HALVING — the one deadline everyone here shares */
   if(tk.halveAt){
     const days=(tk.halveAt-Date.now())/86400000;
@@ -1077,12 +1111,18 @@ function chatFor(p){
     else if(days<10) pool.push("halving's coming up faster than i'd like","clock's ticking on this rate");
     else             pool.push("emissions are rich right now","plenty of epoch left");
   }
+  /* ⚠ Operator lines used to be pushed 3x to make the voice come through, but that
+     put ~30% of the weight on ~6 strings, so those few lines kept coming back and the
+     whole thing felt repetitive. Weight 1x — the voice still lands because the pool
+     draws from one operator, and there are 10 of them each now. */
   const ol=OPLINE[String(p.op||'').toLowerCase()];
-  if(ol) pool.push(...ol,...ol,...ol);              // weight the operator's own voice heavily
+  if(ol) pool.push(...ol);
   return freshPick(pool);
 }
-const BURN_SHOUT=["EARN AND BURN","FOR THE GOOD OF THE FIRM","TAKE IT, MOLOCH","SUPPLY GOES DOWN","FEED THE BULL","THIS ONE'S FOR THE HOLDERS","DEFLATION, BABY","GONE FOREVER — LOVE THAT","SEE YOU IN THE SUPPLY CHART","MY WIFE CANNOT KNOW ABOUT THIS","BURN IT ALL","IT'S NOT A LOSS, IT'S A RITUAL","ANOTHER DAY, ANOTHER OFFERING","EAT WELL, OLD FRIEND","THE LEDGER REMEMBERS","LESS OF IT, MORE FOR US","I DO THIS FOR THE CHART","TAKE IT BEFORE I CHANGE MY MIND","STRAIGHT INTO THE FIRE","NO REFUNDS","SCARCITY IS A CHOICE","HE'S HUNGRY TODAY","THIS IS FINE. THIS IS THE PLAN.","BURNED IT SO YOU DON'T HAVE TO","MY THERAPIST KNOWS ABOUT THIS ONE","ONE FEWER IN CIRCULATION","FOR THE BULL"];
-const COLLECT_SHOUT=["PAID","THAT'S THE GOOD STUFF","RENT COVERED","COMPOUNDING, BABY","STRAIGHT BACK IN","SEE? PASSIVE INCOME","I'LL TAKE IT","MOMMA NEEDS A NEW DESK","THE MACHINE WORKS","EVERY TEN MINUTES, FOREVER","THIS IS WHY I SIT HERE","DON'T SPEND IT ALL AT ONCE","ALPHA DOES ALPHA THINGS","IT ADDS UP, I PROMISE","BANKED","MORE WHERE THAT CAME FROM"];
+const BURN_SHOUT=["EARN AND BURN","FOR THE GOOD OF THE FIRM","TAKE IT, MOLOCH","SUPPLY GOES DOWN","FEED THE BULL","THIS ONE'S FOR THE HOLDERS","DEFLATION, BABY","GONE FOREVER — LOVE THAT","SEE YOU IN THE SUPPLY CHART","MY WIFE CANNOT KNOW ABOUT THIS","BURN IT ALL","IT'S NOT A LOSS, IT'S A RITUAL","ANOTHER DAY, ANOTHER OFFERING","EAT WELL, OLD FRIEND","THE LEDGER REMEMBERS","LESS OF IT, MORE FOR US","I DO THIS FOR THE CHART","TAKE IT BEFORE I CHANGE MY MIND","STRAIGHT INTO THE FIRE","NO REFUNDS","SCARCITY IS A CHOICE","HE'S HUNGRY TODAY","THIS IS FINE. THIS IS THE PLAN.","BURNED IT SO YOU DON'T HAVE TO","MY THERAPIST KNOWS ABOUT THIS ONE","ONE FEWER IN CIRCULATION","FOR THE BULL",
+  "SEVENTY-FIVE PERCENT, GONE","I'M NOT SPENDING, I'M REDUCING SUPPLY","THE FIRE TAKES NO IOUs","EVERY HOLDER OWES ME ONE","WATCH THE SUPPLY LINE","IN IT GOES","THAT'S SOMEBODY'S EXIT LIQUIDITY","THE BULL DOESN'T SAY THANK YOU","I'LL EARN IT BACK BY MORNING","SMALLER SUPPLY, BIGGER ME","LIGHT IT","DON'T TELL THE COMPLIANCE GUY","THIS IS THE PART I ENJOY","SUBTRACTION AS A STRATEGY","BURN NOW, BRAG LATER","THERE GOES THE WEEKEND","GOOD BOY. EAT.","NOTHING LEAVES THIS ROOM ALIVE","CHEAPER THAN THERAPY","ONE LESS FOR EVERYONE ELSE"];
+const COLLECT_SHOUT=["PAID","THAT'S THE GOOD STUFF","RENT COVERED","COMPOUNDING, BABY","STRAIGHT BACK IN","SEE? PASSIVE INCOME","I'LL TAKE IT","MOMMA NEEDS A NEW DESK","THE MACHINE WORKS","EVERY TEN MINUTES, FOREVER","THIS IS WHY I SIT HERE","DON'T SPEND IT ALL AT ONCE","ALPHA DOES ALPHA THINGS","IT ADDS UP, I PROMISE","BANKED","MORE WHERE THAT CAME FROM",
+  "THE DESK PAYS AGAIN","SLEPT THROUGH THIS ONE","THAT'S THE UPGRADE FUND","EMISSIONS, BABY","MY SHARE OF THE POOL","STRAIGHT INTO ANOTHER SEAT","NOT BAD FOR DOING NOTHING","I DIDN'T EVEN TOUCH IT","COLLECTED AND REINVESTED BEFORE YOU BLINKED","THE ALPHA REMEMBERS ME","THIS IS THE BORING PART THAT WORKS","ANOTHER BRICK IN THE DESK","PENDING NO LONGER","YIELD IS A HABIT","THE OPERATORS EARNED THIS ONE","SMALL, CONSTANT, RELENTLESS"];
 
 const bubbleEls=[];
 function ensureBubbles(){
