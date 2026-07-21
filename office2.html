@@ -32,6 +32,11 @@
   #hint{right:1.6%;bottom:4.5%;font-size:calc(var(--u)*4.5);letter-spacing:calc(var(--u)*.4);color:#5f563f;text-align:right}
   a{color:#8d7f61;text-decoration:none;pointer-events:auto}
   a:hover{color:#e6c96b}
+  /* ?embed=1 — inside the dashboard's iframe the page already provides the heading,
+     and the nav links would navigate INSIDE the box, so drop both. */
+  html.embed #title{display:none}
+  html.embed #stats{top:6%}
+  html.embed #hint a{display:none}
 
   /* ---- firm panel: opens on a DESK CLICK. Always-on plates floating over every
          desk buried the room, so firm identity now lives behind a click. ---- */
@@ -232,6 +237,7 @@ const _now=new Date();
 let dayT=((_now.getHours()+_now.getMinutes()/60)/24)%1; // start at the viewer's real local hour
 const _q=new URLSearchParams(location.search);          // ?t=0.5 forces the start time (0=midnight, .5=noon)
 if(_q.has('t')) dayT=Math.max(0,Math.min(.999,parseFloat(_q.get('t'))||0));
+if(_q.has('embed')) document.documentElement.classList.add('embed');
 let dayl=0, skyBucket=-1;
 
 const SKYK=[

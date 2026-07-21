@@ -312,6 +312,9 @@ a.rst-nm:hover{color:var(--brass-light);text-decoration:underline}
 @media(prefers-reduced-motion:reduce){html:not(.motion-live) .op .fig,html:not(.motion-live) .op.busy .fig{animation:none}html:not(.motion-live) .op.busy .pop{animation:none}}
 /* ---- the office scene (living diorama) ---- */
 .scene-wrap{position:relative;width:100%;aspect-ratio:1150/430;overflow:hidden;border:2px solid var(--brass-dark);border-radius:12px;background:#0e0a06;box-shadow:var(--shadow-lg)}
+/* embedded live diorama (office2) — 480x270 source, so 16:9 */
+.scene-embed{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border:2px solid var(--brass-dark);border-radius:12px;background:#05060b;box-shadow:var(--shadow-lg)}
+.scene-embed iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
 .pip-btn{margin-left:auto;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted-cream);background:#0e0b08;border:1px solid #2a2318;border-radius:5px;padding:6px 10px;cursor:pointer;white-space:nowrap}
 .pip-btn:hover{color:var(--brass-light);border-color:var(--brass-dark)}
 .pipdock{position:fixed;right:16px;bottom:16px;z-index:9998;width:min(360px,88vw);background:#0d0b08;border:1px solid var(--brass-dark);border-radius:11px;box-shadow:0 18px 48px rgba(0,0,0,.65);overflow:hidden;touch-action:none}
@@ -688,10 +691,21 @@ try{ if(localStorage.getItem('floor.motion')!=='still') document.documentElement
       <img src="assets/icon-office.svg" alt="" onerror="this.style.display='none'" />
       <h2>The Office</h2>
       <span class="sub label" id="officeSub">every wallet, working the floor</span>
-      <button class="pip-btn" id="motionBtn" style="margin-left:auto"></button>
-      <button class="pip-btn" id="pipBtn" style="margin-left:8px" title="Pop the floor into a floating player">⧉ Pop out</button>
-      <a class="pip-btn" href="/office2" style="margin-left:8px;text-decoration:none" title="A live pixel diorama of the floor, with Moloch">🔥 Live Floor</a>
+      <a class="pip-btn" href="/office2" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none" title="Open the floor full-screen">⛶ Full screen</a>
+      <!-- kept (hidden) on purpose: the old scene's JS attaches to both, and a null
+           getElementById here would throw and take the whole inline script with it -->
+      <span hidden><button class="pip-btn" id="motionBtn"></button><button class="pip-btn" id="pipBtn">⧉ Pop out</button></span>
     </div>
+
+    <!-- The live pixel diorama, embedded. It replaces the old SVG scene, which is kept
+         hidden below rather than deleted: its engine (SCENE/PV/PiP/sceneCast) is wired
+         through ~60 call sites in this file, so removing the DOM outright would
+         null-reference them and silently kill the whole inline script. -->
+    <div class="scene-embed">
+      <iframe src="/office2?embed=1" title="The Floor — live diorama" loading="eager"></iframe>
+    </div>
+
+    <div id="oldScene" hidden aria-hidden="true">
     <div id="officeScene" class="scene-wrap">
       <div id="sceneRoot" class="scene-root">
         <svg id="sceneBg" viewBox="0 0 1150 430" preserveAspectRatio="none" aria-hidden="true">
@@ -837,7 +851,8 @@ try{ if(localStorage.getItem('floor.motion')!=='still') document.documentElement
         <div id="sceneFx"></div>
       </div>
     </div>
-    <p class="note" style="margin-top:10px">A live diorama of the floor. The top desks belong to the biggest alpha holders; everyone else walks in when the chain says they did something — collecting at the terminal, burning at the incinerator, new hires stepping off the elevator. Click any operator for their stat card.</p>
+    </div><!-- /#oldScene -->
+    <p class="note" style="margin-top:10px">A live diorama of the floor, running a full day every six minutes. The seven desks are the seven firms in this week's championship — click one for its standings. Everyone walking around is a real wallet wearing its highest operator; click anyone for their card. They collect at the terminal and carry offerings to Moloch when the chain says they did.</p>
   </section>
 
   <!-- HISTORICAL TRENDS -->
