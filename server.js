@@ -1068,9 +1068,15 @@ async function refreshLiveActions() {
     if (!lastLiveBlock) {
       // boot prefill: one full-range read (proven cheap), keep the newest 60
       const [gl, fl] = [await ethGetLogs({ address: GAME_CONTRACT }), await ethGetLogs({ address: FIRM_CONTRACT, topics: [TOPIC_FIRM_CONTRIB] })];
+      // ⚠ FAIL CLOSED. ethGetLogs returns null when it gives up, and the GAME read is the
+      // expensive one (~3.1k events) so it is the one that throttles on Railway egress.
+      // Committing a partial prefill poisoned the feed permanently: `all` became firm
+      // burns ONLY, and setting lastLiveBlock meant this branch never ran again — the
+      // office then replayed nothing but burns until the container restarted.
+      if (gl === null || fl === null) throw new Error('prefill incomplete (game=' + (gl === null ? 'FAIL' : gl.length) + ' firm=' + (fl === null ? 'FAIL' : fl.length) + ') — not committing');
       const all = [];
-      (gl || []).forEach(l => { const d = decodeLive(l, false); if (d && d.a) all.push(d); });
-      (fl || []).forEach(l => { const d = decodeLive(l, true); if (d && d.a) all.push(d); });
+      gl.forEach(l => { const d = decodeLive(l, false); if (d && d.a) all.push(d); });
+      fl.forEach(l => { const d = decodeLive(l, true); if (d && d.a) all.push(d); });
       all.sort((x, y) => y.blk - x.blk);
       liveActions = all.slice(0, 60);
       lastLiveBlock = latest;
@@ -1078,7 +1084,9 @@ async function refreshLiveActions() {
     } else if (latest > lastLiveBlock) {
       const from = '0x' + (lastLiveBlock + 1).toString(16);
       const [gl, fl] = [await ethGetLogs({ address: GAME_CONTRACT, fromBlock: from }), await ethGetLogs({ address: FIRM_CONTRACT, topics: [TOPIC_FIRM_CONTRIB], fromBlock: from })];
-      if (gl === null && fl === null) throw new Error('logs unavailable');
+      // Same reasoning: a partial read here would append burns only AND advance
+      // lastLiveBlock past the window, losing those game actions for good. Retry instead.
+      if (gl === null || fl === null) throw new Error('logs partial (game=' + (gl === null ? 'FAIL' : gl.length) + ' firm=' + (fl === null ? 'FAIL' : fl.length) + ') — window will be retried');
       const fresh = [];
       (gl || []).forEach(l => { const d = decodeLive(l, false); if (d && d.a) fresh.push(d); });
       (fl || []).forEach(l => { const d = decodeLive(l, true); if (d && d.a) fresh.push(d); });

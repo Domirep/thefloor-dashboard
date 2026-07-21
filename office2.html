@@ -1768,10 +1768,31 @@ async function poll(){
    old) and first-load seeds every known action as `seen` — so on live events alone
    the floor just wanders and NOBODY ever walks to Moloch. Replay a recent REAL
    action on a timer, staged softer, so the ritual is always visible. */
+/* Replays used to draw uniformly from the newest 24 actions with no memory, so the
+   same one looped — and since only ~2 of those 24 are burns, every offering showed the
+   SAME amount over and over (Christi saw 15,000 repeatedly). Now: pick a KIND first so
+   the floor isn't two-thirds collects, then a specific action of that kind that hasn't
+   been replayed recently, drawing from the whole 60-action window. */
+const replayed=[];
+const actKey=a=>(a.t||'')+':'+(a.a||'')+':'+(a.amt||0)+':'+(a.blk||0);
+function remember(a){ replayed.push(actKey(a)); if(replayed.length>20) replayed.shift(); return a; }
+function pickReplay(){
+  const pool=recentActions;
+  if(!pool.length) return null;
+  const kinds=[...new Set(pool.map(a=>a.t))];
+  for(let i=0;i<24;i++){
+    const k=kinds[RI(0,kinds.length-1)];
+    const fresh=pool.filter(a=>a.t===k && replayed.indexOf(actKey(a))<0);
+    if(fresh.length) return remember(fresh[RI(0,fresh.length-1)]);
+  }
+  const any=pool.filter(a=>replayed.indexOf(actKey(a))<0);
+  return remember(any.length?any[RI(0,any.length-1)]:pool[RI(0,pool.length-1)]);
+}
 setInterval(()=>{
   if(evq.length || !recentActions.length) return;
   if(workers.some(w=>w.busy)) return;
-  playAction(recentActions[RI(0,Math.min(recentActions.length,24)-1)], true);
+  const a=pickReplay();
+  if(a) playAction(a,true);
 },7000);
 
 /* Lift traffic on its own clock — people come and go regardless of what the chain
