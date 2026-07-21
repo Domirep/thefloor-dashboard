@@ -847,8 +847,9 @@ setInterval(refreshFirmComp, 300000);         // every 5 min
 // Credit discipline: ~250 wallets in ONE execution, four times a day. Per-wallet lookups would be
 // hundreds of executions and blow the free tier immediately.
 const DUNE_KEY = process.env.DUNE_API_KEY || '';
-const DUNE_QUERY_ID = (process.env.DUNE_PNL_QUERY_ID || '').trim();
+let DUNE_QUERY_ID = (process.env.DUNE_PNL_QUERY_ID || '').trim();
 const DUNE_FILE = path.join(DATA_DIR, 'freeagent-pnl.json');
+const DUNE_QID_FILE = path.join(DATA_DIR, 'dune-query-id.json');
 const DUNE_MAX_WALLETS = 400;                 // guard: keeps the parameter (and the scan) bounded
 let agentPnl = {}, agentPnlAt = 0, agentPnlBusy = false, agentPnlWindow = null;
 try {
@@ -875,6 +876,55 @@ async function duneFetch(url, init, tries = 3) {
   throw new Error('dune fetch failed ' + url);
 }
 
+/* The SQL, kept here so the query is version-controlled rather than living only in someone's
+   Dune account. Metric is NET CASH EXTRACTED: a swap trades equal USD value both ways, so profit
+   never shows in one trade, only in cash flow — USD received selling into a cash asset minus USD
+   spent buying with one. For a wallet that round-trips inside the window that IS realized profit;
+   still-holding wallets read negative, matching the game's own "close a trade to book it" rule. */
+const DUNE_PNL_SQL = `
+WITH agents AS (
+    SELECT lower(trim(w)) AS wallet FROM UNNEST(split('{{wallets}}', ',')) AS t(w)
+),
+cash(symbol) AS (
+    VALUES ('WETH'),('USDC'),('USDT'),('DAI'),('USDS'),('WBTC')
+),
+t AS (
+    SELECT d.taker AS wallet, d.amount_usd, d.token_bought_symbol, d.token_sold_symbol
+    FROM dex.trades d
+    JOIN agents a ON a.wallet = lower(CAST(d.taker AS varchar))
+    WHERE d.blockchain = 'robinhood'
+      AND d.block_date >= DATE '{{week_start}}'
+      AND d.amount_usd IS NOT NULL
+)
+SELECT wallet,
+  COUNT(*) AS trades,
+  ROUND(SUM(CASE WHEN token_bought_symbol IN (SELECT symbol FROM cash) THEN amount_usd ELSE 0 END), 2) AS cash_in_usd,
+  ROUND(SUM(CASE WHEN token_sold_symbol   IN (SELECT symbol FROM cash) THEN amount_usd ELSE 0 END), 2) AS cash_out_usd,
+  ROUND(SUM(CASE WHEN token_bought_symbol IN (SELECT symbol FROM cash) THEN amount_usd ELSE 0 END)
+      - SUM(CASE WHEN token_sold_symbol   IN (SELECT symbol FROM cash) THEN amount_usd ELSE 0 END), 2) AS net_usd,
+  ROUND(SUM(amount_usd), 2) AS volume_usd
+FROM t GROUP BY wallet ORDER BY net_usd DESC`;
+
+/* Self-provision the saved query so the only thing anyone has to set is the API key. Dune's
+   query-CRUD endpoints are not on every plan — if creation is refused we say exactly what to do
+   by hand rather than failing silently. The id is cached on the volume so we create it once. */
+async function duneEnsureQuery() {
+  if (DUNE_QUERY_ID) return DUNE_QUERY_ID;
+  try { const p = JSON.parse(fs.readFileSync(DUNE_QID_FILE, 'utf8')); if (p && p.id) { DUNE_QUERY_ID = String(p.id); return DUNE_QUERY_ID; } } catch (_) {}
+  const made = await duneFetch('https://api.dune.com/api/v1/query', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'thefloor-dashboard — free-agent weekly PnL', is_private: true,
+      query_sql: DUNE_PNL_SQL,
+      parameters: [ { key: 'wallets', type: 'text', value: '0x0000000000000000000000000000000000000000' },
+                    { key: 'week_start', type: 'text', value: '2026-01-01' } ] }) });
+  const id = made && (made.query_id || made.id);
+  if (!id) throw new Error('query create returned no id');
+  DUNE_QUERY_ID = String(id);
+  fs.writeFile(DUNE_QID_FILE, JSON.stringify({ id: DUNE_QUERY_ID, at: Date.now() }), () => {});
+  console.log('DUNE created query ' + DUNE_QUERY_ID + ' (cached on volume)');
+  return DUNE_QUERY_ID;
+}
+
 // Current competition window, Mon 00:00 -> Fri 23:59 ET, as UTC dates. Mirrors the window the
 // firm competition scores on so a free agent's number is comparable to a firm's.
 function compWeekStartUtc() {
@@ -885,11 +935,17 @@ function compWeekStartUtc() {
 }
 
 async function refreshAgentPnl() {
-  if (!DUNE_KEY || !DUNE_QUERY_ID || agentPnlBusy) return;
+  if (!DUNE_KEY || agentPnlBusy) return;
   const lb = leaderboard && leaderboard.byAlpha;
   if (!lb || !lb.length) return;                                // nothing to ask about yet
   agentPnlBusy = true;
   try {
+    try { await duneEnsureQuery(); }
+    catch (e) {
+      console.log('DUNE cannot auto-create the query (' + e.message + ').');
+      console.log('  -> save the SQL as a Dune query by hand, then set DUNE_PNL_QUERY_ID to its numeric id.');
+      return;
+    }
     const fba = (firms && firms.firmByAddr) || {};
     const wallets = lb.filter(r => r.a && !(fba[r.a] || fba[r.a.toLowerCase()]))
       .map(r => r.a.toLowerCase()).slice(0, DUNE_MAX_WALLETS);
@@ -929,11 +985,11 @@ async function refreshAgentPnl() {
   } catch (e) { console.log('dune pnl refresh failed (keeping last good): ' + e.message); }
   finally { agentPnlBusy = false; }
 }
-if (DUNE_KEY && DUNE_QUERY_ID) {
+if (DUNE_KEY) {
   setTimeout(refreshAgentPnl, 90000);         // after the leaderboard has had a chance to build
   setInterval(refreshAgentPnl, 21600000);     // 4x/day — the window only matters at Friday's close
 } else {
-  console.log('DUNE idle: set DUNE_API_KEY + DUNE_PNL_QUERY_ID to enable free-agent PnL');
+  console.log('DUNE idle: set DUNE_API_KEY to enable free-agent PnL (query id is optional — it self-provisions)');
 }
 
 // ---- leaderboards: rank-by-alpha (feeds report rank + office) + the Recruiter Race (cached ~30 min) ----
