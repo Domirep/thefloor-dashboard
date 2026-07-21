@@ -173,7 +173,9 @@ const RI=(a,b)=>Math.floor(rnd(a,b+1));
 const FLOOR_Y=186;              // where the back wall meets the floor
 const LANE=[204,236];           // feet Y for back / front lanes
 const MOL={x:326,y:22,w:154,h:210};   // Moloch's alcove
-const ELEV={x:10,y:120,w:40,h:66};
+/* Doorway reaches DOWN to the back lane (LANE[0]=204) so people can actually walk
+   out of it. It used to float at y120-186, well above the floor everyone walks on. */
+const ELEV={x:8,y:146,w:42,h:58};
 const TERM={x:150,y:150,w:44,h:36};
 /* Ticker baseline. The barrel warp samples inward at the edges, so anything above
    y~10 gets pushed off the top of the frame (y=5 rendered half-clipped). x1 stops
@@ -252,15 +254,17 @@ function paintStatic(){
   // brass inlay strip
   R(0,FLOOR_Y+1,W,1,P.brassD); R(0,FLOOR_Y+2,W,1,'rgba(201,162,39,.25)');
 
-  /* --- elevator (left) --- */
+  /* --- elevator (left). Only the SHAFT + surround are baked; the doors are drawn
+         per-frame AFTER the actors so a rider is hidden until they slide open. --- */
   const E=ELEV;
-  R(E.x-3,E.y-4,E.w+6,E.h+4,P.wallD);
-  R(E.x-3,E.y-4,E.w+6,3,P.trim);
-  R(E.x,E.y,E.w,E.h,'#1a1209');
-  R(E.x+1,E.y+1,E.w-2,E.h-2,'#2a1d10');
-  R(E.x+E.w/2-1,E.y+1,2,E.h-2,'#120c06');       // door split
-  R(E.x,E.y-4,E.w,2,P.brass);
-  for(let i=0;i<5;i++) R(E.x+6+i*7,E.y-9,4,3,i===2?P.brassL:P.brassD);   // floor indicator
+  R(E.x-5,E.y-8,E.w+10,E.h+10,P.wallD);
+  R(E.x-5,E.y-8,E.w+10,3,P.trim);
+  R(E.x-3,E.y-3,E.w+6,E.h+4,'#0c0906');                  // recess
+  R(E.x,E.y,E.w,E.h,'#170f08');                          // shaft interior
+  for(let yy=E.y;yy<E.y+E.h;yy+=6) R(E.x+2,yy,E.w-4,1,'rgba(255,214,140,.05)');
+  R(E.x-3,E.y+E.h-2,E.w+6,2,P.brassD);                   // threshold
+  R(E.x-5,E.y-14,E.w+10,3,P.brassD);                     // indicator housing
+  R(E.x-5,E.y-14,E.w+10,1,P.brass);
 
   paintProps();
 }
@@ -506,6 +510,7 @@ class Worker{
     this.prop=Math.random()<.5?'mug':'paper';      // what they hold while working
     this.player=null; this.op=null; this.label=''; this.size=20;    // filled in by castRoster()
     this.act=null; this.wind=0;                     // act = x of what they're facing/working; wind = throw wind-up
+    this.riding=null;                               // set when they step into the lift; fades them out
   }
   goto(tx,lane,then){ this.tx=tx; this.tlane=lane; this.state='walk'; this.then=then; }
   update(dt){
@@ -524,6 +529,8 @@ class Worker{
         else this.goto(Math.max(56,Math.min(300,this.x+rnd(-70,70))), Math.random()<.35?1-this.lane:this.lane);
       }
     }
+    if(this.riding!=null) this.riding+=dt*1.4;
+    if(this.exiting && this.x>ELEV.x+ELEV.w+5) this.exiting=false;   // clear of the doorway
     this.frame=Math.floor(this.fa)%4;
   }
   /* The figure IS the player's highest operator — the game's own pixel-art bust,
@@ -539,6 +546,7 @@ class Worker{
     const fdir=(this.act!=null) ? (this.act>this.x?1:-1) : d;
     const lean=this.wind ? -3*fdir : (this.act!=null ? fdir : 0);
     const yy=y-bob, S=this.size, bx=x-(S>>1)+lean, by=yy-6-S;
+    if(this.riding!=null) ctx.globalAlpha=Math.max(0,1-this.riding);
 
     // soft contact shadow (two rects = a squashed ellipse)
     ctx.fillStyle='rgba(0,0,0,.32)'; ctx.fillRect(x-7,y-1,14,2); ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(x-8,y,16,1);
@@ -569,6 +577,7 @@ class Worker{
       r(ctx,cxp,cyp,7,7,P.bronzeK); r(ctx,cxp+1,cyp+1,5,5,P.brass);
       r(ctx,cxp+1,cyp+1,5,1,P.brassL); r(ctx,cxp+2,cyp+2,1,1,'#fff2c8');
     }
+    ctx.globalAlpha=1;
   }
 }
 const workers=[]; for(let i=0;i<9;i++) workers.push(new Worker(i, i===0));   // 9 keeps the floor busy without crowding
@@ -606,7 +615,7 @@ function drawParts(ctx){
 }
 
 /* ============================ CAMERA + STATE ============================ */
-let T=0, shake=0, mawHeat=0, roomSurge=0, molochWake=.35;
+let T=0, shake=0, mawHeat=0, roomSurge=0, molochWake=.35, coolerUse=0;
 // ---- weather: rain on the deco glass + occasional lightning over the city ----
 const WIN_BANDS=[0,1,2,3,4].map(i=>({x0:24+i*66,x1:24+i*66+42}));
 const inWindow=x=>WIN_BANDS.some(b=>x>=b.x0&&x<=b.x1);
@@ -639,7 +648,8 @@ function drawClockHands(ctx){
 }
 function drawCoolerBubbles(ctx){
   const cx=COOL.x, cb=COOL.y;
-  for(let i=0;i<2;i++){
+  const n=coolerUse>0?5:2;                         // glugs harder while someone is drinking
+  for(let i=0;i<n;i++){
     const ph=((T*0.00045)+i*0.53)%1;
     if(ph<0.06) continue;
     const bx=cx+3+((i+((T*0.001|0)%3))%4);
@@ -742,21 +752,8 @@ function opImage(name){
 const shortAddr=a=>{ const s=String(a||''); return s.length>=6?('0X'+s.slice(-4)).toUpperCase():s.toUpperCase(); };
 function actorLabel(p){ return p ? (p.handle ? '@'+p.handle.toUpperCase() : shortAddr(p.a)) : ''; }
 
-/* Plates collide badly once a dozen actors bunch up — the first pass turned the
-   middle of the room into an unreadable smear of hex. So cap how many draw, put
-   the X-linked wallets first, and skip any plate overlapping one already placed. */
-let labelRects=[];
-function drawLabel(ctx,txt,cxp,ty,col){
-  const wpx=txt.length*4-1, x0=Math.round(cxp-wpx/2);
-  const q0={x:x0-3,y:ty-3,w:wpx+6,h:11};
-  for(const q of labelRects) if(q0.x<q.x+q.w && q.x<q0.x+q0.w && q0.y<q.y+q.h && q.y<q0.y+q0.h) return false;
-  labelRects.push(q0);
-  r(ctx,x0-2,ty-2,wpx+4,9,'rgba(6,5,9,.78)');
-  r(ctx,x0-2,ty-2,wpx+4,1,'rgba(201,162,39,.26)');
-  for(let i=0;i<txt.length;i++) glyph(ctx,txt[i],x0+i*4,ty,col);
-  return true;
-}
-/* Identity plates are DOM now: crisp type, and CLICKABLE for the player card. */
+/* Identity plates are DOM now: crisp type, and CLICKABLE for the player card.
+   (The old canvas drawLabel/labelRects pair went with the pixel-font version.) */
 const LABEL_CAP=6, plateEls=[];
 function ensurePlates(){
   while(plateEls.length<workers.length){
@@ -945,7 +942,10 @@ function frame(dt){
   mawHeat=Math.max(0,mawHeat-dt*1.1);
   roomSurge=Math.max(0,roomSurge-dt*1.3);
   termFlash=Math.max(0,termFlash-dt*1.6);
-  elevOpen=Math.max(0,elevOpen-dt*.5);
+  elevOpen = workers.some(w=>w.leaving||w.exiting) ? 1 : Math.max(0,elevOpen-dt*.55);
+  elevDing=Math.max(0,elevDing-dt*1.6);
+  elevCall=Math.max(0,elevCall-dt);
+  coolerUse=Math.max(0,coolerUse-dt*.35);
   shake*=Math.pow(.0016,dt);
   molochWake=Math.max(.3,molochWake-dt*.004);
   updParts(dt); updFloats(dt); updFlies(dt);
@@ -1029,14 +1029,9 @@ function frame(dt){
   for(let i=0;i<5;i++) r(g,TERM.x+5,TERM.y+5+i*4,RI(6,TERM.w-10),1,P.crt);
   r(g,TERM.x+3,TERM.y+TERM.h-7,TERM.w-6,4,P.brassD);
 
-  // elevator doors
-  const eo=Math.round(elevOpen*(ELEV.w/2-2));
-  r(g,ELEV.x,ELEV.y,ELEV.w/2-eo,ELEV.h,'#2a1d10');
-  r(g,ELEV.x+ELEV.w/2+eo,ELEV.y,ELEV.w/2-eo,ELEV.h,'#2a1d10');
-  if(elevOpen>.05) r(g,ELEV.x+ELEV.w/2-eo,ELEV.y,eo*2,ELEV.h,'#c9a227');
-
   // y-sorted actors
   workers.slice().sort((a,b)=>a.y-b.y).forEach(w=>w.draw(g));
+  drawElevator(g);                                         // doors OVER the actors, so riders are hidden inside
   updatePlates();                                          // DOM identity plates, capped + collision-skipped
   drawFlies(g);                                            // the thrown offering / paid-out coins
   drawFloats(g);                                           // rising -N / +N FLOOR numbers
@@ -1199,7 +1194,7 @@ function offering(amount,quiet){
     },760);
   });
 }
-let termFlash=0, elevOpen=0;
+let termFlash=0, elevOpen=0, elevDing=0, elevCall=0;
 /* Stand at the console, FACE it, and let it pay out coin by coin into their hands. */
 function toTerminal(amount,quiet){
   const w=freeWorker(); if(!w) return;
@@ -1220,13 +1215,59 @@ function toTerminal(amount,quiet){
     setTimeout(()=>{ w.act=null; w.goto(rnd(70,290),RI(0,1),()=>{w.busy=false;}); },1800);
   });
 }
-function arrival(){
-  elevOpen=1; kick(1.1);
-  const w=new Worker(workers.length); w.x=ELEV.x+ELEV.w/2; w.y=LANE[0]; w.lane=0;
-  if(roster.length) castPlayer(w, roster[RI(0,roster.length-1)]);   // whoever just stepped off the lift is a real wallet too
-  workers.push(w); if(workers.length>16){ workers.shift(); }
-  w.goto(rnd(80,280),RI(0,1));
+/* ---------------------------------------------------------------------------
+   THE LIFT. Previously arrivals only fired on a `newdesk` event — 1 of 60 actions
+   in the feed — so in practice nobody ever came up, and over-cap workers were just
+   deleted mid-floor with no exit. Now it runs its own traffic: the car is called,
+   the indicator chases, it dings, the doors part, someone walks out (or steps in
+   and rides away), and the doors shut.
+   --------------------------------------------------------------------------- */
+const CAST_MIN=7, CAST_MAX=12;
+const elevMid=ELEV.x+ELEV.w/2;
+function drawElevator(ctx){
+  const E=ELEV, eo=Math.round(elevOpen*(E.w/2-2));
+  if(elevOpen>.04){                                    // warm spill from the car
+    ctx.fillStyle='rgba(255,206,124,'+(.20+elevOpen*.45).toFixed(2)+')';
+    ctx.fillRect(E.x+E.w/2-eo,E.y,eo*2,E.h);
+  }
+  r(ctx,E.x,E.y,E.w/2-eo,E.h,'#2a1d10');               // door panels
+  r(ctx,E.x+E.w/2+eo,E.y,E.w/2-eo,E.h,'#2a1d10');
+  r(ctx,E.x,E.y,E.w/2-eo,1,'#4a3620');
+  r(ctx,E.x+E.w/2+eo,E.y,E.w/2-eo,1,'#4a3620');
+  r(ctx,E.x+E.w/2-eo-1,E.y,1,E.h,'#0d0a06');
+  r(ctx,E.x+E.w/2+eo,E.y,1,E.h,'#0d0a06');
+  for(let i=0;i<5;i++){                                 // indicator: chases while the car moves
+    const on = elevCall>0 ? (Math.floor(T*.006+i)%5===0) : (i===2);
+    r(ctx,E.x+7+i*7,E.y-13,4,3, on?P.brassL:P.brassD);
+  }
+  if(elevDing>.02) r(ctx,E.x-5,E.y-14,E.w+10,1, elevDing>.5?'#fff2c8':P.brass);
 }
+function elevatorArrive(loud){
+  if(workers.length>=CAST_MAX || elevOpen>.1) return;
+  elevCall=0.9; elevDing=1;
+  setTimeout(()=>{
+    elevOpen=1; kick(loud?1.6:.7);
+    const w=new Worker(workers.length);
+    w.x=elevMid; w.y=LANE[0]; w.lane=0; w.dir=1;
+    w.exiting=true;                                     // holds the doors until they're clear
+    if(roster.length) castPlayer(w, roster[RI(0,roster.length-1)]);
+    workers.push(w);
+    setTimeout(()=>w.goto(rnd(80,280),RI(0,1)),260);    // step out once the doors are parted
+  },820);
+}
+function elevatorDepart(w){
+  if(!w || w.busy || elevOpen>.1) return;
+  w.busy=true; w.act=null; w.carry=null;
+  w.leaving=true; elevDing=1; elevOpen=1;               // doors part as they head over, so they
+  w.goto(elevMid,0,()=>{                                // don't walk behind a shut door and vanish
+    w.dir=-1;
+    setTimeout(()=>{
+      w.riding=0;                                       // fades out as the doors shut
+      setTimeout(()=>{ const i=workers.indexOf(w); if(i>=0) workers.splice(i,1); },760);
+    },320);
+  });
+}
+const arrival=()=>elevatorArrive(true);                 // on-chain "new desk" = a loud arrival
 
 /* ============================ SCALING ============================ */
 /* ⚠ Integer-ONLY scaling looked fine in a full-bleed 1920x1080 test render (exactly 4x)
@@ -1299,6 +1340,29 @@ setInterval(()=>{
   if(workers.some(w=>w.busy)) return;
   playAction(recentActions[RI(0,Math.min(recentActions.length,24)-1)], true);
 },7000);
+
+/* Lift traffic on its own clock — people come and go regardless of what the chain
+   is doing. Tying arrivals solely to `newdesk` events meant the lift never ran. */
+const idleWorkers=()=>workers.filter(w=>!w.busy && w.riding==null);
+setInterval(()=>{
+  if(elevOpen>.1 || elevCall>0) return;
+  const n=workers.length, pool=idleWorkers();
+  if(n<CAST_MIN) return elevatorArrive(false);
+  if(n>CAST_MAX) return elevatorDepart(pool[0]);
+  if(Math.random()<.55) elevatorArrive(false);
+  else if(pool.length>2) elevatorDepart(pool[RI(0,pool.length-1)]);
+},13000);
+
+/* Water-cooler break. The cooler was pure scenery until now. */
+setInterval(()=>{
+  if(Math.random()<.35) return;
+  const w=freeWorker(); if(!w) return;
+  w.busy=true;
+  w.goto(COOL.x+15,0,()=>{
+    w.act=COOL.x+4; w.dir=-1; w.state='work'; w.t=2.6; coolerUse=1;
+    setTimeout(()=>{ w.act=null; w.goto(rnd(70,290),RI(0,1),()=>{ w.busy=false; }); },2800);
+  });
+},19000);
 async function stats(){
   try{
     const j=await (await fetch('/api/token-stats',{cache:'no-store'})).json();
