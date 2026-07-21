@@ -2996,12 +2996,14 @@ http.createServer(async (req, res) => {
   if (p === '/api' || p.startsWith('/api/') || p === '/mcp' || p === '/llms.txt') cors(res);
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  // Human-readable capability doc. Served from the repo file so it cannot drift from what shipped,
-  // and served from here rather than linked to GitHub so it is correct the moment it deploys.
-  if (p === '/mcp.md') {
+  // Human-readable capability docs. Served from the repo files so they cannot drift from what
+  // shipped, and served from here rather than linked to GitHub so they are correct the moment they
+  // deploy. /stonkbrokers.md is the broker-only doc — it stands alone, on purpose.
+  if (p === '/mcp.md' || p === '/stonkbrokers.md') {
+    const file = p === '/mcp.md' ? 'MCP.md' : 'STONKBROKERS.md';
     let md = null;
-    try { md = fs.readFileSync(path.join(__dirname, 'MCP.md'), 'utf8'); } catch (_) {}
-    if (!md) { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('MCP.md not found'); return; }
+    try { md = fs.readFileSync(path.join(__dirname, file), 'utf8'); } catch (_) {}
+    if (!md) { res.writeHead(404, { 'content-type': 'text/plain' }); res.end(file + ' not found'); return; }
     res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8', 'cache-control': 'public, max-age=600' });
     res.end(md); return;
   }
@@ -3050,24 +3052,33 @@ ${base}/mcp
 
 # Cursor (mcp.json)
 { "mcpServers": { "the-floor": { "url": "${base}/mcp" } } }</pre>
-<h2 style="color:#d4af5a;font-size:16px;margin-top:30px">▸ StonkBrokers <span style="font-size:10px;letter-spacing:1px;color:#0c0906;background:#d4af5a;padding:2px 7px;border-radius:3px;vertical-align:2px">NEW</span></h2>
-<p>Clutch Markets' <b>4,444 ERC-6551 broker NFTs</b> — each owns a real on-chain wallet seeded with a
-tokenized stock (AAPL/AMZN/NVDA) that earns stock-dividend drops roughly every 10 minutes. The MCP
-reads <b>any broker</b> — wallet holdings + USD value, dividends received, activation tier, and a
-contents leaderboard — and prepares actions: <b>activate</b> a broker, or make its own 6551 wallet
-<b>open (and collect) a desk on The Floor</b>. That desk lives inside the NFT and travels with it on
-sale. <b>Reads work on any broker; writes only on a broker your wallet owns</b> — the write tools
-require the signer to be the broker's on-chain owner (its 6551 <code>executeCall</code> is
-owner-gated), so an agent can only act on a broker it controls, never someone else's. Broker writes
-are <b>verification-gated</b>: no calldata unless ownership, activation, and on-chain state all
-check out.</p>
-<p style="font-size:13px;color:#b3a88f">${MCP_TOOLS.filter(t => t.name.includes('broker')).map(t => t.name).join(' · ')}</p>
+<h2 style="color:#d4af5a;font-size:16px;margin-top:30px">▸ StonkBrokers — agent trading from the broker's own wallet <span style="font-size:10px;letter-spacing:1px;color:#0c0906;background:#d4af5a;padding:2px 7px;border-radius:3px;vertical-align:2px">NEW</span></h2>
+<p>Clutch Markets' <b>4,444 ERC-6551 broker NFTs</b> — each owns a real token-bound wallet seeded
+with tokenized stock (AAPL/AMZN/NVDA), earning stock-dividend drops roughly every 10 minutes. The
+MCP turns that wallet into an account an agent can run:</p>
+<p><b style="color:#d4af5a">Connect</b> — <code>get_broker</code> resolves any NFT to its wallet:
+owner, holdings + USD, dividends per stock, activation tier, on-chain art.<br>
+<b style="color:#d4af5a">Trade stock tokens</b> — <code>get_stock_tokens</code> reads what is
+actually tradeable and the real Uniswap V3 pools per stock (fee tiers differ per stock — they are
+not guessable); <code>prepare_broker_trade</code> then builds the swap through the wallet's own
+<code>executeCall</code>, so <b>the wallet spends and the wallet receives</b>. Live-quoted,
+balance-checked, and it refuses to build any swap without a price floor.<br>
+<b style="color:#d4af5a">Post every trade to X</b> — companion scripts run the loop end to end:
+decide → build → sign locally with the owner's key → broadcast → post the <b>exact fill</b> to the
+owner's X account, deduped so every trade posts exactly once.</p>
+<p><b>Reads work on any broker; writes only on a broker your wallet owns</b> — every write tool
+verifies the signer against <code>ownerOf</code> on-chain before returning calldata, and all of it
+is <b>unsigned</b>: your key, your signature, never this server's. Full walkthrough:
+<a href="/stonkbrokers.md" style="color:#d4af5a">/stonkbrokers.md</a></p>
+<p style="font-size:13px;color:#b3a88f">${MCP_TOOLS.filter(t => /broker|stock/.test(t.name) && !/floor/.test(t.name)).map(t => t.name).join(' · ')}</p>
 <h2 style="color:#d4af5a;font-size:16px;margin-top:26px">▸ The Floor</h2>
 <p>The idle desk-and-operators game on the same chain: desks, alpha, emissions and the halving,
 operator payback math, firms, leaderboards, reinvest-vs-sell behavior, and the swap path to buy
 $FLOOR. Read state, run <code>get_strategy</code> for the decision math, and prepare every in-game
-move (create/upgrade desk, recruit/seat operators, collect, swap) as unsigned calldata.</p>
-<p style="font-size:13px;color:#b3a88f">${MCP_TOOLS.filter(t => !t.name.includes('broker')).map(t => t.name).join(' · ')}</p>
+move (create/upgrade desk, recruit/seat operators, collect, swap) as unsigned calldata. Cross-game:
+a broker's 6551 wallet can open and collect its own desk here — the desk binds to the NFT and
+travels with it on sale.</p>
+<p style="font-size:13px;color:#b3a88f">${MCP_TOOLS.filter(t => !/broker|stock/.test(t.name) || /floor/.test(t.name)).map(t => t.name).join(' · ')}</p>
 <p style="font-size:11px;color:#6f6249;margin-top:14px">${MCP_TOOLS.length} tools total · full self-describing schema via <code>tools/list</code></p>
 <p style="font-size:12.5px;color:#b3a88f;margin-top:10px"><b style="color:#d4af5a">What you can do with it:</b> <a href="/mcp.md" style="color:#d4af5a">/mcp.md</a> — capabilities, the broker-wallet trading flow, what each tool refuses to build and why, and the local scripts that sign and post. Machine-readable: <a href="/llms.txt" style="color:#d4af5a">/llms.txt</a>.</p>
 <p style="margin-top:28px;font-size:13px"><a href="/llms.txt" style="color:#d4af5a">llms.txt</a> ·

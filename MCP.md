@@ -10,6 +10,10 @@ https://thefloor-dashboard-production.up.railway.app/mcp
 Streamable HTTP, no auth, CORS open. Every tool is self-describing via `tools/list` — this document
 explains *what you can do*; the schemas are the contract.
 
+> **Here for StonkBrokers only?** The broker-focused doc — connect the token-bound wallet, trade
+> stock tokens, post every trade to X — stands alone at
+> [/stonkbrokers.md](https://thefloor-dashboard-production.up.railway.app/stonkbrokers.md).
+
 ---
 
 ## The two rules that matter
