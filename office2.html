@@ -85,7 +85,7 @@
 
   /* ---- crisp DOM text. The 3x5 canvas font was getting chewed up by the post-FX
          (chromatic fringing + grain) and read as mush. Real type instead. ---- */
-  #ticker{position:absolute;left:0;top:calc(var(--u)*10);width:calc(var(--u)*316);
+  #ticker{position:absolute;left:0;top:calc(var(--u)*10);width:min(calc(var(--u)*316),100%);
       height:calc(var(--u)*10);overflow:hidden;display:flex;align-items:center;
       background:linear-gradient(180deg,rgba(7,6,11,.94),rgba(3,3,7,.94));
       border-top:1px solid rgba(122,92,16,.65);border-bottom:1px solid rgba(0,0,0,.85);
@@ -911,11 +911,36 @@ function opImage(name){
   fetch('/opart/'+s+'.svg').then(r=>r.text()).then(t=>{
     const m=t.match(/fill="(#[0-9a-fA-F]{6})"/);         // first fill is the border = rarity colour
     if(m) e.rar=m[1];
-    t=t.replace(/viewBox="0 0 24 24"/,'viewBox="1 1 22 22"').replace(/fill="#13100c"/g,'fill="none"');
-    const im=new Image();
-    im.onload=()=>{ e.ok=true; };                        // ⚠ SVGs report naturalWidth 0 — gate on this flag
-    im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(t);
-    e.img=im;
+    /* Rasterise the rect-per-pixel art into a 24x24 grid ourselves. */
+    const G=Array.from({length:24},()=>Array(24).fill(null));
+    for(const q of t.matchAll(/<rect x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)" fill="(#[0-9a-fA-F]{6})"/g)){
+      const x=+q[1],y=+q[2],w=+q[3],h=+q[4],f=q[5];
+      for(let j=0;j<h;j++) for(let i=0;i<w;i++){ const X=x+i,Y=y+j; if(X<24&&Y<24) G[Y][X]=f; }
+    }
+    /* ⚠⚠ Strip ONLY backdrop cells reachable from the border. THE EYES ARE PAINTED IN
+       THE SAME COLOUR AS THE BACKDROP (#13100c) — blanket-replacing that colour with
+       transparent deleted them, which is why every face read as blank and the whale
+       had no visible eye. Flood-fill from the ring just inside the rarity border (the
+       border ring itself is the rarity colour, so it can't be the seed) and keep any
+       enclosed pocket: those pockets ARE the facial detail. */
+    const BG='#13100c', seen=Array.from({length:24},()=>Array(24).fill(false)), st=[];
+    for(let i=1;i<=22;i++) for(const [x,y] of [[i,1],[i,22],[1,i],[22,i]])
+      if(G[y][x]===BG && !seen[y][x]){ seen[y][x]=true; st.push([x,y]); }
+    while(st.length){
+      const [x,y]=st.pop();
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const X=x+dx, Y=y+dy;
+        if(X>=1&&X<=22&&Y>=1&&Y<=22&&!seen[Y][X]&&G[Y][X]===BG){ seen[Y][X]=true; st.push([X,Y]); }
+      }
+    }
+    const cvo=document.createElement('canvas'); cvo.width=22; cvo.height=22;
+    const cx2=cvo.getContext('2d'); cx2.imageSmoothingEnabled=false;
+    for(let y=1;y<=22;y++) for(let x=1;x<=22;x++){
+      const f=G[y][x];
+      if(!f || (f===BG && seen[y][x])) continue;          // drop only the true backdrop
+      cx2.fillStyle=f; cx2.fillRect(x-1,y-1,1,1);
+    }
+    e.img=cvo; e.ok=true;                                 // a canvas draws like an image, and never taints
   }).catch(()=>{});
   return e;
 }
@@ -949,7 +974,9 @@ function updatePlates(){
   const used=[]; let n=0;
   for(let i=0;i<order.length && n<cap;i++){
     const w=order[i]; if(!w.label) continue;
-    const px=w.x*u, py=(w.y-w.size-9)*u, wpx=w.label.length*u*3.0;
+    const px=(w.x-VX)*u, py=(w.y-w.size-9)*u, wpx=w.label.length*u*3.0;
+    if(px<-40||px>VW*u+40) continue;              // off the cropped view
+
     let clash=false;
     for(const q of used){ if(Math.abs(q.x-px)<(q.w+wpx)/2 && Math.abs(q.y-py)<u*13){ clash=true; break; } }
     if(clash) continue;
@@ -1075,7 +1102,7 @@ function updateBubbles(){
   bubbleEls.forEach(el=>{
     const w=el.__w; if(!w) return;
     if(workers.indexOf(w)<0){ el.classList.remove('on'); el.__w=null; return; }   // they rode the lift home mid-sentence
-    el.style.left=(w.x*u).toFixed(1)+'px';
+    el.style.left=((w.x-VX)*u).toFixed(1)+'px';
     el.style.top=((w.y-w.size-21)*u).toFixed(1)+'px';
   });
 }
@@ -1175,7 +1202,7 @@ function openFirm(f){
 /* click -> canvas-pixel space -> desk hit test */
 function sceneXY(ev){
   const rct=cv.getBoundingClientRect();
-  return { x:(ev.clientX-rct.left)/rct.width*W, y:(ev.clientY-rct.top)/rct.height*H };
+  return { x:VX+(ev.clientX-rct.left)/rct.width*VW, y:(ev.clientY-rct.top)/rct.height*H };
 }
 /* Click a PERSON for their card — this is the thing the main dashboard's office has
    and office2 didn't. Actors win the hit-test over desks (they stand in front). */
@@ -1185,8 +1212,11 @@ function openPlayer(p){
   const head=mk('ph');
   const av=mk('em'); av.style.background='#12100c';
   const e=opImage(p.op);
-  if(e && e.img){ const im=new Image(); im.alt=''; im.src=e.img.src; av.appendChild(im); }
-  else av.textContent=(p.op||'?').charAt(0);
+  if(e && e.ok && e.img){                                 // e.img is a CANVAS now, not an Image — no .src
+    const im=new Image(); im.alt=''; im.style.imageRendering='pixelated';
+    try{ im.src=e.img.toDataURL(); }catch(_){}
+    av.appendChild(im);
+  } else av.textContent=(p.op||'?').charAt(0).toUpperCase();
   const meta=document.createElement('div');
   meta.appendChild(mk('nm', p.handle ? ('@'+p.handle) : shortAddr(p.a)));
   meta.appendChild(mk('rk', (p.op||'Operator')+' · desk L'+(p.dl!=null?p.dl:'—')));
@@ -1259,8 +1289,8 @@ function frame(dt){
   cam.x=Math.sin(T*.00013)*2.2+sx; cam.y=Math.cos(T*.00009)*1.1+sy;
 
   /* 1. scene */
-  g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,W,H);
-  g.save(); g.translate(Math.round(-cam.x),Math.round(-cam.y));
+  g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,VW,H);
+  g.save(); g.translate(Math.round(-VX-cam.x),Math.round(-cam.y));
   g.drawImage(skyCv,0,0);                                  // live sky behind the glass
   g.drawImage(bg,0,0);                                     // interior, window bays transparent
   updateWeather(dt);
@@ -1378,6 +1408,7 @@ function frame(dt){
   if(elevOpen>.05) light(ligx,ELEV.x+ELEV.w/2,ELEV.y+ELEV.h/2,40,'rgba(255,210,120,1)',elevOpen*.6);
   if(roomSurge>0) { ligx.fillStyle='rgba(255,170,80,'+(roomSurge*.30).toFixed(3)+')'; ligx.fillRect(0,0,W,H); }
   if(lightning>.02){ ligx.fillStyle='rgba(150,180,230,'+(lightning*.6).toFixed(3)+')'; ligx.fillRect(0,0,330,FLOOR_Y); }
+  g.save(); g.translate(-VX,0);                            // passes 2+3 are painted in WORLD coords
   g.globalCompositeOperation='multiply'; g.drawImage(lig,0,0);
   g.globalCompositeOperation='source-over';
 
@@ -1395,20 +1426,21 @@ function frame(dt){
     grd.addColorStop(0,'rgba(190,205,235,'+shaftA.toFixed(3)+')'); grd.addColorStop(1,'rgba(190,205,235,0)');
     g.fillStyle=grd; g.beginPath(); g.moveTo(wx-9,24); g.lineTo(wx+11,24); g.lineTo(wx-14,FLOOR_Y); g.lineTo(wx-40,FLOOR_Y); g.closePath(); g.fill(); }
   g.globalCompositeOperation='source-over';
+  g.restore();                                             // end world-coord passes
 
   /* 4. bloom */
   blx.clearRect(0,0,bl.width,bl.height);
   blx.drawImage(cv,0,0,bl.width,bl.height);
   g.globalCompositeOperation='lighter'; g.globalAlpha=.30;
-  g.drawImage(bl,0,0,W,H); g.globalAlpha=1; g.globalCompositeOperation='source-over';
+  g.drawImage(bl,0,0,VW,H); g.globalAlpha=1; g.globalCompositeOperation='source-over';
 
   /* 5. post: barrel + chromatic aberration + film grain + vignette + scanlines */
   if(FX && idxG){ postFX(); }
   else {
-    const vg=g.createRadialGradient(W/2,H/2,H*.34,W/2,H/2,H*.92);
+    const vg=g.createRadialGradient(VW/2,H/2,H*.34,VW/2,H/2,H*.92);
     vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(4,3,10,.42)');
-    g.fillStyle=vg; g.fillRect(0,0,W,H);
-    g.fillStyle='rgba(0,0,0,.055)'; for(let y=0;y<H;y+=2) g.fillRect(0,y,W,1);
+    g.fillStyle=vg; g.fillRect(0,0,VW,H);
+    g.fillStyle='rgba(0,0,0,.055)'; for(let y=0;y<H;y+=2) g.fillRect(0,y,VW,1);
   }
 }
 
@@ -1418,25 +1450,25 @@ function frame(dt){
    path still gets a vignette + scanlines, and costs no getImageData readback. */
 let FX=false, idxR,idxG,idxB,vigA,grainBuf,GNMASK,fxOut;
 function buildWarp(){
-  const N=W*H; idxR=new Int32Array(N); idxG=new Int32Array(N); idxB=new Int32Array(N); vigA=new Float32Array(N);
-  const cx=(W-1)/2, cy=(H-1)/2, K=0.05, CA=0.35, VIG=0.30;
+  const N=VW*H; idxR=new Int32Array(N); idxG=new Int32Array(N); idxB=new Int32Array(N); vigA=new Float32Array(N);
+  const cx=(VW-1)/2, cy=(H-1)/2, K=0.05, CA=0.35, VIG=0.30;
   const cl=(v,mx)=>v<0?0:(v>mx?mx:v)|0;
-  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
-    const i=y*W+x, nx=(x-cx)/cx, ny=(y-cy)/cy, r2=nx*nx+ny*ny;
+  for(let y=0;y<H;y++)for(let x=0;x<VW;x++){
+    const i=y*VW+x, nx=(x-cx)/cx, ny=(y-cy)/cy, r2=nx*nx+ny*ny;
     const f=1 - K*r2*0.5;                                   // barrel: sample nearer centre at the edges (gentle CRT bulge)
     const sxg=cx+(x-cx)*f, syg=cy+(y-cy)*f;
     const cao=CA*r2*(nx>=0?1:-1);                           // chromatic aberration ramps with radius
-    idxG[i]=cl(syg,H-1)*W+cl(sxg,W-1);
-    idxR[i]=cl(syg,H-1)*W+cl(sxg+cao,W-1);
-    idxB[i]=cl(syg,H-1)*W+cl(sxg-cao,W-1);
+    idxG[i]=cl(syg,H-1)*VW+cl(sxg,VW-1);
+    idxR[i]=cl(syg,H-1)*VW+cl(sxg+cao,VW-1);
+    idxB[i]=cl(syg,H-1)*VW+cl(sxg-cao,VW-1);
     let v=1 - VIG*r2; if(v<0)v=0; if(y&1)v*=0.90; vigA[i]=v; // vignette + scanline baked in
   }
   const GN=1<<16; GNMASK=GN-1; grainBuf=new Float32Array(GN);
   for(let k=0;k<GN;k++) grainBuf[k]=(Math.random()*2-1)*2.2;
-  fxOut=g.createImageData(W,H);
+  fxOut=g.createImageData(VW,H);
 }
 function postFX(){
-  const src=g.getImageData(0,0,W,H).data, o=fxOut.data, N=W*H, go=RI(0,GNMASK);
+  const src=g.getImageData(0,0,VW,H).data, o=fxOut.data, N=VW*H, go=RI(0,GNMASK);
   for(let i=0;i<N;i++){
     const q=i<<2, v=vigA[i], gn=grainBuf[(i+go)&GNMASK];
     let Rr=src[idxR[i]<<2]*v+gn, Gg=src[(idxG[i]<<2)+1]*v+gn, Bb=src[(idxB[i]<<2)+2]*v+gn;
@@ -1617,20 +1649,37 @@ const arrival=()=>elevatorArrive(true);                 // on-chain "new desk" =
    the 3x threshold, so the scene drew at 960x540 marooned in black and read as "smaller
    / missing things". Fill the viewport instead, and only snap to an integer when we're
    already within a hair of one (image-rendering:pixelated keeps it crisp either way). */
+/* VIEWPORT CROP. A 480x270 landscape scene on a portrait phone is a thin letterboxed
+   strip no matter how you scale it. On a narrow viewport we render a TALLER SLICE of
+   the same world instead — full height, less width — which fills the screen properly.
+   The slice keeps the terminal, the firm desks and Moloch; the lift is off-frame on a
+   phone, which is the trade. Everything still draws in WORLD coords; only the camera
+   origin and the canvas width change. */
+let VX=0, VW=W;
+function chooseView(){
+  const a=innerWidth/Math.max(1,innerHeight);
+  const want = a<1.5 ? {x:152,w:328} : {x:0,w:W};
+  if(want.x===VX && want.w===VW) return false;
+  VX=want.x; VW=want.w;
+  bl.width=Math.max(1,VW>>2); bl.height=H>>2; blx.imageSmoothingEnabled=false;
+  return true;
+}
 function fit(){
-  const s=Math.max(1,Math.min(innerWidth/W, innerHeight/H));
+  const changed=chooseView();
+  const s=Math.max(1,Math.min(innerWidth/VW, innerHeight/H));
   const si=Math.floor(s);
   const use=(si>=1 && s-si<0.12) ? si : s;
-  cv.width=W; cv.height=H;
-  cv.style.width=Math.round(W*use)+'px'; cv.style.height=Math.round(H*use)+'px';
+  cv.width=VW; cv.height=H;
+  cv.style.width=Math.round(VW*use)+'px'; cv.style.height=Math.round(H*use)+'px';
   g.imageSmoothingEnabled=false;
+  if(changed && idxG) buildWarp();          // warp maps are sized to the view
   syncOverlay();
 }
 let OVU=4;                                        // screen px per canvas px — DOM plates position with this
 function syncOverlay(){
   const rct=cv.getBoundingClientRect();
   ov.style.left=rct.left+'px'; ov.style.top=rct.top+'px'; ov.style.width=rct.width+'px'; ov.style.height=rct.height+'px';
-  OVU=rct.width/W;
+  OVU=rct.width/VW;                               // overlay maps to the VIEW, not the whole world
   ov.style.setProperty('--u',OVU+'px');
   ov.classList.toggle('tiny', OVU<2.1);           // phone / embedded band
 
