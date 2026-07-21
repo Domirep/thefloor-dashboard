@@ -809,7 +809,10 @@ async function refreshFirmComp() {
       const m = meta[f.id] || {};
       // messageAt rides along with the memo: a firm note with no age reads as current forever,
       // and these are often dated ("deadline July 23"), so the client stamps it.
+      // principal is carried so the scouting board can exclude firm bosses from the recruit pool —
+      // firmByAddr only maps members, so principals were showing up as signable free agents.
       const row = { id: f.id, name: f.name, members: f.members, pnlUsd: Number(f.pnlUsd) || 0,
+        principal: f.principal || null,
         emblem: m.emblem || null, message: m.message || null,
         messageAt: (m.message && Number(m.messageAt)) ? Number(m.messageAt) : null };
       if (!configured) { row.rank = null; row.prizeShareBps = null; row.prizeFloor = null; row.prizeUsd = null; return row; }
@@ -877,50 +880,112 @@ async function duneFetch(url, init, tries = 3) {
 }
 
 /* The SQL, kept here so the query is version-controlled rather than living only in someone's
-   Dune account. Metric is NET CASH EXTRACTED: a swap trades equal USD value both ways, so profit
-   never shows in one trade, only in cash flow — USD received selling into a cash asset minus USD
-   spent buying with one. For a wallet that round-trips inside the window that IS realized profit;
-   still-holding wallets read negative, matching the game's own "close a trade to book it" rule. */
+   Dune account, where it could be edited out from under the client with no trace.
+
+   Metric is MARK TO MARKET, matching how the game itself values firms (its own numbers move with
+   price even when a firm isn't trading). Every swap leg is a position change; value all of them at
+   the CURRENT price and the answer falls out:
+
+       pnl = SUM over tokens of (net quantity moved * price now)
+
+   Buy 100 X for $100, X now $2  ->  100*2 + (-100)*1 = +$100.
+   Buy for $100 then sell for $150 -> 0*2 + 50*1 = +$50 (realized, and price-independent).
+   Sell a pre-held bag at $1.50 with X now $1 -> -100*1 + 150*1 = +$50 (beat holding).
+
+   The earlier net-cash-extracted version measured cash flow rather than skill: it read negative for
+   anyone accumulating, and on live data 71 of 80 wallets came back negative, ranking sellers above
+   buyers. This has no cash-asset list, so token<->token trades count too — they were invisible before.
+
+   Prices are the last trade observed for each token on-chain inside the window, taken from
+   dex.trades itself, so this depends on no other Dune table covering Robinhood Chain.
+
+   Scope caveat: this values THIS WINDOW'S trading. A bag bought before Monday that appreciated is
+   not counted — matching a weekly competition, not lifetime PnL. */
 const DUNE_PNL_SQL = `
 WITH agents AS (
     SELECT lower(trim(w)) AS wallet FROM UNNEST(split('{{wallets}}', ',')) AS t(w)
 ),
-cash(symbol) AS (
-    VALUES ('WETH'),('USDC'),('USDT'),('DAI'),('USDS'),('WBTC')
-),
 t AS (
-    SELECT d.taker AS wallet, d.amount_usd, d.token_bought_symbol, d.token_sold_symbol
+    SELECT d.taker AS wallet, d.block_time, d.amount_usd,
+           d.token_bought_address, d.token_sold_address,
+           d.token_bought_amount, d.token_sold_amount
     FROM dex.trades d
-    JOIN agents a ON a.wallet = lower(CAST(d.taker AS varchar))
     WHERE d.blockchain = 'robinhood'
       AND d.block_date >= DATE '{{week_start}}'
       AND d.amount_usd IS NOT NULL
+),
+legs AS (
+    SELECT wallet, block_time, token_bought_address AS token,  token_bought_amount AS qty, amount_usd FROM t
+    UNION ALL
+    SELECT wallet, block_time, token_sold_address,            -token_sold_amount,        amount_usd FROM t
+),
+-- last observed USD price per token, from any wallet's trades in the window
+px AS (
+    SELECT token, price FROM (
+        SELECT token, price, ROW_NUMBER() OVER (PARTITION BY token ORDER BY block_time DESC) AS rn
+        FROM (
+            SELECT token, amount_usd / NULLIF(ABS(qty), 0) AS price, block_time
+            FROM legs WHERE qty <> 0
+        ) p WHERE price IS NOT NULL
+    ) q WHERE rn = 1
+),
+mine AS (
+    SELECT l.* FROM legs l JOIN agents a ON a.wallet = lower(CAST(l.wallet AS varchar))
+),
+pos AS (
+    SELECT wallet, token, SUM(qty) AS net_qty FROM mine GROUP BY wallet, token
+),
+vol AS (
+    SELECT wallet, COUNT(*) / 2 AS trades, SUM(amount_usd) / 2 AS volume_usd FROM mine GROUP BY wallet
 )
-SELECT wallet,
-  COUNT(*) AS trades,
-  ROUND(SUM(CASE WHEN token_bought_symbol IN (SELECT symbol FROM cash) THEN amount_usd ELSE 0 END), 2) AS cash_in_usd,
-  ROUND(SUM(CASE WHEN token_sold_symbol   IN (SELECT symbol FROM cash) THEN amount_usd ELSE 0 END), 2) AS cash_out_usd,
-  ROUND(SUM(CASE WHEN token_bought_symbol IN (SELECT symbol FROM cash) THEN amount_usd ELSE 0 END)
-      - SUM(CASE WHEN token_sold_symbol   IN (SELECT symbol FROM cash) THEN amount_usd ELSE 0 END), 2) AS net_usd,
-  ROUND(SUM(amount_usd), 2) AS volume_usd
-FROM t GROUP BY wallet ORDER BY net_usd DESC`;
+SELECT p.wallet,
+       CAST(v.trades AS integer) AS trades,
+       ROUND(v.volume_usd, 2) AS volume_usd,
+       ROUND(SUM(p.net_qty * COALESCE(px.price, 0)), 2) AS net_usd
+FROM pos p
+LEFT JOIN px ON px.token = p.token
+JOIN vol v ON v.wallet = p.wallet
+GROUP BY p.wallet, v.trades, v.volume_usd
+ORDER BY net_usd DESC`;
+
+const DUNE_QUERY_PARAMS = [
+  { key: 'wallets', type: 'text', value: '0x0000000000000000000000000000000000000000' },
+  { key: 'week_start', type: 'text', value: '2026-01-01' } ];
+// Cheap content hash. The point is only "did the SQL change since we saved it", not cryptography.
+function sqlHash(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h.toString(36); }
 
 /* Self-provision the saved query so the only thing anyone has to set is the API key. Dune's
    query-CRUD endpoints are not on every plan — if creation is refused we say exactly what to do
-   by hand rather than failing silently. The id is cached on the volume so we create it once. */
+   by hand rather than failing silently. The id is cached on the volume so we create it once.
+   The SQL's hash is cached with it: editing DUNE_PNL_SQL here would otherwise leave the saved Dune
+   query on the old text forever, and we'd be reading numbers from code nobody can see in this repo. */
 async function duneEnsureQuery() {
-  if (DUNE_QUERY_ID) return DUNE_QUERY_ID;
-  try { const p = JSON.parse(fs.readFileSync(DUNE_QID_FILE, 'utf8')); if (p && p.id) { DUNE_QUERY_ID = String(p.id); return DUNE_QUERY_ID; } } catch (_) {}
+  const want = sqlHash(DUNE_PNL_SQL);
+  if (DUNE_QUERY_ID) return DUNE_QUERY_ID;              // explicitly pinned by env — user owns it, don't touch
+  let cached = null;
+  try { cached = JSON.parse(fs.readFileSync(DUNE_QID_FILE, 'utf8')); } catch (_) {}
+  if (cached && cached.id && cached.sql === want) { DUNE_QUERY_ID = String(cached.id); return DUNE_QUERY_ID; }
+
+  if (cached && cached.id) {                            // stale: push the new SQL to the same query
+    try {
+      await duneFetch('https://api.dune.com/api/v1/query/' + cached.id, {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ query_sql: DUNE_PNL_SQL, parameters: DUNE_QUERY_PARAMS }) });
+      DUNE_QUERY_ID = String(cached.id);
+      fs.writeFile(DUNE_QID_FILE, JSON.stringify({ id: DUNE_QUERY_ID, sql: want, at: Date.now() }), () => {});
+      console.log('DUNE updated query ' + DUNE_QUERY_ID + ' to the current SQL');
+      return DUNE_QUERY_ID;
+    } catch (e) { console.log('DUNE patch failed (' + e.message + ') — creating a fresh query instead'); }
+  }
+
   const made = await duneFetch('https://api.dune.com/api/v1/query', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: 'thefloor-dashboard — free-agent weekly PnL', is_private: true,
-      query_sql: DUNE_PNL_SQL,
-      parameters: [ { key: 'wallets', type: 'text', value: '0x0000000000000000000000000000000000000000' },
-                    { key: 'week_start', type: 'text', value: '2026-01-01' } ] }) });
+    body: JSON.stringify({ name: 'thefloor-dashboard — free-agent weekly PnL (mark to market)', is_private: true,
+      query_sql: DUNE_PNL_SQL, parameters: DUNE_QUERY_PARAMS }) });
   const id = made && (made.query_id || made.id);
   if (!id) throw new Error('query create returned no id');
   DUNE_QUERY_ID = String(id);
-  fs.writeFile(DUNE_QID_FILE, JSON.stringify({ id: DUNE_QUERY_ID, at: Date.now() }), () => {});
+  fs.writeFile(DUNE_QID_FILE, JSON.stringify({ id: DUNE_QUERY_ID, sql: want, at: Date.now() }), () => {});
   console.log('DUNE created query ' + DUNE_QUERY_ID + ' (cached on volume)');
   return DUNE_QUERY_ID;
 }
@@ -2993,7 +3058,11 @@ write tools return unsigned calldata for your own signer. Never send a private k
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=120' });
     if (!lb) { res.end(JSON.stringify({ ok: false, warming: true })); return; }
     const fba = (firms && firms.firmByAddr) || {};
-    const inFirm = a => !!(fba[a] || fba[(a || '').toLowerCase()]);
+    // firmByAddr maps MEMBERS only. Principals were leaking into the recruit pool — the boss of a
+    // 14-member firm was ranking as the #1 signable free agent. Exclude them explicitly.
+    const principals = new Set(((firmComp && firmComp.firms) || [])
+      .map(f => String(f.principal || '').toLowerCase()).filter(Boolean));
+    const inFirm = a => { const l = (a || '').toLowerCase(); return !!(fba[a] || fba[l]) || principals.has(l); };
     const limit = Math.min(80, Math.max(10, parseInt(u.searchParams.get('limit'), 10) || 60));
     const havePnl = Object.keys(agentPnl).length > 0;
     const agents = lb.filter(r => r.a && !inFirm(r.a)).map(r => {
