@@ -734,6 +734,7 @@ async function refreshFirms() {
     (gl || []).forEach(l => { const a = addrOf(l.topics && l.topics[1]); if (a && a !== '0x0000000000000000000000000000000000000000' && !seen.has(a)) { seen.add(a); players.push(a); } });
     const agents = [];
     const firmByAddr = {};   // addr -> firmId, for every seated member (powers the office pods)
+    let resolved = 0;        // wallets whose firmOf/alpha actually came back — NOT the same as classified
     const readAgents = async (chunk) => {
       const calls = [];
       chunk.forEach(a => { calls.push({ to: F, data: SELc.firmOf + argA(a) }); calls.push({ to: G, data: SELc.userAlpha + argA(a) }); calls.push({ to: F, data: SELc.contributedOf + argA(a) }); });
@@ -742,6 +743,7 @@ async function refreshFirms() {
       if (!byId) return false;
       for (let k = 0; k < chunk.length; k++) {
         const fo = Number(big(byId[k * 3])), alpha = Number(big(byId[k * 3 + 1])), contrib = Math.round(Number(big(byId[k * 3 + 2])) / 1e18);
+        resolved++;
         if (fo === 0 && alpha > 0) agents.push({ addr: chunk[k], alpha, contributed: contrib });
         else if (fo > 0 && alpha > 0) firmByAddr[chunk[k]] = fo;
       }
@@ -769,11 +771,35 @@ async function refreshFirms() {
       contributors,
       updatedAt: Date.now(),
     };
-    const priorPending = (firms && firms.pendingTotal) || 0;
+    /* The membership scan is a separate failure domain from the log reads above, and it used to be
+       committed unchecked. When the RPC throttles every eth_call chunk, firmByAddr comes back EMPTY
+       — which does not read as "the scan failed", it reads as "nobody is in a firm". That shipped:
+       inFirm() matched nothing and the scouting board served all 246 desk owners as free agents,
+       rival firm members included. Gate the scan on its own coverage and keep the last-good map. */
+    const coverage = players.length ? resolved / players.length : 1;
+    const priorMap = (firms && firms.firmByAddr) || null;
+    const priorSize = priorMap ? Object.keys(priorMap).length : 0;
+    if (coverage < 0.8) {
+      if (priorSize) {                                  // carry membership forward; log reads are still fresh
+        fresh.firmByAddr = priorMap;
+        fresh.freeAgentCount = firms.freeAgentCount;
+        fresh.freeAgents = firms.freeAgents;
+        fresh.membershipStale = true;
+        fresh.membershipAt = firms.membershipAt || firms.updatedAt || null;
+        console.log('FIRMS membership scan thin (' + Math.round(coverage * 100) + '% of ' + players.length + ') — keeping last-good firmByAddr (' + priorSize + ')');
+      } else {                                          // nothing good to fall back on: publishing an
+        console.log('FIRMS skip: membership scan covered only ' + Math.round(coverage * 100) + '% and no prior map — retry 5m');
+        setTimeout(refreshFirms, 300000); return;       // empty map is worse than no answer
+      }
+    } else {
+      fresh.membershipAt = Date.now();
+    }
     if (firmList.length > 0 && (reqLogs.length > 0)) {
       firms = fresh; firmsAt = Date.now();
       try { fs.writeFile(FIRM_FILE, JSON.stringify({ firms, at: firmsAt }), () => {}); } catch (_) {}
-      console.log('FIRMS ok count=' + count + ' pending=' + pendingTotal + ' openSlots=' + openSlots + ' freeAgents=' + agents.length);
+      console.log('FIRMS ok count=' + count + ' pending=' + pendingTotal + ' openSlots=' + openSlots +
+        ' freeAgents=' + fresh.freeAgentCount + ' members=' + Object.keys(fresh.firmByAddr).length +
+        ' scan=' + Math.round(coverage * 100) + '%' + (fresh.membershipStale ? ' (stale)' : ''));
     } else {
       console.log('FIRMS skip (partial) — retry 5m'); setTimeout(refreshFirms, 300000);
     }
@@ -3058,6 +3084,14 @@ write tools return unsigned calldata for your own signer. Never send a private k
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=120' });
     if (!lb) { res.end(JSON.stringify({ ok: false, warming: true })); return; }
     const fba = (firms && firms.firmByAddr) || {};
+    /* An empty membership map means the scan failed, NOT that every desk owner is unaffiliated.
+       Serving the whole leaderboard as "free agents" in that state is actively wrong — it puts
+       rival firms' members on a recruit board. Refuse rather than guess. */
+    if (!Object.keys(fba).length) {
+      res.end(JSON.stringify({ ok: false, warming: true,
+        note: 'Firm membership is unknown right now (the on-chain firmOf scan has not landed), so free agents cannot be told apart from firm members. Retrying.' }));
+      return;
+    }
     // firmByAddr maps MEMBERS only. Principals were leaking into the recruit pool — the boss of a
     // 14-member firm was ranking as the #1 signable free agent. Exclude them explicitly.
     const principals = new Set(((firmComp && firmComp.firms) || [])
