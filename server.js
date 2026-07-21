@@ -547,7 +547,12 @@ try { const p = JSON.parse(fs.readFileSync(BEHAVIOR_FILE, 'utf8')); if (p && p.b
 async function ethGetLogs(filter) {
   for (let i = 0; i < 7; i++) {
     try {
-      const r = await fetch(RPC_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getLogs', params: [{ ...filter, fromBlock: '0x0', toBlock: 'latest' }] }) });
+      // ⚠ Defaults FIRST so a caller-supplied fromBlock/toBlock actually wins. They used
+      // to come after the spread, which silently discarded the caller's range — so the
+      // 45s live-actions poll was re-scanning the WHOLE chain (~15.6M blocks) twice every
+      // 45s instead of a one-window delta. That is what was earning us HTTP 429s and
+      // starving every other read on this RPC.
+      const r = await fetch(RPC_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getLogs', params: [{ fromBlock: '0x0', toBlock: 'latest', ...filter }] }) });
       const j = await r.json();
       if (Array.isArray(j.result)) return j.result;
     } catch (_) {}
@@ -1067,7 +1072,10 @@ async function refreshLiveActions() {
     const latest = Number(BigInt(nb[0]));
     if (!lastLiveBlock) {
       // boot prefill: one full-range read (proven cheap), keep the newest 60
-      const [gl, fl] = [await ethGetLogs({ address: GAME_CONTRACT }), await ethGetLogs({ address: FIRM_CONTRACT, topics: [TOPIC_FIRM_CONTRIB] })];
+      // Only need the newest 60, so seed from a recent window rather than all of history —
+      // the chain is ~15.6M blocks now and a full replay here is pure waste.
+      const seedFrom = '0x' + Math.max(0, latest - 1000000).toString(16);
+      const [gl, fl] = [await ethGetLogs({ address: GAME_CONTRACT, fromBlock: seedFrom }), await ethGetLogs({ address: FIRM_CONTRACT, topics: [TOPIC_FIRM_CONTRIB], fromBlock: seedFrom })];
       // ⚠ FAIL CLOSED. ethGetLogs returns null when it gives up, and the GAME read is the
       // expensive one (~3.1k events) so it is the one that throttles on Railway egress.
       // Committing a partial prefill poisoned the feed permanently: `all` became firm
