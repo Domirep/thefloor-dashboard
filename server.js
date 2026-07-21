@@ -836,6 +836,106 @@ async function refreshFirmComp() {
 setTimeout(refreshFirmComp, 30000);           // warm ~30s after boot (their cache is ~5.5min)
 setInterval(refreshFirmComp, 300000);         // every 5 min
 
+// ---- Dune: real per-wallet trading PnL for free agents ------------------------------------------
+// The scouting board ships a FIREPOWER proxy (FLOOR bought/sold/reinvested). This replaces it with
+// actual whole-chain trading PnL, which is what the firm competition scores on. Dune indexes
+// Robinhood Chain and dex.trades covers it (uniswap v2/v3/v4 + pancakeswap_v3 are decoded there).
+//
+// DORMANT until BOTH env vars are set, so this is safe to deploy before the key exists:
+//   DUNE_API_KEY       - secret, set in Railway (never in the repo; this file is public)
+//   DUNE_PNL_QUERY_ID  - the saved query's numeric id, not secret
+// Credit discipline: ~250 wallets in ONE execution, four times a day. Per-wallet lookups would be
+// hundreds of executions and blow the free tier immediately.
+const DUNE_KEY = process.env.DUNE_API_KEY || '';
+const DUNE_QUERY_ID = (process.env.DUNE_PNL_QUERY_ID || '').trim();
+const DUNE_FILE = path.join(DATA_DIR, 'freeagent-pnl.json');
+const DUNE_MAX_WALLETS = 400;                 // guard: keeps the parameter (and the scan) bounded
+let agentPnl = {}, agentPnlAt = 0, agentPnlBusy = false, agentPnlWindow = null;
+try {
+  const p = JSON.parse(fs.readFileSync(DUNE_FILE, 'utf8'));
+  if (p && p.pnl) { agentPnl = p.pnl; agentPnlAt = p.at || 0; agentPnlWindow = p.window || null;
+    console.log('LOADED free-agent PnL from volume (' + Object.keys(agentPnl).length + ' wallets)'); }
+} catch (_) {}
+
+async function duneFetch(url, init, tries = 3) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = await fetch(url, Object.assign({}, init, {
+        headers: Object.assign({ 'X-Dune-API-Key': DUNE_KEY, accept: 'application/json' }, (init && init.headers) || {}) }));
+      const t = await r.text();
+      // 4xx is a real error (bad key / bad query id) — retrying just burns time, so surface it.
+      if (r.status >= 400 && r.status < 500) throw new Error('dune ' + r.status + ': ' + t.slice(0, 160));
+      if (!r.ok || !t) { await new Promise(s => setTimeout(s, 800 * (i + 1))); continue; }
+      return JSON.parse(t);
+    } catch (e) {
+      if (/dune 4\d\d/.test(e.message)) throw e;
+      await new Promise(s => setTimeout(s, 600));
+    }
+  }
+  throw new Error('dune fetch failed ' + url);
+}
+
+// Current competition window, Mon 00:00 -> Fri 23:59 ET, as UTC dates. Mirrors the window the
+// firm competition scores on so a free agent's number is comparable to a firm's.
+function compWeekStartUtc() {
+  const nowEt = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const back = (nowEt.getDay() + 6) % 7;                       // 0=Mon
+  const mon = new Date(nowEt); mon.setDate(mon.getDate() - back); mon.setHours(0, 0, 0, 0);
+  return mon.toISOString().slice(0, 10);
+}
+
+async function refreshAgentPnl() {
+  if (!DUNE_KEY || !DUNE_QUERY_ID || agentPnlBusy) return;
+  const lb = leaderboard && leaderboard.byAlpha;
+  if (!lb || !lb.length) return;                                // nothing to ask about yet
+  agentPnlBusy = true;
+  try {
+    const fba = (firms && firms.firmByAddr) || {};
+    const wallets = lb.filter(r => r.a && !(fba[r.a] || fba[r.a.toLowerCase()]))
+      .map(r => r.a.toLowerCase()).slice(0, DUNE_MAX_WALLETS);
+    if (!wallets.length) { console.log('DUNE skip: no free agents'); return; }
+    const weekStart = compWeekStartUtc();
+
+    const ex = await duneFetch('https://api.dune.com/api/v1/query/' + DUNE_QUERY_ID + '/execute', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query_parameters: { wallets: wallets.join(','), week_start: weekStart } }) });
+    const id = ex && ex.execution_id;
+    if (!id) throw new Error('no execution_id');
+
+    // Poll to completion. Bounded: a query that hangs must not wedge the refresher forever.
+    let state = '', waited = 0;
+    while (waited < 120000) {
+      await new Promise(s => setTimeout(s, 3000)); waited += 3000;
+      const st = await duneFetch('https://api.dune.com/api/v1/execution/' + id + '/status');
+      state = (st && st.state) || '';
+      if (state === 'QUERY_STATE_COMPLETED') break;
+      if (state === 'QUERY_STATE_FAILED' || state === 'QUERY_STATE_CANCELLED') throw new Error('execution ' + state);
+    }
+    if (state !== 'QUERY_STATE_COMPLETED') throw new Error('execution timed out after ' + (waited / 1000) + 's');
+
+    const out = await duneFetch('https://api.dune.com/api/v1/execution/' + id + '/results');
+    const rows = (out && out.result && out.result.rows) || [];
+    // Never commit a partial/empty read over a good one — same lesson as the live-actions poisoning.
+    if (!rows.length && Object.keys(agentPnl).length) throw new Error('empty result — keeping last good');
+
+    const next = {};
+    rows.forEach(r => {
+      const w = String(r.wallet || '').toLowerCase(); if (!w) return;
+      next[w] = { netUsd: Number(r.net_usd) || 0, volumeUsd: Number(r.volume_usd) || 0, trades: Number(r.trades) || 0 };
+    });
+    agentPnl = next; agentPnlAt = Date.now(); agentPnlWindow = weekStart;
+    fs.writeFile(DUNE_FILE, JSON.stringify({ pnl: agentPnl, at: agentPnlAt, window: agentPnlWindow }), () => {});
+    console.log('DUNE ok pnl wallets=' + rows.length + '/' + wallets.length + ' week=' + weekStart);
+  } catch (e) { console.log('dune pnl refresh failed (keeping last good): ' + e.message); }
+  finally { agentPnlBusy = false; }
+}
+if (DUNE_KEY && DUNE_QUERY_ID) {
+  setTimeout(refreshAgentPnl, 90000);         // after the leaderboard has had a chance to build
+  setInterval(refreshAgentPnl, 21600000);     // 4x/day — the window only matters at Friday's close
+} else {
+  console.log('DUNE idle: set DUNE_API_KEY + DUNE_PNL_QUERY_ID to enable free-agent PnL');
+}
+
 // ---- leaderboards: rank-by-alpha (feeds report rank + office) + the Recruiter Race (cached ~30 min) ----
 const LEADER_FILE = path.join(DATA_DIR, 'leaderboard.json');
 const TOPIC_DESK_CREATED = '0xae270c7310a53fafb8d7ba304bfccd5f6280f2851045afc83c53d4530676be24';
@@ -2839,19 +2939,35 @@ write tools return unsigned calldata for your own signer. Never send a private k
     const fba = (firms && firms.firmByAddr) || {};
     const inFirm = a => !!(fba[a] || fba[(a || '').toLowerCase()]);
     const limit = Math.min(80, Math.max(10, parseInt(u.searchParams.get('limit'), 10) || 60));
+    const havePnl = Object.keys(agentPnl).length > 0;
     const agents = lb.filter(r => r.a && !inFirm(r.a)).map(r => {
       const f = scoutFlow[r.a] || {}; const bought = f.bought || 0, sold = f.sold || 0, reinv = f.reinvested || 0;
       const h = handles[r.a];
-      return { addr: r.a, alpha: r.alpha, op: r.op || null, alphaRank: r.rank,
+      const row = { addr: r.a, alpha: r.alpha, op: r.op || null, alphaRank: r.rank,
         bought: Math.round(bought), sold: Math.round(sold), reinvested: Math.round(reinv),
         netFloor: Math.round(bought - sold), reinvestPct: (reinv + sold) > 0 ? Math.round(reinv / (reinv + sold) * 100) : null,
         active: (bought + sold + reinv) > 0,
         handle: h ? { handle: h.handle, name: h.name, avatar: h.avatar } : null };
+      if (havePnl) {
+        // null (not 0) when a wallet is absent from the result: "didn't trade" and "broke even"
+        // are different claims, and a 0 would sort a non-trader alongside a flat trader.
+        const d = agentPnl[r.a.toLowerCase()] || null;
+        row.pnlUsd = d ? Math.round(d.netUsd * 100) / 100 : null;
+        row.pnlTrades = d ? d.trades : 0;
+        row.pnlVolumeUsd = d ? Math.round(d.volumeUsd) : null;
+      }
+      return row;
     });
-    agents.forEach((a, i) => { a.rank = i + 1; });   // ranked by alpha (leaderboard order)
+    // Rank by real PnL once we have it — that's the recruiting question. Alpha order otherwise.
+    if (havePnl) agents.sort((a, b) => (b.pnlUsd == null ? -Infinity : b.pnlUsd) - (a.pnlUsd == null ? -Infinity : a.pnlUsd));
+    agents.forEach((a, i) => { a.rank = i + 1; });
     res.end(JSON.stringify({ ok: true, ageMs: scoutAt ? Date.now() - scoutAt : null,
       totalFreeAgents: agents.length, agents: agents.slice(0, limit),
-      note: 'Recruiting signals for desk owners not yet in a firm — earning power (alpha), FLOOR accumulation, and reinvestment. This is a free on-chain proxy for firepower, NOT the competition\'s trading PnL (which is off-chain and per-firm only).' }));
+      pnl: havePnl ? { source: 'Dune dex.trades (whole-chain, our own estimate)', weekStart: agentPnlWindow,
+        ageMs: agentPnlAt ? Date.now() - agentPnlAt : null, rankedBy: 'pnlUsd' } : null,
+      note: havePnl
+        ? 'Free agents ranked by whole-chain trading PnL over the current Mon–Fri ET window, the same basis the firm competition scores on. Independently computed from Dune dex.trades — NOT the game\'s own figure, which is off-chain-indexed, marked to market, and published per-firm only. Wallets with no DEX trades this window show null, not zero.'
+        : 'Recruiting signals for desk owners not yet in a firm — earning power (alpha), FLOOR accumulation, and reinvestment. This is a free on-chain proxy for firepower, NOT the competition\'s trading PnL (which is off-chain and per-firm only).' }));
     return;
   }
 
