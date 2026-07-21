@@ -13,3 +13,5 @@ broker-agent.js
 x-client.js
 .broker-agent-state.json
 .env.broker
+broker-sign.js
+.broker-sign-state.json

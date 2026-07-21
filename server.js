@@ -1595,6 +1595,18 @@ const POOL_FEE = 10000;                              // 1% — the only FLOOR/WE
 const SEL_EXACT_IN_SINGLE = '0x04e45aaf';            // exactInputSingle((tokenIn,tokenOut,fee,recipient,amountIn,amountOutMinimum,sqrtPriceLimitX96))
 const SEL_WETH_DEPOSIT = '0xd0e30db0';               // WETH.deposit() — payable, no args
 const SEL_SLOT0 = '0x3850c7bd';                      // pool.slot0() -> sqrtPriceX96 in first word
+// V3 factory, read off the FLOOR pool's own factory() rather than hardcoded from a guess. getPool
+// lets a caller name two tokens and a tier instead of having to know the pool address — without it
+// an agent cannot quote its own trade, and a swap with no quote is a swap with no price floor.
+const V3_FACTORY = '0x1f7d7550b1b028f7571e69a784071f0205fd2efa';
+const SEL_GET_POOL = '0x1698ee82';                   // factory.getPool(address,address,uint24)
+const FEE_TIERS = [100, 500, 3000, 10000];
+async function v3Pool(tokenA, tokenB, fee) {
+  const r = await ethCall(V3_FACTORY, SEL_GET_POOL + wAddr(tokenA) + wAddr(tokenB) + w256(fee));
+  if (!r) return null;
+  const a = '0x' + String(r).slice(26);
+  return /[1-9a-f]/.test(a.slice(2)) ? a.toLowerCase() : null;
+}
 // Live spot price straight from the pool, so amountOutMinimum is a real quote and not a guess an agent
 // could get sandwiched on. token0=WETH, token1=FLOOR → (sqrtPriceX96^2 / 2^192) = FLOOR per WETH.
 async function floorPerWeth() {
@@ -2087,9 +2099,25 @@ async function mcpCall(name, args) {
         const s = mo.toFixed(outDecimals); const [i, f] = s.split('.');
         minOutRaw = BigInt(i) * ou + BigInt((f || '').padEnd(outDecimals, '0').slice(0, outDecimals) || '0');
         quoteNote = 'amountOutMinimum supplied by the caller — this server did not verify it against a pool';
-      } else if (args.pool && hex(String(args.pool))) {
-        const s0 = await ethCall(String(args.pool).toLowerCase(), SEL_SLOT0);
-        if (!s0) return { error: 'could not read slot0 from the pool you gave — check the address, or pass minAmountOut explicitly' };
+      } else {
+        /* Resolve the pool ourselves when one was not named. Without this an agent has to already
+           know the pool address to get a price floor, which in practice means it skips the floor. */
+        let pool = (args.pool && hex(String(args.pool))) ? String(args.pool).toLowerCase() : null;
+        let poolSource = pool ? 'caller-supplied' : null;
+        if (!pool) {
+          pool = await v3Pool(tokenIn, tokenOut, fee);
+          poolSource = 'factory.getPool(tokenIn,tokenOut,' + fee + ')';
+          if (!pool) {
+            const found = [];
+            for (const t of FEE_TIERS) { if (t === fee) continue; const p = await v3Pool(tokenIn, tokenOut, t); if (p) found.push(t); }
+            return { error: 'no Uniswap V3 pool for that pair at the ' + fee + ' tier' +
+              (found.length ? '. Pools DO exist at: ' + found.join(', ') + ' — pass `fee` as one of those.'
+                            : '. No pool at any standard tier either — this pair may not be tradeable here, or it routes multi-hop, which this tool does not build.') };
+          }
+        }
+        const s0 = await ethCall(pool, SEL_SLOT0);
+        if (!s0) return { error: 'could not read slot0 from pool ' + pool + ' — retry, or pass minAmountOut explicitly' };
+        args.pool = pool; args.__poolSource = poolSource;
         const sqrt = BigInt('0x' + s0.slice(2, 66));
         const p10 = Number(sqrt * sqrt) / (2 ** 192);          // token1 per token0
         const t0Lt = tokenIn < tokenOut;                        // pool orders tokens by address
@@ -2100,9 +2128,8 @@ async function mcpCall(name, args) {
         const expected = amountIn * rate;
         const ou = 10n ** BigInt(outDecimals);
         minOutRaw = BigInt(Math.floor(expected * (1 - slip / 100) * Number(ou)));
-        quoteNote = 'live pool quote ' + expected.toPrecision(8) + ' out, minus ' + slip + '% slippage';
-      } else {
-        return { error: 'refusing to build a swap with no price floor: pass `pool` (for a live on-chain quote) or `minAmountOut`. A zero amountOutMinimum is a guaranteed sandwich.' };
+        quoteNote = 'live slot0 quote from ' + args.pool + ' (' + args.__poolSource + '): ' +
+          expected.toPrecision(8) + ' out, minus ' + slip + '% slippage';
       }
 
       // exactInputSingle((tokenIn,tokenOut,fee,recipient,amountIn,amountOutMinimum,sqrtPriceLimitX96))
