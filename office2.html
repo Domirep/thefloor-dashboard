@@ -413,6 +413,22 @@ function drawParts(ctx){
 
 /* ============================ CAMERA + STATE ============================ */
 let T=0, shake=0, mawHeat=0, roomSurge=0, molochWake=.35;
+// ---- weather: rain on the deco glass + occasional lightning over the city ----
+const WIN_BANDS=[0,1,2,3,4].map(i=>({x0:24+i*66,x1:24+i*66+42}));   // the 5 window bays
+const inWindow=x=>WIN_BANDS.some(b=>x>=b.x0&&x<=b.x1);
+const rain=[]; for(let i=0;i<90;i++) rain.push({x:rnd(0,330),y:rnd(16,FLOOR_Y),v:rnd(150,240),len:RI(3,6)});
+let lightning=0, nextBolt=2.5;
+function updateWeather(dt){
+  for(const p of rain){ p.y+=p.v*dt; p.x+=p.v*dt*.14; if(p.y>FLOOR_Y-18||p.x>330){ p.y=rnd(10,40); p.x=rnd(-10,330); } }
+  lightning*=Math.pow(.00002,dt);
+  nextBolt-=dt; if(nextBolt<=0){ lightning=1; nextBolt=rnd(7,20); if(Math.random()<.5) setTimeout(()=>{lightning=Math.min(1,lightning+.7);}, RI(80,220)); }
+}
+function drawRain(ctx){
+  ctx.strokeStyle='rgba(150,180,220,'+(0.16+lightning*.5).toFixed(2)+')'; ctx.lineWidth=1;
+  ctx.beginPath();
+  for(const p of rain){ if(!inWindow(p.x))continue; ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.len*.14,p.y-p.len); }
+  ctx.stroke();
+}
 const cam={x:0,y:0};
 function kick(a){ shake=Math.max(shake,a); }
 
@@ -486,6 +502,8 @@ function frame(dt){
   g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,W,H);
   g.save(); g.translate(Math.round(-cam.x),Math.round(-cam.y));
   g.drawImage(bg,0,0);
+  updateWeather(dt);
+  drawRain(g);                                             // rain streaks on the deco glass
 
   // ---- the maw: a molten furnace that CHURNS, and a jaw that opens to swallow ----
   const heat=.42+mawHeat*.58+Math.sin(T*.004)*.05;
@@ -573,14 +591,20 @@ function frame(dt){
   light(ligx,TERM.x+TERM.w/2,TERM.y+10,34,'rgba(120,240,170,.9)',.3+termFlash*.4);
   if(elevOpen>.05) light(ligx,ELEV.x+ELEV.w/2,ELEV.y+ELEV.h/2,40,'rgba(255,210,120,1)',elevOpen*.6);
   if(roomSurge>0) { ligx.fillStyle='rgba(255,170,80,'+(roomSurge*.30).toFixed(3)+')'; ligx.fillRect(0,0,W,H); }
+  if(lightning>.02){ ligx.fillStyle='rgba(150,180,230,'+(lightning*.6).toFixed(3)+')'; ligx.fillRect(0,0,330,FLOOR_Y); }  // cold flash through the windows
   g.globalCompositeOperation='multiply'; g.drawImage(lig,0,0);
   g.globalCompositeOperation='source-over';
 
-  /* 3. additive glow */
+  /* 3. additive glow + god-ray shafts */
   g.globalCompositeOperation='lighter';
   light(g,m.x+m.w/2,m.y+m.h/2,60+mawHeat*46,'rgba(255,120,40,.55)',.5+mawHeat*.5);
   for(let i=0;i<5;i++) light(g,40+i*66,20,20,'rgba(255,214,140,.5)',.32);
   light(g,TERM.x+TERM.w/2,TERM.y+8,16,'rgba(120,240,170,.5)',.25+termFlash*.5);
+  // volumetric shafts angling down from each window (brighter on a lightning flash)
+  const shaftA=.05+lightning*.35+Math.sin(T*.0006)*.02;
+  for(let i=0;i<5;i++){ const wx=45+i*66; const grd=g.createLinearGradient(wx,24,wx-26,FLOOR_Y);
+    grd.addColorStop(0,'rgba(190,205,235,'+shaftA.toFixed(3)+')'); grd.addColorStop(1,'rgba(190,205,235,0)');
+    g.fillStyle=grd; g.beginPath(); g.moveTo(wx-9,24); g.lineTo(wx+11,24); g.lineTo(wx-14,FLOOR_Y); g.lineTo(wx-40,FLOOR_Y); g.closePath(); g.fill(); }
   g.globalCompositeOperation='source-over';
 
   /* 4. bloom */
