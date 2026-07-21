@@ -2863,6 +2863,12 @@ ${API_INDEX.endpoints.map(e => `- ${'`'}${e.path}${'`'} — ${e.desc}`).join('\n
 - MCP tools: get_brokers, get_broker, get_broker_leaderboard (contents ranking — removable
   snapshot, not an appraisal), get_broker_activation_math (fee/share/payback facts),
   prepare_activate_broker (approve + activate, unsigned).
+- **The broker's wallet can TRADE:** ${'`'}prepare_broker_trade${'`'} routes a Uniswap V3 exactInputSingle
+  through the account's executeCall, so the WALLET spends and the output lands back IN THE WALLET
+  (never the owner's EOA — that would drain the NFT of what makes it worth anything). Owner-gated
+  and balance-checked like the others, and it REFUSES to build a swap with no price floor: pass a
+  ${'`'}pool${'`'} for a live slot0 quote minus slippage, or an explicit ${'`'}minAmountOut${'`'}. The router pulls via
+  transferFrom, so a short allowance returns an ${'`'}approveFirst${'`'} tx — two signatures, in order.
 - **The 6551 wallet is a general on-chain account** — any asset it holds or position it takes on
   this chain travels with the NFT when it changes hands. The Floor desk below is the worked
   example, not the limit.
@@ -2893,6 +2899,11 @@ ${API_INDEX.endpoints.map(e => `- ${'`'}${e.path}${'`'} — ${e.desc}`).join('\n
   / liquidity so you don't mistake an LP deposit for a dump.
 - A wallet's recruiter is fixed forever at desk creation; it can never be changed or backfilled.
 - Burned can exceed current supply (burns reduce supply), so burnedPct > 100% is normal, not a bug.
+
+## Every tool, generated
+Prose above goes stale the moment a tool is added; this list cannot, because it is built from the
+same array the MCP serves. Names and one-line summaries only — call ${'`'}tools/list${'`'} for full schemas.
+${MCP_TOOLS.map(t => '- `' + t.name + '` — ' + String(t.description || '').split(/(?<=\.)\s/)[0].slice(0, 155)).join('\n')}
 `;
 
 http.createServer(async (req, res) => {

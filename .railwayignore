@@ -9,3 +9,7 @@ REGISTRY.md
 HANDOFF.md
 shot.ps1
 .claude/
+broker-agent.js
+x-client.js
+.broker-agent-state.json
+.env.broker
