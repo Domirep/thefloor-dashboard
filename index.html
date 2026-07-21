@@ -307,11 +307,10 @@ a.rst-nm:hover{color:var(--brass-light);text-decoration:underline}
 @keyframes opbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 @keyframes opwork{0%,100%{filter:brightness(1)}45%{filter:brightness(1.6) saturate(1.3)}}
 @keyframes oppop{0%{opacity:0;transform:translateX(-50%) translateY(2px) scale(.7)}25%{opacity:1;transform:translateX(-50%) translateY(-6px) scale(1)}100%{opacity:0;transform:translateX(-50%) translateY(-30px) scale(1)}}
-/* scoped to :not(.motion-live) so the floor's own Motion switch wins over the OS hint — otherwise
-   "Motion on" would move the operators while their sprites stayed frozen */
-@media(prefers-reduced-motion:reduce){html:not(.motion-live) .op .fig,html:not(.motion-live) .op.busy .fig{animation:none}html:not(.motion-live) .op.busy .pop{animation:none}}
-/* ---- the office scene (living diorama) ---- */
-.scene-wrap{position:relative;width:100%;aspect-ratio:1150/430;overflow:hidden;border:2px solid var(--brass-dark);border-radius:12px;background:#0e0a06;box-shadow:var(--shadow-lg)}
+/* These used to be scoped to :not(.motion-live) so the office scene's own Motion switch could
+   override the OS hint. That switch went with the scene, so the OS preference is the only
+   opinion left — and it's the one that should win anyway. */
+@media(prefers-reduced-motion:reduce){.op .fig,.op.busy .fig{animation:none}.op.busy .pop{animation:none}}
 /* embedded live diorama (office2) — 480x270 source, so 16:9 */
 .scene-embed{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border:2px solid var(--brass-dark);border-radius:12px;background:#05060b;box-shadow:var(--shadow-lg)}
 /* on a phone the diorama switches to a taller cropped slice, so give it a taller box */
@@ -319,71 +318,6 @@ a.rst-nm:hover{color:var(--brass-light);text-decoration:underline}
 .scene-embed iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
 .pip-btn{margin-left:auto;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted-cream);background:#0e0b08;border:1px solid #2a2318;border-radius:5px;padding:6px 10px;cursor:pointer;white-space:nowrap}
 .pip-btn:hover{color:var(--brass-light);border-color:var(--brass-dark)}
-.pipdock{position:fixed;right:16px;bottom:16px;z-index:9998;width:min(360px,88vw);background:#0d0b08;border:1px solid var(--brass-dark);border-radius:11px;box-shadow:0 18px 48px rgba(0,0,0,.65);overflow:hidden;touch-action:none}
-.pip-bar{display:flex;align-items:center;justify-content:space-between;padding:6px 6px 6px 11px;cursor:grab;background:linear-gradient(180deg,#1a140b,#0d0b08);border-bottom:1px solid #2a2318;user-select:none}
-.pip-bar:active{cursor:grabbing}
-.pip-t{font-family:var(--font-mono);font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--brass-light)}
-.pip-hint{font-family:var(--font-mono);font-size:8.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted-cream);opacity:.62}
-.pip-ctl button{background:none;border:none;color:var(--muted-cream);font-size:14px;cursor:pointer;padding:3px 8px;border-radius:5px}
-.pip-ctl button:hover{color:var(--paper);background:#241c12}
-.pip-body{position:relative}.pip-body .scene-wrap{margin:0;border-radius:0;border:none}
-.pip-ph{display:flex;flex-direction:column;align-items:center;gap:10px;border:1px dashed var(--brass-dark);border-radius:12px;padding:26px 18px;text-align:center;color:var(--muted-cream);font-family:var(--font-mono);font-size:12px;background:#0e0a06}
-.pip-ph .pd{font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#0c0906;background:var(--amber);border:none;border-radius:5px;padding:8px 14px;cursor:pointer}
-.scene-root{position:absolute;left:0;top:0;width:1150px;height:430px;transform-origin:0 0}
-.scene-root.zoomable{transition:transform 1.15s cubic-bezier(.4,0,.2,1)}
-#sceneTint{position:absolute;inset:0;pointer-events:none;z-index:540;background:transparent;transition:background 1.5s ease}
-.scene-root.daymode #sceneTint{background:linear-gradient(180deg,rgba(150,192,232,.30),rgba(160,198,235,.12) 45%,rgba(255,240,200,.06))}
-.mkt-badge{position:absolute;left:214px;top:54px;z-index:6;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:var(--muted-cream);background:rgba(9,6,3,.82);border:1px solid #3a2f1a;border-radius:3px;padding:3px 8px}
-.mkt-badge b{color:var(--muted);font-size:11px}
-.mkt-badge.open{color:#bfe8cf} .mkt-badge.open b{color:#2fbf71}
-#sceneBg,#sceneFgSvg{position:absolute;inset:0;width:100%;height:100%;shape-rendering:geometricPrecision}
-#sceneFgSvg{z-index:500;pointer-events:none}
-#sceneFx{position:absolute;inset:0;z-index:600;pointer-events:none}
-#sceneDesks{position:absolute;inset:0;z-index:520;pointer-events:none}
-#crtScreen{transition:filter .25s}
-#crtScreen.flash{filter:brightness(2.1) drop-shadow(0 0 12px #2fbf71)}
-#incinDoor.flare{animation:doorflare .9s ease-out}
-#incinGlow{transform-box:fill-box;transform-origin:center}
-#incinGlow.flare{animation:glowflare .9s ease-out}
-.scene-board{position:absolute;left:214px;top:12px;width:722px;height:36px;background:#070503;border:3px solid #8a6d16;border-radius:5px;overflow:hidden;box-shadow:inset 0 0 14px rgba(0,0,0,.9),0 2px 0 rgba(0,0,0,.5)}
-.board-tape{display:inline-block;white-space:nowrap;font-family:var(--font-mono);font-size:15px;line-height:31px;color:var(--amber);text-shadow:0 0 6px rgba(201,162,39,.55);padding-left:730px;animation:tape 36s linear infinite}
-@keyframes tape{to{transform:translateX(-100%)}}
-.scene-elevator{position:absolute;left:41px;top:118px;width:94px;height:214px;z-index:450;overflow:hidden;pointer-events:none}
-.ele-door{position:absolute;top:0;bottom:0;width:46px;background:linear-gradient(90deg,#7d6220 0%,#584518 34%,#6b5426 52%,#493a14 100%);box-shadow:inset 0 0 0 2px rgba(0,0,0,.35),inset 0 26px 0 -24px #e6c96b;transition:transform 1s ease-in-out}
-.ele-door.l{left:0;border-right:2px solid #0d0a05}.ele-door.r{right:0;border-left:2px solid #0d0a05}
-.scene-elevator.open .ele-door.l{transform:translateX(-45px)}.scene-elevator.open .ele-door.r{transform:translateX(45px)}
-.ele-lamp{position:absolute;left:50%;top:4px;transform:translateX(-50%);width:9px;height:9px;border-radius:50%;background:#42350f;transition:background .3s,box-shadow .3s;z-index:2}
-.scene-elevator.open .ele-lamp{background:var(--amber);box-shadow:0 0 12px var(--amber)}
-.desk{position:absolute}
-.desk .plate{position:absolute;left:0;top:0;transform:translateX(-50%);font-family:var(--font-mono);font-size:8.5px;letter-spacing:.5px;color:var(--brass-light);background:#0c0906;border:1px solid #3a2f1a;border-radius:3px;padding:1px 5px;white-space:nowrap}
-@keyframes doorflare{0%{filter:brightness(1)}25%{filter:brightness(2.2) drop-shadow(0 0 26px rgba(255,140,30,.95))}100%{filter:brightness(1)}}
-@keyframes glowflare{25%{transform:scale(1.5);opacity:1}}
-.actor{position:absolute;left:0;top:0;width:50px;height:58px;transform-origin:25px 58px;cursor:pointer;transition:opacity .6s}
-.actor .flip{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center}
-.actor .body{width:48px;height:48px;image-rendering:pixelated;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
-.actor .shadow{position:absolute;left:50%;bottom:-3px;transform:translateX(-50%);width:30px;height:7px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.5),transparent 70%)}
-.actor .tag{position:absolute;left:50%;top:-15px;transform:translateX(-50%);font-family:var(--font-mono);font-size:8.5px;white-space:nowrap;color:var(--brass-light);background:rgba(10,7,4,.85);border:1px solid #3a2f1a;border-radius:3px;padding:1px 5px;opacity:0;transition:opacity .2s;pointer-events:none}
-.actor:hover .tag{opacity:1}
-.actor .nameplate{position:absolute;left:50%;top:-16px;transform:translateX(-50%);display:none;align-items:center;gap:3px;font-family:var(--font-mono);font-size:8.5px;font-weight:600;white-space:nowrap;color:#f0e6d2;background:rgba(9,6,3,.92);border:1px solid #6b5426;border-radius:3px;padding:1px 5px;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.55)}
-.actor.named .nameplate{display:inline-flex}
-.actor.named .tag{display:none}
-.actor .nameplate .xa{width:11px;height:11px;border-radius:50%;object-fit:cover;flex:none}
-.actor .nameplate .xm{color:#e6c96b;font-weight:800}
-.actor.walking .body{animation:toddle .34s linear infinite alternate}
-@keyframes toddle{0%{transform:translateY(0) rotate(-3deg)}100%{transform:translateY(-2.5px) rotate(3deg)}}
-.actor .bag{position:absolute;right:-4px;bottom:10px;font-size:13px;display:none;filter:drop-shadow(0 1px 1px #000)}
-.actor.carry .bag{display:block}
-.actor.fadeout{opacity:0}
-.mini-op{position:absolute;width:28px;height:28px;image-rendering:pixelated;animation:minipop .5s ease-out;transition:opacity .8s;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5))}
-@keyframes minipop{0%{transform:scale(0) translateY(8px)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
-.fx-label{position:absolute;transform:translateX(-50%);font-family:var(--font-mono);font-weight:700;font-size:15px;white-space:nowrap;text-shadow:0 1px 0 #000,0 0 8px rgba(0,0,0,.7);animation:fxrise 2s ease-out forwards;pointer-events:none}
-.fx-label.live{font-size:17px}
-@keyframes fxrise{0%{opacity:0;transform:translate(-50%,8px) scale(.8)}14%{opacity:1;transform:translate(-50%,0) scale(1)}100%{opacity:0;transform:translate(-50%,-52px) scale(1.04)}}
-.fx-coin{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffe9a8,#c9a227 60%,#8a6d16);box-shadow:0 0 4px rgba(201,162,39,.7);animation:fxcoin .95s ease-out forwards;pointer-events:none}
-@keyframes fxcoin{to{transform:translate(var(--dx),var(--dy));opacity:0}}
-.fx-ember{position:absolute;width:5px;height:5px;border-radius:50%;background:#ff8a1f;box-shadow:0 0 7px #ff7a1a;animation:fxember 1.15s ease-out forwards;pointer-events:none}
-@keyframes fxember{to{transform:translate(var(--dx),var(--dy)) scale(.4);opacity:0}}
-@media(prefers-reduced-motion:reduce){html:not(.motion-live) .board-tape{animation:none}html:not(.motion-live) .actor.walking .body{animation:none}}
 .office-ticker{display:flex;gap:18px;overflow:hidden;white-space:nowrap;background:#0c0906;border:1px solid #2a2318;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-family:var(--font-mono);font-size:11px;color:var(--muted-cream)}
 .office-ticker .ti{flex:none}
 .office-ticker .ti b{color:var(--brass-light);font-weight:600}
@@ -548,11 +482,6 @@ a.rst-nm:hover{color:var(--brass-light);text-decoration:underline}
   #competition .firm-memo{max-width:52vw}
 }
 </style>
-<script>
-/* Set before first paint so a live floor never flashes frozen sprites. Mirrors motionStill() below;
-   the floor is live unless the viewer explicitly chose the still scene. */
-try{ if(localStorage.getItem('floor.motion')!=='still') document.documentElement.classList.add('motion-live'); }catch(e){ document.documentElement.classList.add('motion-live'); }
-</script>
 </head>
 <body>
 
@@ -694,166 +623,13 @@ try{ if(localStorage.getItem('floor.motion')!=='still') document.documentElement
       <h2>The Office</h2>
       <span class="sub label" id="officeSub">every wallet, working the floor</span>
       <a class="pip-btn" href="/office2" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none" title="Open the floor full-screen">⛶ Full screen</a>
-      <!-- kept (hidden) on purpose: the old scene's JS attaches to both, and a null
-           getElementById here would throw and take the whole inline script with it -->
-      <span hidden><button class="pip-btn" id="motionBtn"></button><button class="pip-btn" id="pipBtn">⧉ Pop out</button></span>
     </div>
 
-    <!-- The live pixel diorama, embedded. It replaces the old SVG scene, which is kept
-         hidden below rather than deleted: its engine (SCENE/PV/PiP/sceneCast) is wired
-         through ~60 call sites in this file, so removing the DOM outright would
-         null-reference them and silently kill the whole inline script. -->
+    <!-- The live pixel diorama (office2), embedded. -->
     <div class="scene-embed">
       <iframe src="/office2?embed=1" title="The Floor — live diorama" loading="eager"></iframe>
     </div>
 
-    <div id="oldScene" hidden aria-hidden="true">
-    <div id="officeScene" class="scene-wrap">
-      <div id="sceneRoot" class="scene-root">
-        <svg id="sceneBg" viewBox="0 0 1150 430" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#070d1a"/><stop offset=".62" stop-color="#101d36"/><stop offset="1" stop-color="#243350"/></linearGradient>
-            <linearGradient id="wallG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#170f07"/><stop offset=".5" stop-color="#211709"/><stop offset="1" stop-color="#1a1208"/></linearGradient>
-            <linearGradient id="floorG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#332111"/><stop offset="1" stop-color="#1f1408"/></linearGradient>
-            <linearGradient id="brassV" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e6c96b"/><stop offset=".5" stop-color="#8a6d16"/><stop offset="1" stop-color="#5c4712"/></linearGradient>
-            <linearGradient id="ironG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b3b45"/><stop offset=".55" stop-color="#26262e"/><stop offset="1" stop-color="#191920"/></linearGradient>
-            <linearGradient id="pipeG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#43434e"/><stop offset=".5" stop-color="#2b2b33"/><stop offset="1" stop-color="#1b1b21"/></linearGradient>
-            <radialGradient id="moonG"><stop offset="0" stop-color="#f4edd8"/><stop offset=".5" stop-color="#f4edd8" stop-opacity=".55"/><stop offset="1" stop-color="#f4edd8" stop-opacity="0"/></radialGradient>
-            <radialGradient id="sunG"><stop offset="0" stop-color="#ffe9a8"/><stop offset=".5" stop-color="#ffd36b" stop-opacity=".5"/><stop offset="1" stop-color="#ffd36b" stop-opacity="0"/></radialGradient>
-            <linearGradient id="dayG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a86bd"/><stop offset=".55" stop-color="#83b0da"/><stop offset="1" stop-color="#c3daee"/></linearGradient>
-            <radialGradient id="poolG"><stop offset="0" stop-color="#ffc45a" stop-opacity=".14"/><stop offset="1" stop-color="#ffc45a" stop-opacity="0"/></radialGradient>
-            <radialGradient id="fireGlowG"><stop offset="0" stop-color="#ff8a1f" stop-opacity=".5"/><stop offset="1" stop-color="#ff8a1f" stop-opacity="0"/></radialGradient>
-            <linearGradient id="coneG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc45a" stop-opacity=".16"/><stop offset="1" stop-color="#ffc45a" stop-opacity="0"/></linearGradient>
-            <linearGradient id="shaftG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0ff" stop-opacity=".10"/><stop offset="1" stop-color="#cfe0ff" stop-opacity="0"/></linearGradient>
-            <radialGradient id="vinG" cx=".5" cy=".42" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".42"/></radialGradient>
-            <clipPath id="doorClip"><circle cx="1052" cy="313" r="27"/></clipPath>
-            <g id="windowG">
-              <rect x="-8" y="-8" width="146" height="192" fill="#6b5426"/>
-              <rect x="-4" y="-4" width="138" height="184" fill="#2c2110"/>
-              <rect x="0" y="0" width="130" height="176" fill="url(#skyG)"/>
-            </g>
-            <g id="plantG">
-              <path d="M0,0 q-9,-16 -4,-34 q7,12 8,20 q1,-20 10,-30 q3,16 -1,30 q7,-12 16,-16 q-3,16 -12,26z" fill="#2f5d33"/>
-              <path d="M2,-6 q-4,-12 -1,-22 q5,9 4,18z" fill="#3f7a44"/>
-              <path d="M-12,0 h34 l-5,22 h-24z" fill="#7c2d12"/><path d="M-12,0 h34 l-2,6 h-30z" fill="#5c210d"/>
-            </g>
-          </defs>
-          <rect x="0" y="0" width="1150" height="332" fill="url(#wallG)"/>
-          <g opacity=".55"><rect x="150" y="14" width="2" height="288" fill="#0e0a05"/><rect x="360" y="14" width="2" height="288" fill="#0e0a05"/><rect x="574" y="14" width="2" height="288" fill="#0e0a05"/><rect x="788" y="14" width="2" height="288" fill="#0e0a05"/><rect x="998" y="14" width="2" height="288" fill="#0e0a05"/></g>
-          <rect x="0" y="0" width="1150" height="12" fill="#100b06"/><rect x="0" y="12" width="1150" height="3" fill="#3a2c12"/>
-          <use href="#windowG" x="230" y="58"/><use href="#windowG" x="444" y="58"/><use href="#windowG" x="658" y="58"/>
-          <g fill="#f4edd8" opacity=".6"><circle cx="262" cy="78" r="1.1"/><circle cx="318" cy="96" r="1.4"/><circle cx="292" cy="120" r="1"/><circle cx="486" cy="84" r="1.2"/><circle cx="548" cy="72" r="1"/><circle cx="700" cy="90" r="1.3"/><circle cx="742" cy="70" r="1"/><circle cx="762" cy="112" r="1.2"/></g>
-          <g id="sceneMoon"><circle cx="512" cy="104" r="22" fill="url(#moonG)"/><circle cx="512" cy="104" r="8" fill="#f4edd8"/><circle cx="509" cy="101" r="2" fill="#ded5b8"/><circle cx="515" cy="107" r="1.5" fill="#ded5b8"/></g>
-          <g id="sceneSun" style="display:none"><circle cx="512" cy="104" r="40" fill="url(#sunG)"/><g stroke="#ffd76b" stroke-width="2" opacity=".55"><line x1="512" y1="60" x2="512" y2="50"/><line x1="512" y1="148" x2="512" y2="158"/><line x1="468" y1="104" x2="458" y2="104"/><line x1="556" y1="104" x2="566" y2="104"/><line x1="481" y1="73" x2="474" y2="66"/><line x1="543" y1="73" x2="550" y2="66"/><line x1="481" y1="135" x2="474" y2="142"/><line x1="543" y1="135" x2="550" y2="142"/></g><circle cx="512" cy="104" r="15" fill="#ffe08a"/><circle cx="507" cy="99" r="4" fill="#fff2c8"/></g>
-          <g fill="#0d1526">
-            <rect x="236" y="176" width="22" height="58"/><rect x="262" y="156" width="18" height="78"/><rect x="284" y="188" width="26" height="46"/><rect x="314" y="168" width="20" height="66"/><rect x="338" y="196" width="18" height="38"/>
-            <rect x="450" y="184" width="24" height="50"/><rect x="478" y="162" width="16" height="72"/><rect x="498" y="192" width="28" height="42"/><rect x="530" y="172" width="18" height="62"/><rect x="552" y="188" width="18" height="46"/>
-            <rect x="664" y="180" width="20" height="54"/><rect x="688" y="150" width="18" height="84"/><rect x="710" y="188" width="26" height="46"/><rect x="740" y="170" width="18" height="64"/><rect x="762" y="192" width="20" height="42"/>
-          </g>
-          <line x1="697" y1="150" x2="697" y2="140" stroke="#0d1526" stroke-width="2"/><circle cx="697" cy="139" r="2" fill="#d9534f"><animate attributeName="opacity" values="1;.15;1" dur="2.2s" repeatCount="indefinite"/></circle>
-          <g fill="#f2d98c" opacity=".85"><rect x="266" y="166" width="3" height="3"/><rect x="272" y="180" width="3" height="3"/><rect x="320" y="178" width="3" height="3"/><rect x="290" y="196" width="3" height="3"/><rect x="482" y="172" width="3" height="3"/><rect x="486" y="190" width="3" height="3"/><rect x="534" y="182" width="3" height="3"/><rect x="504" y="200" width="3" height="3"/><rect x="692" y="160" width="3" height="3"/><rect x="698" y="176" width="3" height="3"/><rect x="744" y="182" width="3" height="3"/><rect x="716" y="196" width="3" height="3"/><rect x="668" y="190" width="3" height="3"/></g>
-          <g fill="#7fd4e8" opacity=".5"><rect x="300" y="172" width="3" height="3"/><rect x="522" y="178" width="3" height="3"/><rect x="752" y="200" width="3" height="3"/></g>
-          <g stroke="#100b06" stroke-width="4"><line x1="295" y1="58" x2="295" y2="234"/><line x1="230" y1="146" x2="360" y2="146"/><line x1="509" y1="58" x2="509" y2="234"/><line x1="444" y1="146" x2="574" y2="146"/><line x1="723" y1="58" x2="723" y2="234"/><line x1="658" y1="146" x2="788" y2="146"/></g>
-          <polygon points="512,234 574,234 760,332 620,332" fill="url(#shaftG)"/>
-          <g>
-            <circle cx="182" cy="100" r="15" fill="#0c0906" stroke="#8a6d16" stroke-width="3"/>
-            <line x1="182" y1="100" x2="182" y2="90" stroke="#e6c96b" stroke-width="2"/><line x1="182" y1="100" x2="189" y2="104" stroke="#e6c96b" stroke-width="2"/><circle cx="182" cy="100" r="1.6" fill="#e6c96b"/>
-          </g>
-          <g font-family="DM Serif Display,Georgia,serif" text-anchor="middle">
-            <text x="893" y="112" font-size="26" letter-spacing="7" fill="#c9a227" style="text-shadow:0 0 12px rgba(201,162,39,.5)">THE FLOOR</text>
-            <rect x="820" y="122" width="146" height="2" fill="#6b5426"/>
-            <text id="wallBurn" x="893" y="146" font-size="12" letter-spacing="2" fill="#e08030" font-family="IBM Plex Mono,monospace">— FLOOR BURNED</text>
-          </g>
-          <rect x="0" y="300" width="1150" height="5" fill="url(#brassV)"/><rect x="0" y="305" width="1150" height="27" fill="#241a10"/>
-          <g opacity=".5"><rect x="90" y="308" width="2" height="21" fill="#120d07"/><rect x="330" y="308" width="2" height="21" fill="#120d07"/><rect x="570" y="308" width="2" height="21" fill="#120d07"/><rect x="810" y="308" width="2" height="21" fill="#120d07"/><rect x="1050" y="308" width="2" height="21" fill="#120d07"/></g>
-          <rect x="0" y="332" width="1150" height="98" fill="url(#floorG)"/>
-          <g stroke="#160e06" stroke-width="1.5" opacity=".8"><line x1="0" y1="354" x2="1150" y2="354"/><line x1="0" y1="378" x2="1150" y2="378"/><line x1="0" y1="404" x2="1150" y2="404"/></g>
-          <g stroke="#160e06" stroke-width="1" opacity=".5"><line x1="140" y1="332" x2="128" y2="354"/><line x1="470" y1="332" x2="458" y2="354"/><line x1="820" y1="332" x2="808" y2="354"/><line x1="300" y1="354" x2="286" y2="378"/><line x1="650" y1="354" x2="636" y2="378"/><line x1="980" y1="354" x2="966" y2="378"/><line x1="180" y1="378" x2="162" y2="404"/><line x1="540" y1="378" x2="522" y2="404"/><line x1="880" y1="378" x2="862" y2="404"/></g>
-          <ellipse cx="575" cy="400" rx="78" ry="15" fill="none" stroke="#8a6d16" stroke-width="3" opacity=".7"/><ellipse cx="575" cy="400" rx="58" ry="10" fill="none" stroke="#5c4712" stroke-width="2" opacity=".6"/>
-          <g><line x1="305" y1="15" x2="305" y2="46" stroke="#3a2c12" stroke-width="3"/><path d="M289,46 h32 l-7,14 h-18z" fill="#2c2110" stroke="#8a6d16" stroke-width="2"/><circle cx="305" cy="62" r="4" fill="#ffd88a"/><polygon points="289,62 321,62 391,392 219,392" fill="url(#coneG)"/><ellipse cx="305" cy="392" rx="86" ry="13" fill="url(#poolG)"/></g>
-          <g><line x1="730" y1="15" x2="730" y2="46" stroke="#3a2c12" stroke-width="3"/><path d="M714,46 h32 l-7,14 h-18z" fill="#2c2110" stroke="#8a6d16" stroke-width="2"/><circle cx="730" cy="62" r="4" fill="#ffd88a"/><polygon points="714,62 746,62 816,392 644,392" fill="url(#coneG)"/><ellipse cx="730" cy="392" rx="86" ry="13" fill="url(#poolG)"/></g>
-          <g>
-            <rect x="34" y="108" width="108" height="224" fill="#0a0705"/>
-            <rect x="34" y="108" width="108" height="10" fill="url(#brassV)"/>
-            <rect x="34" y="108" width="7" height="224" fill="url(#brassV)"/><rect x="135" y="108" width="7" height="224" fill="url(#brassV)"/>
-            <path d="M60,96 a28,28 0 0 1 56,0z" fill="none" stroke="#8a6d16" stroke-width="4"/>
-            <line x1="88" y1="96" x2="102" y2="78" stroke="#e6c96b" stroke-width="3"/>
-            <text x="88" y="93" font-size="8" fill="#8a6d16" text-anchor="middle" font-family="IBM Plex Mono,monospace">▲</text>
-          </g>
-          <g>
-            <rect x="192" y="286" width="30" height="46" fill="#3b342a"/><rect x="192" y="286" width="30" height="5" fill="#4a4336"/>
-            <path d="M197,258 h20 v28 h-20z" fill="#4a86c2"/><path d="M197,258 q10,-8 20,0 v6 h-20z" fill="#6aa4d8"/><rect x="203" y="252" width="8" height="8" fill="#37648f"/>
-            <rect x="219" y="296" width="6" height="10" fill="#e8dcc3"/>
-          </g>
-          <use href="#plantG" transform="translate(168,330)"/>
-          <use href="#plantG" transform="translate(962,330)"/>
-          <g>
-            <rect x="806" y="336" width="86" height="12" fill="#1c1610"/>
-            <path d="M810,336 l8,-30 h64 l8,30z" fill="#2c2318"/>
-            <rect x="820" y="282" width="40" height="28" rx="2" fill="#07140c" stroke="#241c0e" stroke-width="3" id="crtScreen"/>
-            <polyline points="824,302 830,296 836,299 842,290 848,293 854,287" fill="none" stroke="#2fbf71" stroke-width="1.6"/>
-            <rect x="862" y="290" width="22" height="20" rx="2" fill="#07140c" stroke="#241c0e" stroke-width="2.5"/>
-            <polyline points="865,304 870,298 874,301 880,294" fill="none" stroke="#2fbf71" stroke-width="1.3"/>
-            <rect x="826" y="312" width="34" height="5" rx="1" fill="#161006"/>
-            <text x="849" y="358" font-size="8" letter-spacing="1.5" fill="#b3a88f" text-anchor="middle" font-family="IBM Plex Mono,monospace">PNL TERMINAL</text>
-          </g>
-          <g>
-            <rect x="1028" y="0" width="30" height="240" fill="url(#pipeG)"/>
-            <rect x="1024" y="236" width="38" height="10" fill="#1b1b21"/>
-            <rect x="1002" y="244" width="100" height="146" rx="8" fill="url(#ironG)" stroke="#141419" stroke-width="3"/>
-            <g fill="#55555f"><circle cx="1012" cy="256" r="2"/><circle cx="1092" cy="256" r="2"/><circle cx="1012" cy="378" r="2"/><circle cx="1092" cy="378" r="2"/><circle cx="1012" cy="316" r="2"/><circle cx="1092" cy="316" r="2"/></g>
-            <circle cx="1076" cy="264" r="9" fill="#0c0906" stroke="#8a6d16" stroke-width="2"/><line x1="1076" y1="264" x2="1081" y2="258" stroke="#d9534f" stroke-width="1.6"/>
-            <g id="incinDoor">
-              <circle cx="1052" cy="313" r="30" fill="#101014"/>
-              <g clip-path="url(#doorClip)">
-                <rect x="1022" y="286" width="60" height="56" fill="#2a0d02"/>
-                <g id="fireFlames">
-                  <path d="M1032,338 Q1035,314 1042,306 Q1044,318 1049,320 Q1049,300 1057,294 Q1059,312 1064,316 Q1068,306 1071,300 Q1076,318 1070,330 Q1062,340 1044,340 Z" fill="#ff8a1f"><animate attributeName="opacity" values="1;.72;.92;1" dur=".8s" repeatCount="indefinite"/></path>
-                  <path d="M1040,338 Q1043,322 1049,316 Q1051,326 1056,326 Q1057,314 1062,310 Q1066,324 1062,332 Q1056,340 1044,340 Z" fill="#ffd23f"><animate attributeName="opacity" values=".9;.6;1;.9" dur=".6s" repeatCount="indefinite"/></path>
-                </g>
-                <g fill="#101014"><rect x="1022" y="296" width="60" height="4"/><rect x="1022" y="308" width="60" height="4"/><rect x="1022" y="320" width="60" height="4"/><rect x="1022" y="332" width="60" height="4"/></g>
-              </g>
-              <circle cx="1052" cy="313" r="30" fill="none" stroke="#101014" stroke-width="6"/>
-              <circle cx="1052" cy="313" r="33" fill="none" stroke="#33333c" stroke-width="2"/>
-            </g>
-            <g><rect x="1002" y="376" width="100" height="14" fill="#1c1c22"/><path d="M1002,376 l7,14 h14 l-7,-14z M1030,376 l7,14 h14 l-7,-14z M1058,376 l7,14 h14 l-7,-14z M1086,376 l7,14 h9 v-14z" fill="#c9a227" opacity=".55"/></g>
-            <ellipse cx="1032" cy="392" rx="16" ry="4" fill="#3b3b45" opacity=".8"/><ellipse cx="1022" cy="394" rx="9" ry="3" fill="#4a4a55" opacity=".7"/>
-            <text x="1052" y="410" font-size="9" letter-spacing="2" fill="#e08030" text-anchor="middle" font-family="IBM Plex Mono,monospace">INCINERATOR</text>
-            <ellipse id="incinGlow" cx="1035" cy="398" rx="80" ry="20" fill="url(#fireGlowG)" opacity=".55"><animate attributeName="opacity" values=".55;.4;.55" dur="2.4s" repeatCount="indefinite"/></ellipse>
-          </g>
-          <g fill="#ffe9a8" opacity=".14">
-            <circle cx="560" cy="270" r="1.4"><animateTransform attributeName="transform" type="translate" values="0,0; 26,34; 0,0" dur="13s" repeatCount="indefinite"/></circle>
-            <circle cx="600" cy="250" r="1.1"><animateTransform attributeName="transform" type="translate" values="0,0; -20,44; 0,0" dur="17s" repeatCount="indefinite"/></circle>
-            <circle cx="650" cy="290" r="1.3"><animateTransform attributeName="transform" type="translate" values="0,0; 18,26; 0,0" dur="11s" repeatCount="indefinite"/></circle>
-          </g>
-          <rect x="0" y="0" width="1150" height="430" fill="url(#vinG)" pointer-events="none"/>
-        </svg>
-        <div id="sceneBoard" class="scene-board"><div id="boardTape" class="board-tape">connecting to the floor…</div></div>
-        <div id="mktBadge" class="mkt-badge"></div>
-        <div class="scene-elevator" id="sElev"><div class="ele-door l"></div><div class="ele-door r"></div><div class="ele-lamp" id="eleLamp"></div></div>
-        <div id="sceneDesks"></div>
-        <div id="sceneActors"></div>
-        <div id="sceneTint"></div>
-        <svg id="sceneFgSvg" viewBox="0 0 1150 430" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <g id="deskF">
-              <rect x="-46" y="-20" width="92" height="7" rx="2" fill="#5a3d1c"/><rect x="-46" y="-15" width="92" height="3" fill="#3a2810"/>
-              <rect x="-42" y="-12" width="84" height="18" fill="#33230f"/>
-              <rect x="-38" y="-8" width="34" height="7" rx="1" fill="#241807"/><rect x="-25" y="-5" width="8" height="2" fill="#8a6d16"/>
-              <rect x="4" y="-8" width="34" height="7" rx="1" fill="#241807"/><rect x="17" y="-5" width="8" height="2" fill="#8a6d16"/>
-              <rect x="-45" y="-37" width="21" height="16" rx="2" fill="#07140c" stroke="#241c0e" stroke-width="2"/>
-              <polyline points="-42,-26 -38,-31 -34,-28 -30,-34 -27,-30" fill="none" stroke="#2fbf71" stroke-width="1.3"/>
-              <rect x="26" y="-26" width="16" height="5" fill="#d8cfb8" transform="rotate(-4 34 -24)"/>
-              <rect x="30" y="-34" width="9" height="8" rx="1" fill="#7c2d12"/><rect x="38" y="-32" width="3" height="4" fill="#7c2d12"/>
-            </g>
-          </defs>
-          <use href="#deskF" transform="translate(280,392)"/><use href="#deskF" transform="translate(430,392)"/><use href="#deskF" transform="translate(580,392)"/><use href="#deskF" transform="translate(730,392)"/>
-          <use href="#deskF" transform="translate(355,344) scale(.84)"/><use href="#deskF" transform="translate(505,344) scale(.84)"/>
-        </svg>
-        <div id="sceneFx"></div>
-      </div>
-    </div>
-    </div><!-- /#oldScene -->
     <p class="note" style="margin-top:10px">A live diorama of the floor, running a full day every six minutes. The seven desks are the seven firms in this week's championship — click one for its standings. Everyone walking around is a real wallet wearing its highest operator; click anyone for their card. They collect at the terminal and carry offerings to Moloch when the chain says they did.</p>
   </section>
 
@@ -1386,17 +1162,6 @@ try{ if(localStorage.getItem('floor.motion')!=='still') document.documentElement
 </div>
 
 <div id="deskToast" class="desk-toast" style="display:none"></div>
-
-<div id="pipDock" class="pipdock" style="display:none">
-  <div class="pip-bar" id="pipBar">
-    <div style="display:flex;flex-direction:column;gap:1px;min-width:0">
-      <span class="pip-t">▸ The Floor · live</span>
-      <span class="pip-hint" id="pipHint" style="display:none"></span>
-    </div>
-    <div class="pip-ctl"><button id="pipClose" title="Dock back into the page">✕</button></div>
-  </div>
-  <div class="pip-body" id="pipBody"></div>
-</div>
 
 <footer>
   <div class="wrap">
@@ -2043,7 +1808,6 @@ function renderLeaderboard(lb){
   const sub=$('#leadersSub'); if(sub) sub.textContent=fmt(lb.ranked)+' ranked · '+fmt(lb.totalRecruits)+' recruits · '+fmt(lb.totalReferral)+' $FLOOR paid to recruiters';
   // if a wallet is already loaded, refresh its rank line
   if(window.LIVE && window.__lastAddr) applyRank(window.__lastAddr);
-  try{ sceneCast(); }catch(e){}   // seat the top desks in the office scene
 }
 function applyRank(addr){ const r=rankOf(addr); const el=$('#rRank'); if(!el)return;
   el.innerHTML = r ? `<b class="tag" style="background:var(--amber);color:#0c0906">rank #${r.rank}</b> of ${fmt(r.of)} · top ${r.pct}% by alpha` : '';
@@ -2317,227 +2081,19 @@ async function loadOffice(){
   const leg=$('#officeLegend');
   if(leg) leg.innerHTML=`<span>${total} desk owners · ranked by alpha · ${linked} with linked 𝕏 · click a row for their card</span>`;
 }
-/* ================= the office scene engine ================= */
-const SCN={W:1150,H:430,BACK:344,FRONT:392,SPEED:110};
-const ST={elev:{x:88,l:0},cooler:{x:208,l:0},term:{x:846,l:1},incin:{x:1006,l:1},hr:{x:655,l:0}};
-const DESK_SPOTS=[{x:280,l:1},{x:430,l:1},{x:580,l:1},{x:730,l:1},{x:355,l:0},{x:505,l:0}];
-const laneY=l=>l?SCN.FRONT:SCN.BACK, laneS=l=>l?1:.84;
-const SCENE={actors:new Map(),inited:false,visible:true,static:false,last:0,zooming:false};
-let PV_ON=false;                                 // true while the office is streaming into a real (OS) picture-in-picture window
-const sceneLive=()=>(SCENE.visible||PV_ON)&&!document.hidden;
-function sceneScale(){ const w=$('#officeScene'),r=$('#sceneRoot'); if(!w||!r)return; r.style.transform='scale('+(w.clientWidth/SCN.W)+')'; }
-function sceneFocus(fx,fy,Z,ms){                 // cinematic punch-in on a point, then ease back
-  if(SCENE.static||SCENE.zooming||!SCENE.visible||document.hidden)return;
-  const w=$('#officeScene'),r=$('#sceneRoot'); if(!w||!r)return;
-  const W=w.clientWidth,H=w.clientHeight,S=W/SCN.W,Sz=S*(Z||1.5);
-  const tx=W/2-fx*Sz, ty=H/2-fy*Sz;
-  SCENE.zooming=true;
-  r.style.transform=`translate(${tx}px,${ty}px) scale(${Sz})`;
-  setTimeout(()=>{ sceneScale(); setTimeout(()=>{SCENE.zooming=false;},1200); }, ms||2300);
-}
-function nyseOpen(){
-  try{ const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());
-    const wd=p.find(x=>x.type==='weekday').value, hh=+p.find(x=>x.type==='hour').value, mm=+p.find(x=>x.type==='minute').value;
-    if(wd==='Sat'||wd==='Sun')return false; const t=hh*60+mm; return t>=570&&t<960; }catch(e){return false;}
-}
-function updateMarketHours(open){
-  const r=$('#sceneRoot'); if(!r)return; if(open===undefined)open=nyseOpen();
-  r.classList.toggle('daymode',open);
-  const moon=$('#sceneMoon'),sun=$('#sceneSun');
-  if(moon)moon.style.display=open?'none':'';
-  if(sun)sun.style.display=open?'':'none';
-  const bd=$('#mktBadge'); if(bd){ bd.className='mkt-badge'+(open?' open':''); bd.innerHTML=open?'<b>●</b> MARKET OPEN':'<b>☾</b> AFTER HOURS'; }
-}
-/* Motion preference. The OS "reduce motion" flag used to hard-kill the floor: the loop never started,
-   operators sat frozen at their desks, and it read as a broken dashboard rather than an accessibility
-   choice — reduce was being treated as delete. The floor is live by default now; anyone who wants the
-   still scene (which still gets the text ticker) can pick it, and the choice sticks. */
-const MOTION_KEY='floor.motion';
-const motionStill=()=>localStorage.getItem(MOTION_KEY)==='still';
-function paintMotionBtn(){
-  const b=$('#motionBtn'); if(!b)return;
-  const still=motionStill();
-  b.textContent=still?'▸ Motion off':'◉ Motion on';
-  b.title=still?'The floor is a still scene — click to bring it to life':'The floor is live — click for a still scene (reduced motion)';
-}
-function sceneInit(){
-  if(SCENE.inited||!$('#officeScene'))return; SCENE.inited=true;
-  SCENE.static=motionStill();
-  document.documentElement.classList.toggle('motion-live', !SCENE.static);
-  paintMotionBtn();
-  const mb=$('#motionBtn');
-  // reload rather than hot-swap: sceneInit seats the actors differently in each mode, and a full
-  // re-init is bulletproof next to unpicking half-walked actors and a running loop.
-  if(mb) mb.onclick=()=>{ localStorage.setItem(MOTION_KEY, motionStill()?'live':'still'); location.reload(); };
-  sceneScale(); addEventListener('resize',()=>{if(!SCENE.zooming)sceneScale();});
-  requestAnimationFrame(()=>{const r=$('#sceneRoot');if(r)r.classList.add('zoomable');});
-  updateMarketHours(); setInterval(updateMarketHours,60000);
-  try{ new IntersectionObserver(es=>{SCENE.visible=es[0].isIntersecting;},{threshold:.05}).observe($('#officeScene')); }catch(e){}
-  const dk=$('#sceneDesks');
-  if(dk) dk.innerHTML=DESK_SPOTS.map((d,i)=>{const y=laneY(d.l);return `<div class="desk" data-i="${i}" style="left:${d.x}px;top:${y+8}px"><div class="plate" style="display:none"></div></div>`;}).join('');
-  if(!SCENE.static) requestAnimationFrame(sceneTick);
-}
-function sceneTick(ts){
-  const dt=Math.min(0.05,(ts-(SCENE.last||ts))/1000); SCENE.last=ts;
-  if(sceneLive()) SCENE.actors.forEach(a=>actorStep(a,dt));
-  requestAnimationFrame(sceneTick);
-}
-function mkActor(addr,opName,o){
-  o=o||{};
-  const el=document.createElement('div');
-  el.className='actor'+(o.regular?' regular':'');
-  el.dataset.a=addr;
-  el.innerHTML=`<div class="tag">${o.rank?'#'+o.rank+' ':''}${addr.slice(0,6)}</div><div class="nameplate"></div><div class="flip"><img class="body" src="${OFFICE_SVG(opName)}" alt=""><span class="bag">💰</span></div><div class="shadow"></div>`;
-  el.onclick=()=>inspectWallet(addr);
-  $('#sceneActors').appendChild(el);
-  const a={addr,el,x:o.x!=null?o.x:ST.elev.x,y:laneY(o.l==null?0:o.l),s:laneS(o.l==null?0:o.l),tx:null,regular:!!o.regular,home:o.home||null,born:Date.now()};
-  SCENE.actors.set(addr,a); actorRender(a); applyHandle(a); return a;
-}
+/* linked 𝕏 handles, shared by the directory, the leaderboard and the flex card */
 function handleOf(addr){ return (window.__handles&&window.__handles[addr.toLowerCase()])||null; }
-function applyHandle(a){
-  const np=a.el.querySelector('.nameplate'); if(!np)return;
-  const h=handleOf(a.addr);
-  if(h){ np.innerHTML=''; if(h.avatar){const im=document.createElement('img');im.className='xa';im.src=h.avatar;im.onerror=()=>im.remove();np.appendChild(im);} const x=document.createElement('span');x.className='xm';x.textContent='𝕏';np.appendChild(x); np.appendChild(document.createTextNode(' '+(h.name||('@'+h.handle)))); np.title='@'+h.handle; a.el.classList.add('named'); }
-  else a.el.classList.remove('named');
-}
-function actorRender(a){ a.el.style.zIndex=Math.round(a.y); a.el.style.transform=`translate(${a.x-25}px,${a.y-58}px) scale(${a.s})`; }
-function actorWalk(a,x,l,cb){
-  a.tx={x,y:laneY(l),s:laneS(l),cb};
-  a.el.classList.add('walking');
-  const f=a.el.querySelector('.flip'); if(f)f.style.transform='scaleX('+(x<a.x?-1:1)+')';
-}
-function actorStep(a,dt){
-  if(!a.tx)return;
-  const dx=a.tx.x-a.x, dy=a.tx.y-a.y, dist=Math.hypot(dx,dy), sp=SCN.SPEED*a.s*dt;
-  if(dist<=sp){ a.x=a.tx.x;a.y=a.tx.y;a.s=a.tx.s; const cb=a.tx.cb; a.tx=null; a.el.classList.remove('walking'); actorRender(a); if(cb)cb(a); return; }
-  a.x+=dx/dist*sp; a.y+=dy/dist*sp; a.s+=(a.tx.s-a.s)*Math.min(1,sp/Math.max(1,dist));
-  actorRender(a);
-}
-function removeActor(a){ a.el.classList.add('fadeout'); setTimeout(()=>a.el.remove(),700); SCENE.actors.delete(a.addr); }
-function lbRowOf(addr){ return (window.__lb&&window.__lb.byAlpha.find(r=>r.a.toLowerCase()===addr.toLowerCase()))||null; }
-function ensureActor(addr){
-  let a=SCENE.actors.get(addr); if(a)return a;
-  const visitors=[...SCENE.actors.values()].filter(v=>!v.regular);
-  if(visitors.length>=9) walkOut(visitors.sort((x,y)=>x.born-y.born)[0]);
-  const row=lbRowOf(addr);
-  eleDing();
-  a=mkActor(addr,(row&&row.op)||'Retail Analyst',{rank:row&&row.rank,x:ST.elev.x,l:0});
-  actorWalk(a,240+Math.random()*480,Math.random()<0.5?0:1);
-  return a;
-}
-function walkOut(a){ actorWalk(a,ST.elev.x,0,()=>{eleDing();removeActor(a);}); }
-function eleDing(){ const e=$('#sElev'); if(!e)return; e.classList.add('open'); setTimeout(()=>e.classList.remove('open'),1900); }
-function goHome(a){
-  if(a.regular&&a.home) actorWalk(a,a.home.x,a.home.l);
-  else actorWalk(a,230+Math.random()*500,Math.random()<0.5?0:1);
-}
-function fxLabel(x,y,text,color,live){
-  const fx=$('#sceneFx'); if(!fx)return;
-  const d=document.createElement('div'); d.className='fx-label'+(live?' live':'');
-  d.style.left=x+'px'; d.style.top=(y-70)+'px'; d.style.color=color||'var(--amber)'; d.textContent=text;
-  fx.appendChild(d); setTimeout(()=>d.remove(),2100);
-}
-function fxBurst(x,y,cls,n){
-  const fx=$('#sceneFx'); if(!fx)return;
-  for(let i=0;i<n;i++){ const p=document.createElement('div'); p.className=cls;
-    p.style.left=(x-4+Math.random()*8)+'px'; p.style.top=(y-10)+'px';
-    p.style.setProperty('--dx',(Math.random()*70-35)+'px');
-    p.style.setProperty('--dy',(cls==='fx-ember'?-(30+Math.random()*55):(Math.random()*24-46))+'px');
-    fx.appendChild(p); setTimeout(()=>p.remove(),1300); }
-}
-function fxMini(x,y,opName){
-  const fx=$('#sceneFx'); if(!fx)return;
-  const m=document.createElement('img'); m.className='mini-op'; m.src=OFFICE_SVG(opName);
-  m.style.left=(x+18)+'px'; m.style.top=(y-30)+'px'; m.style.zIndex=y+1;
-  fx.appendChild(m); setTimeout(()=>{m.style.opacity=0;},3600); setTimeout(()=>m.remove(),4600);
-}
 const fmtAmt=v=>v==null?null:(v>=1000?(v/1000).toFixed(1)+'K':(v>=10?Math.round(v):v));
-function performAction(d,live){
-  if(SCENE.static||!SCENE.inited)return;
-  const amt=fmtAmt(d.amt);
-  if(d.t==='newdesk'){ if(!SCENE.actors.get(d.a))ensureActor(d.a); fxLabel(ST.elev.x,laneY(0)-8,'🆕 NEW DESK','var(--brass-light)',live); return; }
-  const a=ensureActor(d.a);
-  switch(d.t){
-    case 'firmburn':
-      a.el.classList.add('carry');
-      actorWalk(a,ST.incin.x-52,1,()=>{
-        a.el.classList.remove('carry');
-        const door=$('#incinDoor'),glow=$('#incinGlow');
-        if(door){door.classList.remove('flare');void door.offsetWidth;door.classList.add('flare');}
-        if(glow){glow.classList.remove('flare');void glow.offsetWidth;glow.classList.add('flare');setTimeout(()=>glow.classList.remove('flare'),950);}
-        fxBurst(ST.incin.x-8,laneY(1)-64,'fx-ember',7);
-        fxLabel(ST.incin.x-30,laneY(1)-6,'🔥 '+d.a.slice(0,6)+' -'+(amt?amt+' ':'')+'FLOOR','var(--red)',live);
-        if(live&&d.amt>=250){ fxBurst(ST.incin.x-8,laneY(1)-64,'fx-ember',10); sceneFocus(ST.incin.x-16,laneY(1)-40,1.55,2400); }
-        setTimeout(()=>goHome(a),2400);
-      });
-      break;
-    case 'collect': case 'claim':
-      actorWalk(a,ST.term.x-46,1,()=>{
-        const c=$('#crtScreen'); if(c){c.classList.add('flash');setTimeout(()=>c.classList.remove('flash'),900);}
-        fxBurst(ST.term.x,laneY(1)-58,'fx-coin',6);
-        fxLabel(ST.term.x-24,laneY(1)-6,(d.t==='claim'?'📈 ':'💰 ')+d.a.slice(0,6)+' +'+(amt?amt+' ':'')+'FLOOR','var(--amber)',live);
-        if(live&&d.amt>=1000){ fxBurst(ST.term.x,laneY(1)-58,'fx-coin',10); sceneFocus(ST.term.x-8,laneY(1)-36,1.5,2300); }
-        setTimeout(()=>goHome(a),2400);
-      });
-      break;
-    case 'recruit': case 'starter': case 'seat':
-      actorWalk(a,ST.hr.x,0,()=>{
-        fxMini(a.x,a.y,d.t==='starter'?'Retail Analyst':'Chart Intern');
-        fxLabel(a.x,a.y-4,d.t==='seat'?'🪑 OPERATOR SEATED':'🤝 NEW RECRUIT','var(--green)',live);
-        setTimeout(()=>goHome(a),3000);
-      });
-      break;
-    case 'unseat': fxLabel(a.x,a.y-4,'📤 UNSEATED','var(--muted-cream)',live); break;
-    case 'upgrade': fxBurst(a.x,a.y-40,'fx-coin',4); fxLabel(a.x,a.y-4,'⬆️ DESK UPGRADED','var(--brass-light)',live); break;
-    case 'referral': fxLabel(a.x,a.y-4,'💸 +'+(amt?amt+' ':'')+'REFERRAL','var(--green)',live); break;
-  }
-}
-function sceneCast(){
-  if(!SCENE.inited||!window.__lb)return;
-  const top=window.__lb.byAlpha.filter(r=>r.op).slice(0,DESK_SPOTS.length);
-  top.forEach((r,i)=>{
-    if(SCENE.actors.has(r.a))return;
-    const d=DESK_SPOTS[i];
-    if(SCENE.static){ mkActor(r.a,r.op,{rank:r.rank,regular:true,x:d.x,l:d.l,home:{x:d.x,l:d.l}}); }
-    else{
-      const a=mkActor(r.a,r.op,{rank:r.rank,regular:true,x:ST.elev.x,l:0,home:{x:d.x,l:d.l}});
-      setTimeout(()=>{eleDing();actorWalk(a,d.x,d.l);},400+i*800);
-    }
-    labelDeskPlate(i,r);
-  });
-}
-function labelDeskPlate(i,r){
-  const plate=document.querySelector('#sceneDesks .desk[data-i="'+i+'"] .plate'); if(!plate)return;
-  const h=handleOf(r.a);
-  plate.textContent='#'+r.rank+' '+(h?'@'+h.handle:r.a.slice(0,6)); plate.style.display='block';
-}
-function relabelPlates(){ if(!window.__lb)return; window.__lb.byAlpha.filter(r=>r.op).slice(0,DESK_SPOTS.length).forEach((r,i)=>labelDeskPlate(i,r)); }
 async function loadHandles(){
   try{ const j=await (await fetch('/api/handles',{cache:'no-store'})).json();
     window.__handles=(j&&j.handles)||{};
-    if(typeof SCENE!=='undefined'&&SCENE.actors) SCENE.actors.forEach(a=>{try{applyHandle(a)}catch(e){}});
-    try{ relabelPlates(); }catch(e){}
     // the staff directory renders identities from these handles, so redraw it once they land
     if(document.querySelector('#officeFloor .rst-row')){ try{ loadOffice(); }catch(e){} }
     if(window.__lastAddr){ try{ renderFlexCard(); }catch(e){} }
   }catch(e){}
 }
 loadHandles(); setInterval(loadHandles, 600000);
-const actQ=[];
-setInterval(()=>{ if(!sceneLive())return; const d=actQ.shift(); if(d)performAction(d,d.__live); },1800);
-setInterval(()=>{ // ambient life: wander, cooler trips, quiet replays of recent actions
-  if(!SCENE.inited||SCENE.static||!sceneLive())return;
-  const as=[...SCENE.actors.values()].filter(a=>!a.tx);
-  if(as.length&&Math.random()<0.75){ const a=as[Math.floor(Math.random()*as.length)];
-    if(Math.random()<0.22) actorWalk(a,ST.cooler.x+16,0,()=>setTimeout(()=>goHome(a),2600));
-    else if(!a.regular||Math.random()<0.4) actorWalk(a,Math.max(180,Math.min(940,a.x+(Math.random()*160-80))),Math.random()<0.5?0:1,()=>{ if(a.regular)setTimeout(()=>goHome(a),4000); });
-  }
-  if(!actQ.length&&window.__feed&&window.__feed.length&&Math.random()<0.5){
-    const d=window.__feed[Math.floor(Math.random()*Math.min(20,window.__feed.length))];
-    if(d)actQ.push({...d,__live:false});
-  }
-},7000);
-/* live on-chain actions -> avatar animations + ticker */
+/* live on-chain actions -> the staff-directory ticker */
 const ACT_META={
   collect:{e:'💰',v:'collected',amtSuffix:' FLOOR'},
   claim:{e:'📈',v:'claimed',amtSuffix:' FLOOR'},
@@ -2550,7 +2106,6 @@ const ACT_META={
   referral:{e:'💸',v:'earned',amtSuffix:' FLOOR referral'},
   firmburn:{e:'🔥',v:'burned',amtSuffix:' FLOOR to their firm',cls:'burn'}
 };
-const __seenActs=new Set(); let __actsPrimed=false;
 function tickerLine(d){
   const m=ACT_META[d.t]||{e:'◎',v:d.t};
   const amt=(d.amt&&m.amtSuffix)?` <span class="amt">${d.amt>=1000?(d.amt/1000).toFixed(1)+'K':d.amt}${m.amtSuffix}</span>`:'';
@@ -2559,164 +2114,14 @@ function tickerLine(d){
 async function loadLiveActions(){
   let j=null; try{ j=await (await fetch('/api/live-actions',{cache:'no-store'})).json(); }catch(e){ return; }
   if(!j||!j.ok||!Array.isArray(j.actions)||!j.actions.length)return;
-  window.__feed=j.actions;
-  const tape=$('#boardTape');
-  if(tape){ tape.textContent=j.actions.slice(0,12).map(d=>{const m=ACT_META[d.t]||{e:'◎',v:d.t};const amt=(d.amt&&m.amtSuffix)?' '+fmtAmt(d.amt)+m.amtSuffix:'';return m.e+' '+d.a.slice(0,6)+' '+m.v+amt;}).join('   ···   '); }
+  // Used to render only for viewers who'd picked the still scene, because it repeated what the
+  // in-page diorama was already acting out. The diorama is its own page now, and this ticker sits
+  // in a different tab from it, so it's the only text feed of live actions — always show it.
   const tick=$('#officeTicker');
-  if(tick&&SCENE.static){ tick.innerHTML=j.actions.slice(0,10).map(tickerLine).join('<span style="color:#37301f">·</span>'); tick.style.display='flex'; }
-  const fresh=[];
-  j.actions.forEach(d=>{ const k=d.t+':'+d.a+':'+d.blk; if(!__seenActs.has(k)){ __seenActs.add(k); fresh.push(d); } });
-  if(!__actsPrimed){ __actsPrimed=true; return; }        // don't act out the prefill backlog on first load
-  fresh.slice(0,8).forEach(d=>actQ.push({...d,__live:true}));   // live events queue bright
+  if(tick){ tick.innerHTML=j.actions.slice(0,10).map(tickerLine).join('<span style="color:#37301f">·</span>'); tick.style.display='flex'; }
 }
-sceneInit();
 loadLiveActions(); setInterval(loadLiveActions, 30000);
 loadOffice(); setInterval(loadOffice, 240000);
-
-/* ---- pop-out floating office (picture-in-picture style, in-page) ---- */
-let PIP_OUT=false;
-function popOut(){
-  if(PIP_OUT)return; const scene=$('#officeScene'); if(!scene)return;
-  const ph=document.createElement('div'); ph.id='officePH'; ph.className='pip-ph';
-  ph.innerHTML='▸ The floor is playing in the detached panel.<button class="pd" id="phDock">Dock it back</button>';
-  scene.parentNode.insertBefore(ph, scene);
-  $('#pipBody').appendChild(scene);
-  $('#pipDock').style.display='block';
-  // honest label: this is an in-page panel, not an OS window. Say so on the devices (iPhone/Firefox)
-  // where the browser refuses real picture-in-picture, so we never promise floating over other apps.
-  const hint=$('#pipHint');
-  if(hint){ if(pvCanSee()){ hint.style.display='none'; }
-    else { hint.textContent='in-page · stays inside Safari'; hint.style.display='block'; } }
-  $('#pipBtn') && ($('#pipBtn').textContent=pvCanSee()?'⧉ In pop-out':'⧉ Docked here');
-  PIP_OUT=true;
-  $('#phDock').onclick=dockIn;
-  requestAnimationFrame(()=>{ try{sceneScale();}catch(e){} });
-}
-function dockIn(){
-  if(!PIP_OUT)return; const scene=$('#officeScene'), ph=$('#officePH');
-  if(ph){ ph.parentNode.insertBefore(scene, ph); ph.remove(); }
-  $('#pipDock').style.display='none';
-  const hint=$('#pipHint'); if(hint) hint.style.display='none';
-  $('#pipBtn') && ($('#pipBtn').textContent=pvCanSee()?'⧉ Pop out':'⧉ Detach');
-  PIP_OUT=false;
-  requestAnimationFrame(()=>{ try{sceneScale();}catch(e){} });
-}
-/* ---- REAL picture-in-picture: mirror the live office onto a <canvas>, stream it, and hand the
-       browser a <video> so it opens an OS-level PiP window that floats over other apps.
-       Works on Chrome/Edge (desktop + Android). iOS/Firefox reject canvas-stream PiP -> we
-       fall back to the in-page floating player above. ---- */
-const PV={canvas:null,ctx:null,video:null,stream:null,bg:null,fg:null,op:{},raf:0,last:0,worker:null,timer:null};
-function pvCanSee(){ return !!(document.pictureInPictureEnabled && HTMLVideoElement.prototype.requestPictureInPicture); }
-function pvSvgToImg(el){ if(!el)return null; try{ const c=el.cloneNode(true);
-    c.setAttribute('width',SCN.W); c.setAttribute('height',SCN.H);       // give it intrinsic size so canvas draws it
-    const s=new XMLSerializer().serializeToString(c);
-    const im=new Image(); im.decoding='async'; im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s); return im; }catch(e){ return null; } }
-function pvActorSlug(a){ const im=a.el&&a.el.querySelector('.body'); const m=im&&/operator-([a-z0-9-]+)\.svg/.exec(im.getAttribute('src')||''); return m?m[1]:'retail-analyst'; }
-function pvOpImg(slug){ if(!PV.op[slug]){ const im=new Image(); im.decoding='async'; im.__ok=false;
-    im.onload=()=>im.__ok=true; im.onerror=()=>im.__ok=false; im.src='/opart/'+slug+'.svg'; PV.op[slug]=im; } return PV.op[slug]; }
-function pvInit(){
-  if(PV.canvas)return;
-  const c=document.createElement('canvas'); c.width=SCN.W; c.height=SCN.H; PV.canvas=c; PV.ctx=c.getContext('2d');
-  const v=document.createElement('video'); v.muted=true; v.playsInline=true; v.setAttribute('playsinline','');
-  v.setAttribute('autoplay',''); v.style.cssText='position:fixed;left:-9999px;width:2px;height:2px;opacity:0;pointer-events:none';
-  document.body.appendChild(v); PV.video=v;
-  v.addEventListener('leavepictureinpicture',()=>{ PV_ON=false; $('#pipBtn')&&($('#pipBtn').textContent='⧉ Pop out'); pvStopLoop(); try{v.pause();}catch(_){} });
-  PV.stream=c.captureStream(30); v.srcObject=PV.stream;
-}
-function pvRefreshArt(){ PV.bg=pvSvgToImg($('#sceneBg')); PV.fg=pvSvgToImg($('#sceneFgSvg')); }
-function pvDraw(){
-  const ctx=PV.ctx; if(!ctx)return;
-  ctx.fillStyle='#0d0a06'; ctx.fillRect(0,0,SCN.W,SCN.H);
-  if(PV.bg&&PV.bg.complete&&PV.bg.naturalWidth) ctx.drawImage(PV.bg,0,0,SCN.W,SCN.H);
-  const acts=[...SCENE.actors.values()].sort((a,b)=>a.y-b.y);
-  for(const a of acts){ const im=pvOpImg(pvActorSlug(a)); if(im&&im.__ok){
-    const s=a.s||1,w=48*s,h=48*s; try{ ctx.drawImage(im,a.x-w/2,a.y-h,w,h); }catch(_){}
-  } }
-  if(PV.fg&&PV.fg.complete&&PV.fg.naturalWidth) ctx.drawImage(PV.fg,0,0,SCN.W,SCN.H);
-  // light nameplates for wallets with a linked X handle
-  ctx.font='600 15px "IBM Plex Mono",ui-monospace,monospace'; ctx.textAlign='center'; ctx.textBaseline='alphabetic';
-  for(const a of acts){ const hh=handleOf(a.addr); if(!hh)continue;
-    const label='𝕏 '+(hh.name||('@'+hh.handle)); const tw=ctx.measureText(label).width+14, ty=a.y-48*(a.s||1)-10;
-    ctx.fillStyle='rgba(9,6,3,.82)'; ctx.fillRect(a.x-tw/2,ty-14,tw,18);
-    ctx.fillStyle='#f2e8d5'; ctx.fillText(label,a.x,ty); }
-  // live watermark
-  ctx.textAlign='left'; ctx.font='600 16px "IBM Plex Mono",monospace';
-  ctx.fillStyle='rgba(212,175,90,.9)'; ctx.fillText('▸ THE FLOOR · LIVE',18,28);
-}
-function pvTick(dtMs){
-  const dt=Math.min(0.05,(dtMs||0)/1000);
-  // Drive the sim here whenever the in-page loop isn't. The old check was `!SCENE.visible && !document.hidden`,
-  // which excluded the hidden case — i.e. it deliberately stopped animating the moment you switched tabs,
-  // which is the only time the PiP window is what you're looking at.
-  if(!sceneLive()) SCENE.actors.forEach(a=>actorStep(a,dt));
-  pvDraw();
-}
-/* The PiP feed must NOT be rAF-driven: browsers suspend requestAnimationFrame in a hidden document, so
-   the canvas stopped being drawn the instant you left the tab and the floating window froze on its last
-   frame. Main-thread setInterval is throttled to ~1Hz in background tabs, so that's no good either — a
-   worker timer keeps ticking at full rate and just tells the main thread when to draw. */
-function pvStartLoop(){
-  pvStopLoop(); PV.last=0;
-  const tick=()=>{ const now=performance.now(); const dt=PV.last?now-PV.last:33; PV.last=now; try{ pvTick(dt); }catch(_){} };
-  try{
-    const src='let i;onmessage=function(e){clearInterval(i);if(e.data>0)i=setInterval(function(){postMessage(0)},e.data)}';
-    PV.worker=new Worker(URL.createObjectURL(new Blob([src],{type:'application/javascript'})));
-    PV.worker.onmessage=tick; PV.worker.postMessage(33); return;
-  }catch(e){}
-  PV.timer=setInterval(tick,33);                   // fallback: throttled in background, but better than frozen
-}
-function pvStopLoop(){
-  if(PV.worker){ try{ PV.worker.postMessage(0); PV.worker.terminate(); }catch(_){} PV.worker=null; }
-  if(PV.timer){ clearInterval(PV.timer); PV.timer=null; }
-  if(PV.raf){ cancelAnimationFrame(PV.raf); PV.raf=0; }
-}
-function pvWarm(){                                 // prime the video with flowing frames BEFORE the click, so PiP is ready
-  if(!pvCanSee()||PV.canvas)return;
-  pvInit(); pvRefreshArt(); SCENE.actors.forEach(a=>pvOpImg(pvActorSlug(a)));
-  pvDraw(); try{ PV.video.play().catch(()=>{}); }catch(_){}
-}
-async function enterPiP(){
-  pvWarm(); pvInit(); pvRefreshArt();
-  SCENE.actors.forEach(a=>pvOpImg(pvActorSlug(a)));
-  PV_ON=true; $('#pipBtn')&&($('#pipBtn').textContent='⧉ In pop-out');
-  pvDraw(); pvStartLoop();
-  const v=PV.video;
-  try{ if(v.paused) v.play().catch(()=>{});     // no await -> keep the user gesture alive for requestPictureInPicture
-    await v.requestPictureInPicture(); return true; }
-  catch(e){ // PiP denied (iOS/Firefox) or not-ready -> in-page floating player instead
-    PV_ON=false; pvStopLoop(); $('#pipBtn')&&($('#pipBtn').textContent='⧉ Pop out');
-    popOut(); return false; }
-}
-async function exitPiP(){ try{ if(document.pictureInPictureElement) await document.exitPictureInPicture(); }catch(_){}
-  PV_ON=false; pvStopLoop(); }
-function togglePop(){
-  if(PIP_OUT){ dockIn(); return; }
-  if(document.pictureInPictureElement){ exitPiP(); return; }
-  if(pvCanSee()) enterPiP(); else popOut();   // real OS PiP where supported, in-page floater elsewhere
-}
-(function(){
-  const btn=$('#pipBtn');
-  if(btn){
-    if(!pvCanSee()){                                // iPhone Safari / Firefox: no OS-level PiP, only an in-page panel
-      btn.textContent='⧉ Detach';
-      btn.title='Floats within the page — Safari on iPhone can’t float it over other apps';
-    }
-    btn.onclick=togglePop; btn.addEventListener('pointerdown',pvWarm);
-  }
-  const close=$('#pipClose'); if(close) close.onclick=dockIn;
-  const bar=$('#pipBar'), dock=$('#pipDock'); let drag=null;
-  if(bar&&dock){
-    bar.addEventListener('pointerdown',e=>{ if(e.target.closest('.pip-ctl'))return;
-      const r=dock.getBoundingClientRect(); drag={sx:e.clientX,sy:e.clientY,l:r.left,t:r.top};
-      dock.style.right='auto';dock.style.bottom='auto';dock.style.left=r.left+'px';dock.style.top=r.top+'px';
-      try{bar.setPointerCapture(e.pointerId);}catch(_){}} );
-    bar.addEventListener('pointermove',e=>{ if(!drag)return;
-      let l=drag.l+(e.clientX-drag.sx), t=drag.t+(e.clientY-drag.sy);
-      l=Math.max(4,Math.min(innerWidth-dock.offsetWidth-4,l)); t=Math.max(4,Math.min(innerHeight-dock.offsetHeight-4,t));
-      dock.style.left=l+'px';dock.style.top=t+'px'; });
-    bar.addEventListener('pointerup',()=>{drag=null;});
-  }
-})();
 
 /* ---------------- Players vs Traders behavior ---------------- */
 function renderBehavior(b){
@@ -2838,7 +2243,6 @@ recomputeUpg();
   const btns=[...document.querySelectorAll('.tabx')];
   const secTab=id=>{const s=document.getElementById(id);return s?s.getAttribute('data-tab'):null;};
   function onShow(name){
-    if(name==='floor'){ try{sceneScale();}catch(e){} try{sceneCast();}catch(e){} }
     if(name==='markets'){ try{drawTrend();}catch(e){} }
     if(name==='league'){ try{if(window.__lb)renderLeaderboard(window.__lb);}catch(e){} }
   }
