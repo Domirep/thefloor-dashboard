@@ -1046,6 +1046,17 @@ const TOPIC_FIRM_CONTRIB = '0xdcfa71ee125a676f843733d9d39dce2c918ecf9e92f96db4f2
 let liveActions = [];        // rolling, newest first
 let lastLiveBlock = 0;       // exclusive lower bound for the next incremental poll
 let liveBusy = false;
+/* This was the ONLY cache here that didn't survive a restart (stats, holders, deals,
+   events, firms and firm-comp all do). Combined with failing closed, a throttled RPC
+   left the office with literally nothing to replay. Restore the actions so there is
+   something on screen immediately — but deliberately do NOT restore lastLiveBlock, so
+   the prefill still re-seeds fresh, correct, all-kinds data over the top. */
+const LIVE_FILE = path.join(DATA_DIR, 'live-actions.json');
+try {
+  const p = JSON.parse(fs.readFileSync(LIVE_FILE, 'utf8'));
+  if (p && Array.isArray(p.actions) && p.actions.length) { liveActions = p.actions; console.log('LOADED ' + liveActions.length + ' live actions from volume'); }
+} catch (_) {}
+function saveLive() { try { fs.writeFile(LIVE_FILE, JSON.stringify({ actions: liveActions, at: Date.now() }), () => {}); } catch (_) {} }
 function decodeLive(l, isFirm) {
   const big = h => { try { return BigInt(h || '0x0'); } catch { return 0n; } };
   const addrOf = t => (t && t.length === 66) ? ('0x' + t.slice(26)).toLowerCase() : null;
@@ -1088,6 +1099,7 @@ async function refreshLiveActions() {
       all.sort((x, y) => y.blk - x.blk);
       liveActions = all.slice(0, 60);
       lastLiveBlock = latest;
+      saveLive();
       console.log('LIVE prefilled ' + liveActions.length + ' actions up to block ' + latest);
     } else if (latest > lastLiveBlock) {
       const from = '0x' + (lastLiveBlock + 1).toString(16);
@@ -1101,6 +1113,7 @@ async function refreshLiveActions() {
       if (fresh.length) {
         fresh.sort((x, y) => y.blk - x.blk).forEach(d => d.at = Date.now());   // stamp arrival (block ts ~ now for a live window)
         liveActions = fresh.concat(liveActions).slice(0, 60);
+        saveLive();
         console.log('LIVE +' + fresh.length + ' actions (blocks ' + (lastLiveBlock + 1) + '-' + latest + ')');
       }
       lastLiveBlock = latest;
