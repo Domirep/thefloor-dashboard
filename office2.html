@@ -63,6 +63,32 @@
   #panel .x{position:absolute;top:calc(var(--u)*3);right:calc(var(--u)*4);color:#8d7f61;
       font-size:calc(var(--u)*7);cursor:pointer;line-height:1}
   #panel .x:hover{color:#e6c96b}
+  #panel a.xlink{display:block;margin-top:calc(var(--u)*3);color:#8fd6ff;text-decoration:none;
+      font-weight:600;pointer-events:auto}
+  #panel a.xlink:hover{color:#c8ecff;text-decoration:underline}
+
+  /* ---- crisp DOM text. The 3x5 canvas font was getting chewed up by the post-FX
+         (chromatic fringing + grain) and read as mush. Real type instead. ---- */
+  #ticker{position:absolute;left:0;top:calc(var(--u)*10);width:calc(var(--u)*316);
+      height:calc(var(--u)*10);overflow:hidden;display:flex;align-items:center;
+      background:linear-gradient(180deg,rgba(7,6,11,.94),rgba(3,3,7,.94));
+      border-top:1px solid rgba(122,92,16,.65);border-bottom:1px solid rgba(0,0,0,.85);
+      pointer-events:none;
+      -webkit-mask-image:linear-gradient(90deg,#000 0,#000 92%,transparent 100%);
+      mask-image:linear-gradient(90deg,#000 0,#000 92%,transparent 100%)}
+  #tickerRun{white-space:nowrap;will-change:transform;font-size:calc(var(--u)*5.2);
+      letter-spacing:calc(var(--u)*.3);color:#e6c96b;font-weight:600;line-height:1}
+  #tickerRun i{font-style:normal;color:#6a5a2e;padding:0 calc(var(--u)*2.5)}
+  #tickerRun .up{color:#7fe0a0}#tickerRun .dn{color:#ff6a5a}#tickerRun .bn{color:#ff9d4a}
+
+  .plate{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;cursor:pointer;
+      white-space:nowrap;font-size:calc(var(--u)*4.4);font-weight:600;line-height:1;
+      padding:calc(var(--u)*1.4) calc(var(--u)*2.2);border-radius:calc(var(--u)*1.8);
+      background:rgba(7,6,10,.84);border:1px solid rgba(201,162,39,.32);
+      color:#c9b98d;text-shadow:0 1px 2px #000;display:none}
+  .plate.on{display:block}
+  .plate.xh{color:#8fd6ff;border-color:rgba(143,214,255,.32)}
+  .plate:hover{border-color:#e6c96b;color:#f4dd9a;background:rgba(16,12,6,.92)}
 </style>
 </head>
 <body>
@@ -70,6 +96,7 @@
 
 <div id="ov">
   <div id="hitlayer"></div>
+  <div id="ticker"><div id="tickerRun"></div></div>
   <div class="hud" id="title">
     <h1>THE NIGHT SHIFT</h1>
     <p>THE FLOOR · ROBINHOOD CHAIN</p>
@@ -81,7 +108,7 @@
     <div>EPOCH ENDS <b id="sHalve">—</b></div>
   </div>
   <div class="hud" id="feed"></div>
-  <div class="hud" id="hint"><a href="/">← dashboard</a> · <a href="/brokers">brokers</a> · <span style="pointer-events:auto;cursor:default" title="Click a desk for its firm · press F to toggle post-processing">click a desk</span></div>
+  <div class="hud" id="hint"><a href="/">← dashboard</a> · <a href="/brokers">brokers</a> · <span style="pointer-events:auto;cursor:default" title="Click anyone for their card · click a desk for its firm · press F for the CRT look">click anyone · or a desk</span></div>
   <div id="panel"><span class="x" id="panelX">×</span><div id="panelBody"></div></div>
 </div>
 
@@ -478,6 +505,7 @@ class Worker{
     this.carry=null; this.busy=false; this.home=this.x; this.speed=rnd(34,46);
     this.prop=Math.random()<.5?'mug':'paper';      // what they hold while working
     this.player=null; this.op=null; this.label=''; this.size=20;    // filled in by castRoster()
+    this.act=null; this.wind=0;                     // act = x of what they're facing/working; wind = throw wind-up
   }
   goto(tx,lane,then){ this.tx=tx; this.tlane=lane; this.state='walk'; this.then=then; }
   update(dt){
@@ -506,7 +534,11 @@ class Worker{
     const walking=this.state==='walk', working=this.state==='work';
     const step=walking?(this.frame%2):-1;
     const bob=walking?(step?0:1):(working?(Math.sin(this.fa)>0?1:0):(Math.sin(T*.002+x)>.7?1:0));
-    const yy=y-bob, S=this.size, bx=x-(S>>1), by=yy-6-S;
+    /* Face whatever you're interacting with. Before, they walked up to the terminal
+       and stood there pointing whichever way they happened to arrive from. */
+    const fdir=(this.act!=null) ? (this.act>this.x?1:-1) : d;
+    const lean=this.wind ? -3*fdir : (this.act!=null ? fdir : 0);
+    const yy=y-bob, S=this.size, bx=x-(S>>1)+lean, by=yy-6-S;
 
     // soft contact shadow (two rects = a squashed ellipse)
     ctx.fillStyle='rgba(0,0,0,.32)'; ctx.fillRect(x-7,y-1,14,2); ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(x-8,y,16,1);
@@ -518,17 +550,25 @@ class Worker{
 
     // the operator sprite (transparent-backed, so it reads as a person not a picture)
     const e=this.op;
-    if(e && e.ok){ ctx.drawImage(e.img,bx,by,S,S); }
+    if(e && e.ok){
+      if(fdir<0){ ctx.save(); ctx.translate(bx+S,by); ctx.scale(-1,1); ctx.drawImage(e.img,0,0,S,S); ctx.restore(); }
+      else ctx.drawImage(e.img,bx,by,S,S);
+    }
     else { r(ctx,bx+4,by+3,S-8,S-4,'#241d14'); r(ctx,bx+4,by+3,S-8,1,'#3d3422'); }
     ctx.fillStyle='rgba(255,207,138,.18)'; ctx.fillRect(bx+S-1,by+3,1,S-7);   // warm rim on the maw side
 
-    // the offering they carry to the maw
-    if(this.carry){
-      const cxp=x+(d>0?(S>>1)-1:-(S>>1)-6);
-      r(ctx,cxp,yy-12,7,7,P.bronzeK); r(ctx,cxp+1,yy-11,5,5,P.brass);
-      r(ctx,cxp+1,yy-11,5,1,P.brassL); r(ctx,cxp+2,yy-10,1,1,'#fff2c8');
+    // reaching arm while working the terminal / feeding the maw
+    if(this.act!=null){
+      const ax=(fdir>0? bx+S-3 : bx-2), ay=by+S-9+(this.wind?-3:0);
+      r(ctx,ax,ay,5,2,P.skinD); r(ctx,ax+(fdir>0?3:0),ay,2,2,P.skin);
     }
 
+    // the offering they carry (held on the facing side, raised during the wind-up)
+    if(this.carry){
+      const cxp=x+(fdir>0?(S>>1)-2:-(S>>1)-5)+lean, cyp=yy-12-(this.wind?5:0);
+      r(ctx,cxp,cyp,7,7,P.bronzeK); r(ctx,cxp+1,cyp+1,5,5,P.brass);
+      r(ctx,cxp+1,cyp+1,5,1,P.brassL); r(ctx,cxp+2,cyp+2,1,1,'#fff2c8');
+    }
   }
 }
 const workers=[]; for(let i=0;i<9;i++) workers.push(new Worker(i, i===0));   // 9 keeps the floor busy without crowding
@@ -647,30 +687,28 @@ function glyph(ctx,ch,x,y,col){
   for(let ry=0;ry<5;ry++){ const b=G[ry]; if(!b)continue;
     if(b&4)ctx.fillRect(x,y+ry,1,1); if(b&2)ctx.fillRect(x+1,y+ry,1,1); if(b&1)ctx.fillRect(x+2,y+ry,1,1); }
 }
-let tickerGly=[], tickerW=4;
-function tSeg(txt,col,arr){ for(const ch of String(txt).toUpperCase()) arr.push({c:ch,col}); }
+/* DOM ticker — real type. The canvas 3x5 font read as mush once the post-FX
+   fringed and grained every glyph. Doubled content so the wrap is seamless. */
+const escH=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const tickerRun=document.getElementById('tickerRun');
+let tickerW=0;
 function buildTicker(){
-  const A=[]; const dim='#6a5210';
-  const sep=()=>tSeg('    ',dim,A);
-  if(tk.price){ tSeg('FLOOR $'+tk.price.toFixed(4), P.amber, A); sep(); }
-  if(tk.burned){ tSeg('OFFERED '+fmt(tk.burned), '#ff9d4a', A); sep(); }
-  if(tk.supply){ tSeg('SUPPLY '+fmt(tk.supply), P.amber, A); sep(); }
+  const seg=[];
+  if(tk.price) seg.push('FLOOR $'+tk.price.toFixed(4));
+  if(tk.burned) seg.push('<span class="bn">OFFERED '+fmt(tk.burned)+'</span>');
+  if(tk.supply) seg.push('SUPPLY '+fmt(tk.supply));
   (tk.firms||[]).forEach(f=>{
     const up=(f.pnlUsd||0)>=0;
-    tSeg((f.name||'FIRM').slice(0,20)+' ', P.amber, A);
-    A.push({c: up?'\x01':'\x02', col: up?P.up:P.dn});
-    tSeg(' '+usdK(f.pnlUsd), up?P.up:P.dn, A);
-    sep();
+    seg.push(escH(f.name||'Firm')+' <span class="'+(up?'up':'dn')+'">'+(up?'▲':'▼')+usdK(f.pnlUsd)+'</span>');
   });
-  if(A.length<6) tSeg('THE FLOOR    THE NIGHT SHIFT    ROBINHOOD CHAIN    ', P.amber, A);
-  tickerGly=A; tickerW=Math.max(4,A.length*4);
+  if(!seg.length) seg.push('THE FLOOR · THE NIGHT SHIFT · ROBINHOOD CHAIN');
+  const one=seg.join('<i>·</i>')+'<i>·</i>';
+  tickerRun.innerHTML=one+one;
+  tickerW=tickerRun.scrollWidth/2;
 }
-function drawTicker(ctx){
-  const n=tickerGly.length; if(!n) return;
-  const off=(T*0.026)%tickerW;                   // ~26 px/s crawl
-  for(let base=2-off; base<TICK.x1; base+=tickerW){
-    for(let i=0;i<n;i++){ const gx=(base+i*4)|0; if(gx>-4 && gx<TICK.x1-3){ const gg=tickerGly[i]; glyph(ctx,gg.c,gx,TICK.y,gg.col); } }
-  }
+function stepTicker(){
+  if(!tickerW) return;
+  tickerRun.style.transform='translateX('+(-((T*0.045)%tickerW)).toFixed(1)+'px)';
 }
 
 /* ============================ PLAYERS & OPERATORS ============================ */
@@ -718,18 +756,40 @@ function drawLabel(ctx,txt,cxp,ty,col){
   for(let i=0;i<txt.length;i++) glyph(ctx,txt[i],x0+i*4,ty,col);
   return true;
 }
-const LABEL_CAP=6;
-function drawLabels(ctx){
-  labelRects=[]; let n=0;
-  workers.slice().sort((a,b)=>{
+/* Identity plates are DOM now: crisp type, and CLICKABLE for the player card. */
+const LABEL_CAP=6, plateEls=[];
+function ensurePlates(){
+  while(plateEls.length<workers.length){
+    const el=document.createElement('div');
+    el.className='plate';
+    el.addEventListener('click',ev=>{ ev.stopPropagation(); if(el.__w&&el.__w.player) openPlayer(el.__w.player); });
+    ov.appendChild(el); plateEls.push(el);
+  }
+}
+function updatePlates(){
+  ensurePlates();
+  const u=OVU||1;
+  plateEls.forEach(el=>{ el.classList.remove('on'); el.__w=null; });
+  const order=workers.slice().sort((a,b)=>{
     const ah=(a.player&&a.player.handle)?1:0, bh=(b.player&&b.player.handle)?1:0;
     if(ah!==bh) return bh-ah;                     // named wallets win the space
     return b.y-a.y;                               // then whoever is nearest the camera
-  }).forEach(w=>{
-    if(n>=LABEL_CAP || !w.label) return;
-    const by=Math.round(w.y)-6-w.size;
-    if(drawLabel(ctx,w.label,Math.round(w.x),by-11,(w.player&&w.player.handle)?'#8fd6ff':'#b3a482')) n++;
   });
+  const used=[]; let n=0;
+  for(let i=0;i<order.length && n<LABEL_CAP;i++){
+    const w=order[i]; if(!w.label) continue;
+    const px=w.x*u, py=(w.y-w.size-9)*u, wpx=w.label.length*u*3.0;
+    let clash=false;
+    for(const q of used){ if(Math.abs(q.x-px)<(q.w+wpx)/2 && Math.abs(q.y-py)<u*13){ clash=true; break; } }
+    if(clash) continue;
+    used.push({x:px,y:py,w:wpx});
+    const el=plateEls[n];
+    el.__w=w; el.textContent=w.label;
+    el.classList.toggle('xh', !!(w.player&&w.player.handle));
+    el.style.left=px.toFixed(1)+'px'; el.style.top=py.toFixed(1)+'px';
+    el.classList.add('on');
+    n++;
+  }
 }
 
 let roster=[];
@@ -821,8 +881,53 @@ function sceneXY(ev){
   const rct=cv.getBoundingClientRect();
   return { x:(ev.clientX-rct.left)/rct.width*W, y:(ev.clientY-rct.top)/rct.height*H };
 }
+/* Click a PERSON for their card — this is the thing the main dashboard's office has
+   and office2 didn't. Actors win the hit-test over desks (they stand in front). */
+function openPlayer(p){
+  if(!p) return;
+  panelBody.innerHTML='';
+  const head=mk('ph');
+  const av=mk('em'); av.style.background='#12100c';
+  const e=opImage(p.op);
+  if(e && e.img){ const im=new Image(); im.alt=''; im.src=e.img.src; av.appendChild(im); }
+  else av.textContent=(p.op||'?').charAt(0);
+  const meta=document.createElement('div');
+  meta.appendChild(mk('nm', p.handle ? ('@'+p.handle) : shortAddr(p.a)));
+  meta.appendChild(mk('rk', (p.op||'Operator')+' · desk L'+(p.dl!=null?p.dl:'—')));
+  head.append(av,meta); panelBody.appendChild(head);
+
+  const perDay=(tk.perAlphaDay||0)*(p.alpha||0);
+  panelBody.appendChild(mk('big up', fmt(perDay)+' FLOOR/day'));
+
+  const grid=mk('grid');
+  const cell=(k,v)=>{ const c=document.createElement('div'); c.appendChild(mk('k',k)); c.appendChild(mk('v',v)); return c; };
+  grid.appendChild(cell('ALPHA RANK', '#'+(p.rank||'—')));
+  grid.appendChild(cell('ALPHA', fmt(p.alpha||0)));
+  grid.appendChild(cell('≈ USD / DAY', tk.price?usdK(perDay*tk.price):'—'));
+  grid.appendChild(cell('WALLET', shortAddr(p.a)));
+  panelBody.appendChild(grid);
+
+  if(p.handle){
+    const a=document.createElement('a');
+    a.className='xlink'; a.target='_blank'; a.rel='noopener noreferrer';
+    a.href='https://x.com/'+encodeURIComponent(p.handle);
+    a.textContent='𝕏 @'+p.handle+' ↗';
+    panelBody.appendChild(a);
+  }
+  panelBody.appendChild(mk('note',"Operator shown is this wallet's highest-rarity seated operator. FLOOR/day is alpha × the current per-alpha emission rate, so it moves with global alpha and with each halving."));
+  panel.classList.add('show');
+}
+
 document.getElementById('hitlayer').addEventListener('click', ev=>{
   const p=sceneXY(ev);
+  let hitW=null, best=1e9;
+  workers.forEach(w=>{
+    const S=w.size;
+    if(p.x>=w.x-S/2-3 && p.x<=w.x+S/2+3 && p.y>=w.y-S-10 && p.y<=w.y+4){
+      const d=Math.abs(p.x-w.x); if(d<best){ best=d; hitW=w; }
+    }
+  });
+  if(hitW && hitW.player){ openPlayer(hitW.player); return; }
   let hit=null;
   DESKS.forEach(d=>{ if(p.x>=d.x-4 && p.x<=d.x+34 && p.y>=d.y-32 && p.y<=d.y+5) hit=d; });
   if(hit && hit.firm) openFirm(hit.firm); else closePanel();
@@ -843,7 +948,7 @@ function frame(dt){
   elevOpen=Math.max(0,elevOpen-dt*.5);
   shake*=Math.pow(.0016,dt);
   molochWake=Math.max(.3,molochWake-dt*.004);
-  updParts(dt); updFloats(dt);
+  updParts(dt); updFloats(dt); updFlies(dt);
   workers.forEach(w=>w.update(dt));
 
   const sx=(Math.random()-.5)*shake, sy=(Math.random()-.5)*shake;
@@ -855,7 +960,7 @@ function frame(dt){
   g.drawImage(bg,0,0);
   updateWeather(dt);
   drawRain(g);                                             // rain streaks on the deco glass
-  drawTicker(g);                                           // LED tape across the ceiling
+  stepTicker();                                            // DOM tape across the ceiling
   drawClockHands(g);                                       // real time on the wall clock
   drawCoolerBubbles(g);
 
@@ -932,7 +1037,8 @@ function frame(dt){
 
   // y-sorted actors
   workers.slice().sort((a,b)=>a.y-b.y).forEach(w=>w.draw(g));
-  drawLabels(g);                                           // identity plates, capped + collision-skipped
+  updatePlates();                                          // DOM identity plates, capped + collision-skipped
+  drawFlies(g);                                            // the thrown offering / paid-out coins
   drawFloats(g);                                           // rising -N / +N FLOOR numbers
   drawParts(g);
   drawFern(g);                                             // foreground frame
@@ -990,10 +1096,13 @@ function frame(dt){
 }
 
 /* ---- post-processing: precomputed warp/CA/vignette maps + animated grain (one getImageData pass) ---- */
-let FX=true, idxR,idxG,idxB,vigA,grainBuf,GNMASK,fxOut;
+/* Heavy CRT treatment is OFF by default: the grain read as dirt and the chromatic
+   aberration fringed every glyph. F toggles it for the cinematic look. The clean
+   path still gets a vignette + scanlines, and costs no getImageData readback. */
+let FX=false, idxR,idxG,idxB,vigA,grainBuf,GNMASK,fxOut;
 function buildWarp(){
   const N=W*H; idxR=new Int32Array(N); idxG=new Int32Array(N); idxB=new Int32Array(N); vigA=new Float32Array(N);
-  const cx=(W-1)/2, cy=(H-1)/2, K=0.08, CA=0.75, VIG=0.30;
+  const cx=(W-1)/2, cy=(H-1)/2, K=0.05, CA=0.35, VIG=0.30;
   const cl=(v,mx)=>v<0?0:(v>mx?mx:v)|0;
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){
     const i=y*W+x, nx=(x-cx)/cx, ny=(y-cy)/cy, r2=nx*nx+ny*ny;
@@ -1006,7 +1115,7 @@ function buildWarp(){
     let v=1 - VIG*r2; if(v<0)v=0; if(y&1)v*=0.90; vigA[i]=v; // vignette + scanline baked in
   }
   const GN=1<<16; GNMASK=GN-1; grainBuf=new Float32Array(GN);
-  for(let k=0;k<GN;k++) grainBuf[k]=(Math.random()*2-1)*5.5;
+  for(let k=0;k<GN;k++) grainBuf[k]=(Math.random()*2-1)*2.2;
   fxOut=g.createImageData(W,H);
 }
 function postFX(){
@@ -1024,6 +1133,33 @@ function postFX(){
 
 /* ============================ CHOREOGRAPHY ============================ */
 function freeWorker(){ const f=workers.filter(w=>!w.busy); return f.length?f[RI(0,f.length-1)]:null; }
+/* thrown things: the offering ARCS from the broker's hand into the maw, and coins
+   arc back OUT of the terminal into their hands. */
+const flies=[];
+function fly(x,y,tx,ty,kind,onLand){
+  flies.push({sx:x,sy:y,x,y,tx,ty,kind,t:0.62,max:0.62,onLand});
+}
+function updFlies(dt){
+  for(let i=flies.length-1;i>=0;i--){
+    const f=flies[i]; f.t-=dt;
+    const p=Math.min(1,1-Math.max(0,f.t)/f.max);
+    f.x=f.sx+(f.tx-f.sx)*p;
+    f.y=f.sy+(f.ty-f.sy)*p - Math.sin(p*Math.PI)*20;      // lob
+    if(f.t<=0){ const cb=f.onLand; flies.splice(i,1); if(cb) cb(); }
+  }
+}
+function drawFlies(ctx){
+  flies.forEach(f=>{
+    const x=f.x|0, y=f.y|0;
+    if(f.kind==='bag'){
+      r(ctx,x-4,y-4,8,8,P.bronzeK); r(ctx,x-3,y-3,6,6,P.brass);
+      r(ctx,x-3,y-3,6,1,P.brassL);  r(ctx,x-2,y-2,1,1,'#fff2c8');
+    } else {
+      r(ctx,x-2,y-2,4,4,P.bronzeK); r(ctx,x-1,y-1,3,3,'#e6c96b'); r(ctx,x-1,y-1,3,1,'#fff2c8');
+    }
+  });
+}
+
 /* rising damage-numbers: -N FLOOR into the maw, +N FLOOR out of the terminal */
 const floats=[];
 function popText(x,y,txt,col){ floats.push({x,y,txt,col,life:2.2,max:2.2}); }
@@ -1041,33 +1177,47 @@ function drawFloats(ctx){
   });
 }
 
+/* Walk up carrying the bag, TURN TO FACE the idol, wind up, and throw it in. */
 function offering(amount,quiet){
   const w=freeWorker(); if(!w) return;
   w.busy=true; w.carry=true;
-  const alt=MOL.x+MOL.w/2-52;
-  w.goto(alt,1,()=>{
-    w.state='work'; w.t=.5;
-    setTimeout(()=>{
-      mawHeat=1; roomSurge=quiet?.55:1; molochWake=Math.min(1,molochWake+.06); kick(quiet?1.5:3.2);
-      spawn(MOL.maw.x+MOL.maw.w/2, MOL.maw.y+MOL.maw.h/2, quiet?18:34,'ember');
-      spawn(MOL.maw.x+MOL.maw.w/2, MOL.maw.y-6, 10,'steam');
-      w.carry=null;
-      if(amount) popText(w.x, w.y-w.size-14, '-'+fmt(amount)+' FLOOR', '#ff9d4a');
-      pushFeed('<b>'+(amount?fmt(amount)+' ':'')+'$FLOOR</b> offered to Moloch','burn'+(quiet?' q':''));
-      setTimeout(()=>{ w.goto(rnd(70,290), RI(0,1), ()=>{ w.busy=false; }); },700);
-    },520);
+  const m=MOL.maw, standX=MOL.x+MOL.w/2-64;
+  w.goto(standX,1,()=>{
+    w.act=m.x+m.w/2; w.dir=1;                        // turn and face the maw
+    w.state='work'; w.t=2.2;
+    setTimeout(()=>{ w.wind=1; },380);               // wind up...
+    setTimeout(()=>{                                  // ...and let it go
+      w.wind=0; w.carry=null;
+      fly(w.x+10, w.y-w.size-4, m.x+m.w/2, m.y+m.h*0.55, 'bag', ()=>{
+        mawHeat=1; roomSurge=quiet?.55:1; molochWake=Math.min(1,molochWake+.06); kick(quiet?1.6:3.4);
+        spawn(m.x+m.w/2, m.y+m.h/2, quiet?20:38,'ember');
+        spawn(m.x+m.w/2, m.y-6, 12,'steam');
+        if(amount) popText(m.x+m.w/2, m.y-14, '-'+fmt(amount)+' FLOOR', '#ff9d4a');
+        pushFeed('<b>'+(amount?fmt(amount)+' ':'')+'$FLOOR</b> offered to Moloch','burn'+(quiet?' q':''));
+      });
+      setTimeout(()=>{ w.act=null; w.goto(rnd(70,290), RI(0,1), ()=>{ w.busy=false; }); },1200);
+    },760);
   });
 }
 let termFlash=0, elevOpen=0;
+/* Stand at the console, FACE it, and let it pay out coin by coin into their hands. */
 function toTerminal(amount,quiet){
   const w=freeWorker(); if(!w) return;
   w.busy=true;
-  w.goto(TERM.x+TERM.w/2,1,()=>{
-    w.state='work'; w.t=1.4; termFlash=1;
+  const standX=TERM.x+TERM.w+10;
+  w.goto(standX,1,()=>{
+    w.act=TERM.x+TERM.w/2; w.dir=-1;                 // turn and face the terminal
+    w.state='work'; w.t=2.4; termFlash=1;
     spawn(TERM.x+TERM.w/2,TERM.y+8,7,'dust');
-    if(amount) popText(w.x, w.y-w.size-14, '+'+fmt(amount)+' FLOOR', '#7fe0a0');
-    pushFeed('<b>'+(amount?'+'+fmt(amount)+' $FLOOR':'PnL')+'</b> collected at the terminal',(quiet?'q':''));
-    setTimeout(()=>{ w.goto(rnd(70,290),RI(0,1),()=>{w.busy=false;}); },900);
+    for(let i=0;i<5;i++) setTimeout(()=>{
+      termFlash=Math.max(termFlash,.85);
+      fly(TERM.x+TERM.w-3, TERM.y+TERM.h-8, w.x-4, w.y-w.size+6, 'coin', null);
+    },170*i);
+    setTimeout(()=>{
+      if(amount) popText(w.x, w.y-w.size-14, '+'+fmt(amount)+' FLOOR', '#7fe0a0');
+      pushFeed('<b>'+(amount?'+'+fmt(amount)+' $FLOOR':'PnL')+'</b> collected at the terminal',(quiet?'q':''));
+    },950);
+    setTimeout(()=>{ w.act=null; w.goto(rnd(70,290),RI(0,1),()=>{w.busy=false;}); },1800);
   });
 }
 function arrival(){
@@ -1093,10 +1243,13 @@ function fit(){
   g.imageSmoothingEnabled=false;
   syncOverlay();
 }
+let OVU=4;                                        // screen px per canvas px — DOM plates position with this
 function syncOverlay(){
   const rct=cv.getBoundingClientRect();
   ov.style.left=rct.left+'px'; ov.style.top=rct.top+'px'; ov.style.width=rct.width+'px'; ov.style.height=rct.height+'px';
-  ov.style.setProperty('--u',(rct.width/W)+'px');
+  OVU=rct.width/W;
+  ov.style.setProperty('--u',OVU+'px');
+  buildTicker();                                  // width depends on --u, so re-measure on resize
 }
 addEventListener('resize',fit);
 addEventListener('keydown',e=>{ if(e.key==='f'||e.key==='F') FX=!FX; });
@@ -1151,6 +1304,7 @@ async function stats(){
     const j=await (await fetch('/api/token-stats',{cache:'no-store'})).json();
     if(j&&j.ok!==false){
       tk.price=Number(j.price)||tk.price; tk.burned=Number(j.burned)||tk.burned; tk.supply=Number(j.supply)||tk.supply;
+      tk.perAlphaDay=Number(j.perAlphaDay)||tk.perAlphaDay;   // drives FLOOR/day on the player card
       document.getElementById('sBurn').textContent=fmt(j.burned||0);
       document.getElementById('sSupply').textContent=fmt(j.supply||0);
       if(j.halveAt){ const d=Math.max(0,j.halveAt-Date.now()); const dd=Math.floor(d/86400000), hh=Math.floor(d/3600000)%24;
