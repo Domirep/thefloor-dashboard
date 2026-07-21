@@ -146,6 +146,12 @@ hundred historical trades), `estimateGas` before every send so a revert costs no
 approve aborts the swap, and `--verify` tells you which X account the keys belong to before anything
 runs unattended.
 
+**Run the bot and the watcher together — they share one dedupe.** When the bot posts a trade it
+records the tx hash in the watcher's state, so the watcher never announces it twice. When the bot's
+post *fails*, it deliberately records nothing — the watcher finds the trade on-chain and posts it
+instead. The bot posts exact fills from the receipt, and the watcher is the safety net that
+guarantees "every trade", including ones executed outside the bot entirely.
+
 **The policy is yours.** `trim` sells a fixed slice of a holding into WETH on an interval — a
 mechanical rule, not a prediction. It is the only one shipped, on purpose: this is a harness for
 executing a decision you made, not a system that makes one for you. Add your own in `POLICIES`.

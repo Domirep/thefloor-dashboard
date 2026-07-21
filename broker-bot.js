@@ -30,6 +30,12 @@ const API = process.env.FLOOR_API || 'https://thefloor-dashboard-production.up.r
 const RPC = process.env.RH_RPC_URL || 'https://rpc.mainnet.chain.robinhood.com';
 const EXPLORER = 'https://robinhoodchain.blockscout.com';
 const STATE = path.join(__dirname, '.broker-bot-state.json');
+// broker-agent.js's state file. The bot records every tx it successfully POSTS in there, so running
+// both never announces a trade twice — and a trade the bot failed to post is deliberately NOT
+// recorded, so the watcher picks it up from the chain and posts it instead. The watcher is the
+// safety net, not a second megaphone.
+const AGENT_STATE = path.join(__dirname, '.broker-agent-state.json');
+const TOPIC_SWAP = '0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67';
 
 const args = process.argv.slice(2);
 const flag = n => args.includes('--' + n);
@@ -132,7 +138,7 @@ async function pass(signer, xc) {
   const provider = new ethers.JsonRpcProvider(RPC);
   const w = signer.connect(provider);
   const steps = tx.approveFirst ? [{ l: 'approve', t: tx.approveFirst }, { l: 'swap', t: tx }] : [{ l: 'swap', t: tx }];
-  let swapHash = null;
+  let swapHash = null, swapRec = null;
   for (const s of steps) {
     const req = { to: s.t.to, data: s.t.data, value: s.t.value && s.t.value !== '0x0' ? BigInt(s.t.value) : 0n };
     try { req.gasLimit = (await provider.estimateGas({ ...req, from: w.address })) * 12n / 10n; }
@@ -141,18 +147,50 @@ async function pass(signer, xc) {
     const rec = await sent.wait();
     if (!rec || rec.status !== 1) { console.log('  ' + s.l + ' FAILED on-chain — stopping'); return; }
     console.log('  ' + s.l + ' ok ' + sent.hash);
-    if (s.l === 'swap') swapHash = sent.hash;
+    if (s.l === 'swap') { swapHash = sent.hash; swapRec = rec; }
   }
 
   recent.push({ at: Date.now(), amt: want.amount }); st[key] = recent; writeState(st);
 
+  /* The receipt already contains the exact fill — post actuals, not the pre-trade estimate. In the
+     V3 Swap log the amounts are signed from the POOL's side: the negative one is what the pool paid
+     out, i.e. what the broker wallet received. (Every token here is 18-decimals; checked on-chain.) */
+  let boughtAmt = null;
+  for (const lg of (swapRec && swapRec.logs) || []) {
+    if (!lg.topics || String(lg.topics[0]).toLowerCase() !== TOPIC_SWAP) continue;
+    if (String(lg.topics[2] || '').slice(-40).toLowerCase() !== info.wallet.slice(2).toLowerCase()) continue;
+    const d = String(lg.data).replace(/^0x/, '');
+    const sgn = h => { const v = BigInt('0x' + h); return v >> 255n ? v - (1n << 256n) : v; };
+    const a0 = sgn(d.slice(0, 64)), a1 = sgn(d.slice(64, 128));
+    const neg = a0 < 0n ? a0 : (a1 < 0n ? a1 : null);
+    if (neg != null) boughtAmt = Number(-neg) / 1e18;
+    break;
+  }
+
   const text = [`StonkBroker #${ID} traded`, ``,
-    `sold ${want.amount.toFixed(6)} ${want.stock} for WETH`,
+    `sold ${want.amount.toFixed(6)} ${want.stock}` + (boughtAmt != null ? ` → bought ${boughtAmt.toFixed(6)} WETH` : ' for WETH'),
     ``, `wallet ${info.wallet.slice(0, 6)}…${info.wallet.slice(-4)} — the NFT's own ERC-6551 account, so the position belongs to the broker`,
     `${EXPLORER}/tx/${swapHash}`].join('\n');
   const r = await xc.tweet(text);
-  console.log(r.ok ? '  posted https://x.com/i/status/' + (r.body.data && r.body.data.id)
-                   : '  X POST FAILED ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 160));
+  if (r.ok) {
+    console.log('  posted https://x.com/i/status/' + (r.body.data && r.body.data.id));
+    markPostedForAgent(info.wallet, swapHash);
+  } else {
+    console.log('  X POST FAILED ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 160));
+    console.log('  (not recorded as posted — broker-agent.js will find the trade on-chain and announce it)');
+  }
+}
+
+// Shared dedupe with the watcher: a hash in its posted list is a trade it must not announce again.
+function markPostedForAgent(wallet, hash) {
+  if (!hash) return;
+  let s = {}; try { s = JSON.parse(fs.readFileSync(AGENT_STATE, 'utf8')); } catch (_) {}
+  const k = wallet.toLowerCase();
+  const e = s[k] || { lastBlock: 0, posted: [] };
+  if (!e.posted.includes(hash)) e.posted.push(hash);
+  e.posted = e.posted.slice(-500);
+  s[k] = e;
+  try { fs.writeFileSync(AGENT_STATE, JSON.stringify(s, null, 1)); } catch (_) {}
 }
 
 (async () => {
