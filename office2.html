@@ -38,6 +38,17 @@
   html.embed #stats{top:6%}
   html.embed #hint a{display:none}
 
+  /* --- small canvas (phone, or the embedded band): --u collapses to ~1px, which made
+         the HUD render at 5px and unreadable. Clamp type to a floor and drop the
+         furniture that just becomes clutter at that size. --- */
+  #ov.tiny #stats,#ov.tiny #feed{display:none}
+  #ov.tiny #title h1{font-size:14px;letter-spacing:1.5px}
+  #ov.tiny #title p{font-size:8px;letter-spacing:.5px;margin-top:2px}
+  #ov.tiny #hint{font-size:9px;letter-spacing:.4px}
+  #ov.tiny .plate{font-size:9px;padding:2px 5px;border-radius:5px}
+  #ov.tiny .bub{font-size:9px;padding:3px 6px;border-radius:6px;max-width:52%}
+  #ov.tiny .bub::after{border-left-width:3px;border-right-width:3px;border-top-width:4px;bottom:-4px}
+
   /* ---- firm panel: opens on a DESK CLICK. Always-on plates floating over every
          desk buried the room, so firm identity now lives behind a click. ---- */
   #hitlayer{position:absolute;inset:0;pointer-events:auto;cursor:pointer}
@@ -455,6 +466,23 @@ function paintMoloch(){
   R(x-10,16,3,y+h-16,'#2a1f12');
   R(x-10,16,w+20,10,'#15100a'); R(x-10,16,w+20,2,bE); R(x-10,24,w+20,2,'#070604');
 
+  /* THE ROOM CONTINUES INTO THE NICHE. The alcove fill used to cover everything from
+     y16 down, including the floor — so the idol looked like a separate panel pasted
+     onto the right-hand wall rather than something standing in the same room. Run the
+     floorboards, their skew seams and the brass inlay straight through, and frame the
+     opening with a pilaster matching the room's own wall piers. */
+  for(let yy=FLOOR_Y; yy<y+h+3; yy++){
+    const t=(yy-FLOOR_Y)/(H-FLOOR_Y);
+    R(x-12,yy,w+24,1, t<.3?P.floorD : t<.7?P.floor : P.floorL);
+  }
+  for(let yy=FLOOR_Y+3; yy<y+h+3; yy+=7) R(x-12,yy,w+24,1,'rgba(0,0,0,.16)');
+  for(let px=-40;px<w+60;px+=26)
+    for(let yy=FLOOR_Y; yy<y+h+3; yy+=7)
+      R(x-12+px+(yy-FLOOR_Y)*0.55, yy, 1, 7, 'rgba(0,0,0,.13)');
+  R(x-12,FLOOR_Y+1,w+24,1,P.brassD); R(x-12,FLOOR_Y+2,w+24,1,'rgba(201,162,39,.25)');
+  R(x-14,16,8,FLOOR_Y-16,P.wall); R(x-14,16,2,FLOOR_Y-16,P.wallL); R(x-8,16,2,FLOOR_Y-16,P.wallD);
+  R(x-14,FLOOR_Y-14,8,14,P.wall); R(x-14,FLOOR_Y-14,8,2,P.trim);          // wainscot returns into the niche
+
   /* deco sunburst halo behind the head — warm, so the horns silhouette against it */
   for(let a=0;a<15;a++){
     const an=-Math.PI+(a/14)*Math.PI;
@@ -558,6 +586,11 @@ function paintMoloch(){
   MOL.eyes=[{x:fx0+6,y:eyY,w:ew,h:eh},{x:fx1-6-ew,y:eyY,w:ew,h:eh}];
   MOL.seams=[];
   for(let k=0;k<8;k++) MOL.seams.push({x:mx0+6+((k*29)%((mx1-mx0)-18)), y:jawY+6+((k*17)%(chinY-jawY-14)), w:2+((k*5)%7)});
+  /* contact shadow where the idol meets the floorboards — sells the weight */
+  R(x+1,y+h,w-2,2,'rgba(0,0,0,.50)');
+  R(x-4,y+h+2,w+8,2,'rgba(0,0,0,.28)');
+  R(x-9,y+h+4,w+18,1,'rgba(0,0,0,.15)');
+
   MOL.altarY=aY-7; MOL.gauges=[];
 }
 
@@ -912,8 +945,9 @@ function updatePlates(){
     if(ah!==bh) return bh-ah;                     // named wallets win the space
     return b.y-a.y;                               // then whoever is nearest the camera
   });
+  const cap = ov.classList.contains('tiny') ? 2 : LABEL_CAP;   // plates crowd a small canvas fast
   const used=[]; let n=0;
-  for(let i=0;i<order.length && n<LABEL_CAP;i++){
+  for(let i=0;i<order.length && n<cap;i++){
     const w=order[i]; if(!w.label) continue;
     const px=w.x*u, py=(w.y-w.size-9)*u, wpx=w.label.length*u*3.0;
     let clash=false;
@@ -1054,7 +1088,10 @@ function usdK(v){ const n=Number(v)||0, s=n<0?'-':'', a=Math.abs(n);
   if(a>=1e6) return s+'$'+(a/1e6).toFixed(1)+'M';
   if(a>=1e3) return s+'$'+(a/1e3).toFixed(1)+'K';
   return s+'$'+a.toFixed(0); }
+let lastFeed='';
 function pushFeed(html,cls){
+  if(html===lastFeed) return;                     // stop four identical "collected at the terminal" lines stacking up
+  lastFeed=html;
   lines.unshift('<div class="l '+(cls||'')+'">'+html+'</div>');
   if(lines.length>5) lines.pop();
   feedEl.innerHTML=lines.join('');
@@ -1199,13 +1236,13 @@ function frame(dt){
   drawCoolerBubbles(g);
 
   // ---- the maw: a molten furnace that CHURNS, and a jaw that opens to swallow ----
-  const heat=.42+mawHeat*.58+Math.sin(T*.004)*.05;
+  const heat=.42+mawHeat*.58+Math.sin(T*.0012)*.05;   // fire was strobing — all these rates cut ~4x
   const jaw=mawHeat;
   const m=MOL.maw;
   const open=Math.round(jaw*7);
   r(g,m.x,m.y,m.w,m.h+open,'#1c0a03');
   for(let L=0;L<3;L++){
-    const spd=.02+L*.015, base=['#4a1403','#8a2c06','#c24a0a'][L];
+    const spd=.0045+L*.0032, base=['#4a1403','#8a2c06','#c24a0a'][L];
     g.fillStyle=base;
     for(let cx=0;cx<m.w;cx+=3){
       const hgt=(m.h-8)*(.35+.5*Math.abs(Math.sin(cx*.14+T*spd)))*(0.7+heat*.5);
@@ -1215,7 +1252,7 @@ function frame(dt){
   }
   g.globalAlpha=1;
   for(let cx=0;cx<m.w;cx+=4){
-    const lick=Math.max(0,Math.sin(cx*.3+T*.05))*(6+mawHeat*14);
+    const lick=Math.max(0,Math.sin(cx*.3+T*.012))*(6+mawHeat*14);
     g.fillStyle=heat>.7?'#ffe6a8':'#ffab3a'; g.globalAlpha=.4+mawHeat*.5;
     g.fillRect(m.x+cx, m.y+m.h+open-lick-8, 3, lick);
   }
@@ -1542,6 +1579,8 @@ function syncOverlay(){
   ov.style.left=rct.left+'px'; ov.style.top=rct.top+'px'; ov.style.width=rct.width+'px'; ov.style.height=rct.height+'px';
   OVU=rct.width/W;
   ov.style.setProperty('--u',OVU+'px');
+  ov.classList.toggle('tiny', OVU<2.1);           // phone / embedded band
+
   buildTicker();                                  // width depends on --u, so re-measure on resize
 }
 addEventListener('resize',fit);
