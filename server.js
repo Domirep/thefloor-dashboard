@@ -2892,6 +2892,8 @@ const LLMS_TXT = () => `# The Floor — companion dashboard for $FLOOR (Robinhoo
 
 ## Agent endpoint
 - MCP (streamable HTTP): ${'`'}/mcp${'`'} — add as an MCP server; tools are self-describing via tools/list.
+- Capabilities in prose: ${'`'}/mcp.md${'`'} — what you can do, the broker-wallet trading flow, and what
+  each prepare_* tool refuses to build. Read it before wiring an agent to the trading tools.
 - Discovery (JSON): ${'`'}/api${'`'}
 - Open source (MIT): https://github.com/Domirep/thefloor-dashboard — no custody, unsigned-calldata writes, threat model in SECURITY.md
 
@@ -2994,6 +2996,15 @@ http.createServer(async (req, res) => {
   if (p === '/api' || p.startsWith('/api/') || p === '/mcp' || p === '/llms.txt') cors(res);
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
+  // Human-readable capability doc. Served from the repo file so it cannot drift from what shipped,
+  // and served from here rather than linked to GitHub so it is correct the moment it deploys.
+  if (p === '/mcp.md') {
+    let md = null;
+    try { md = fs.readFileSync(path.join(__dirname, 'MCP.md'), 'utf8'); } catch (_) {}
+    if (!md) { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('MCP.md not found'); return; }
+    res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8', 'cache-control': 'public, max-age=600' });
+    res.end(md); return;
+  }
   if (p === '/llms.txt') {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' });
     res.end(LLMS_TXT()); return;
@@ -3058,6 +3069,7 @@ $FLOOR. Read state, run <code>get_strategy</code> for the decision math, and pre
 move (create/upgrade desk, recruit/seat operators, collect, swap) as unsigned calldata.</p>
 <p style="font-size:13px;color:#b3a88f">${MCP_TOOLS.filter(t => !t.name.includes('broker')).map(t => t.name).join(' · ')}</p>
 <p style="font-size:11px;color:#6f6249;margin-top:14px">${MCP_TOOLS.length} tools total · full self-describing schema via <code>tools/list</code></p>
+<p style="font-size:12.5px;color:#b3a88f;margin-top:10px"><b style="color:#d4af5a">What you can do with it:</b> <a href="/mcp.md" style="color:#d4af5a">/mcp.md</a> — capabilities, the broker-wallet trading flow, what each tool refuses to build and why, and the local scripts that sign and post. Machine-readable: <a href="/llms.txt" style="color:#d4af5a">/llms.txt</a>.</p>
 <p style="margin-top:28px;font-size:13px"><a href="/llms.txt" style="color:#d4af5a">llms.txt</a> ·
 <a href="/api" style="color:#d4af5a">API index</a> · <a href="/" style="color:#d4af5a">dashboard</a> ·
 <a href="https://github.com/Domirep/thefloor-dashboard" style="color:#d4af5a">source (GitHub)</a> ·
