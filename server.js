@@ -1528,6 +1528,7 @@ const MCP_TOOLS = [
   { name: 'prepare_activate_broker', description: 'VERIFICATION-GATED: build the UNSIGNED transaction(s) to activate a StonkBroker\'s dividend drops at a tier (or upgrade an active one — the on-chain quote credits what was already paid). This tool ERRORS and returns no calldata unless every check passes live on-chain: the fee quote and the signer\'s $STONKBROKER allowance (so `from` is required). Fee is paid by the signer (50% burned, 50% treasury); `approveFirst` is included when the allowance is short. IMPORTANT: the NFT\'s transfer hook CLEARS activation on every ownership change — activate AFTER any planned transfer (e.g. moving the broker to an agent wallet), never right before one, or the fee is wasted.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, tier: { type: 'integer', description: 'Target tier 1-5 (5 = 3.33x dividend weight)' }, from: { type: 'string', description: 'REQUIRED: the wallet that will pay — the on-chain allowance check is mandatory.' } }, ['id', 'tier']) },
   { name: 'get_broker_floor_status', description: 'Cross-game: does this StonkBroker\'s ERC-6551 wallet play The Floor? Returns the wallet, whether it owns a desk, and if so its live desk state (alpha, share, pending PnL, FLOOR balance). Binding rule: the desk itself (level/alpha) is permanently bound to the NFT and transfers on sale; liquid contents (FLOOR balance, operator NFTs, tokens) remain removable by the current owner until the sale lands.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' } }, ['id']) },
   { name: 'prepare_broker_floor_desk', description: 'VERIFICATION-GATED cross-game move (nobody on the chain has done it yet): build the UNSIGNED transaction that makes a StonkBroker\'s OWN ERC-6551 wallet open a desk on The Floor. This tool ERRORS and returns no calldata unless every check passes live on-chain: the broker must be ACTIVATED (policy — activation is the commitment step, the desk is the perk; activate first if not), `from` is required and must match ownerOf (executeCall is owner-gated), and the broker wallet must verifiably have no desk. Why do it: the desk and its alpha bind to the NFT and transfer with it on sale — the only way a Floor position can change hands — giving the broker a second income stream alongside its stock dividends (liquid wallet contents remain owner-removable until a sale; never promise a buyer the wallet\'s tokens). The 0.01 ETH rides along with your signature (no prior wallet funding). Referrer: on-chain, permanent, defaults to this dashboard\'s address, overridable — always tell the user who it is before signing.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, referrer: { type: 'string', description: 'Referrer to credit (permanent). Omit for this dashboard\'s default; 0x0…0 for none.' }, from: { type: 'string', description: 'REQUIRED: the broker\'s current owner — verified against ownerOf on-chain before any calldata is returned.' } }, ['id']) },
+  { name: 'get_stock_tokens', description: 'The tokenized stocks a StonkBroker wallet can actually trade, read from the StockBooster on-chain: symbol, address, decimals, and for each one the Uniswap V3 pools that really exist against WETH (tier + pool address). USE THIS BEFORE prepare_broker_trade — the tiers differ per stock and are not guessable: at time of writing AAPL trades at 0.01%/0.05%, NVDA at 0.3%/1%, and AMZN has NO WETH pool at all, so it cannot be swapped directly here. `tradeable:false` means exactly that. Symbols from this list are accepted in place of addresses by prepare_broker_trade.', inputSchema: obj() },
   { name: 'prepare_broker_trade', description: 'VERIFICATION-GATED: build the UNSIGNED Uniswap V3 swap that makes a StonkBroker\'s OWN ERC-6551 wallet trade one token for another on Robinhood Chain — the wallet spends, and the OUTPUT LANDS IN THE WALLET, so both sides belong to the NFT and transfer with it on sale. Errors with no calldata unless `from` matches ownerOf on-chain (executeCall is owner-gated) and the broker wallet verifiably holds enough tokenIn. Refuses to build a swap with no price floor: pass `pool` for a live on-chain quote (amountOutMinimum = quote − slippagePct) or `minAmountOut` yourself — a zero minimum is a guaranteed sandwich. The router pulls via transferFrom, so if the WALLET\'S allowance is short an `approveFirst` transaction is returned and both must be signed in order. Nothing here is signed or broadcast; the owner signs both.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, from: { type: 'string', description: 'REQUIRED: the broker\'s current owner — verified against ownerOf on-chain before any calldata is returned.' }, tokenIn: { type: 'string', description: 'Token the broker wallet spends (0x address).' }, tokenOut: { type: 'string', description: 'Token the broker wallet receives (0x address).' }, amountIn: { type: 'number', description: 'Amount of tokenIn in whole tokens (not wei).' }, decimals: { type: 'integer', description: 'tokenIn decimals (default 18). Wrong decimals means a wrong-sized trade — check it.' }, outDecimals: { type: 'integer', description: 'tokenOut decimals (default 18), used for the minimum-out maths.' }, fee: { type: 'integer', description: 'Uniswap V3 fee tier: 100, 500, 3000 or 10000. Default 10000.' }, pool: { type: 'string', description: 'The V3 pool for this pair+tier. Given, the amountOutMinimum is quoted live from slot0.' }, slippagePct: { type: 'number', description: 'Max slippage when quoting from `pool` (default 2).' }, minAmountOut: { type: 'number', description: 'Explicit floor in whole tokenOut. Use when you priced it elsewhere; skips the pool quote.' } }, ['id', 'from', 'tokenIn', 'tokenOut', 'amountIn']) },
   { name: 'prepare_broker_floor_collect', description: 'VERIFICATION-GATED: build the UNSIGNED transaction that makes a StonkBroker\'s wallet collect its Floor desk\'s pending PnL. Errors with no calldata unless `from` matches ownerOf on-chain and the wallet verifiably has a desk. The collected FLOOR lands IN the broker\'s wallet (it belongs to the NFT, not to you — use the wallet\'s executeCall for anything further).', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, from: { type: 'string', description: 'REQUIRED: the broker\'s current owner — verified against ownerOf on-chain.' } }, ['id']) },
   { name: 'get_broker_leaderboard', description: 'Activated StonkBrokers ranked by the USD value of their wallet CONTENTS right now (the 3 dividend stocks + $STONKBROKER + ETH, priced from their on-chain pools). IMPORTANT framing: contents are a removable snapshot — the current owner can move everything out before a sale; a paid activation is cleared on every transfer (buyers re-activate); a Floor desk lives on the broker\'s wallet and survives sales. Report this as data, never as an appraisal or a promise of value.', inputSchema: obj({ limit: { type: 'integer', description: 'Max ranked rows to return (1-50, default 20)' } }) },
@@ -1601,6 +1602,43 @@ const SEL_SLOT0 = '0x3850c7bd';                      // pool.slot0() -> sqrtPric
 const V3_FACTORY = '0x1f7d7550b1b028f7571e69a784071f0205fd2efa';
 const SEL_GET_POOL = '0x1698ee82';                   // factory.getPool(address,address,uint24)
 const FEE_TIERS = [100, 500, 3000, 10000];
+/* The tradeable stock set, straight from the StockBooster. Cached 30 min: the set is fixed-size
+   (address[3]) and effectively static, while the pool lookups behind it are four calls per stock.
+   Symbols matter more than they look — an agent passing a 42-char address it half-remembered is a
+   real way to send a trade into the wrong token. */
+let _stocks = null, _stocksAt = 0;
+async function stockTokens() {
+  if (_stocks && Date.now() - _stocksAt < 1800000) return _stocks;
+  const r = await ethCall(SB_BOOST, SB_SEL.getStockTokens);
+  if (!r || r === '0x') return _stocks;                  // keep last-good rather than report "no stocks"
+  const d = r.slice(2);
+  const addrs = [0, 1, 2].map(i => '0x' + d.slice(i * 64 + 24, (i + 1) * 64)).filter(a => /[1-9a-f]/.test(a.slice(2)));
+  const out = [];
+  for (const a of addrs) {
+    const [symRaw, decRaw] = await Promise.all([ethCall(a, SB_SEL.symbol), ethCall(a, '0x313ce567')]);
+    let symbol = null;
+    if (symRaw && symRaw.length > 130) {
+      try { const L = parseInt(symRaw.slice(66, 130), 16); symbol = Buffer.from(symRaw.slice(130, 130 + L * 2), 'hex').toString('utf8').replace(/\0/g, '') || null; } catch (_) {}
+    }
+    const decimals = decRaw ? parseInt(decRaw, 16) : 18;
+    const pools = [];
+    for (const fee of FEE_TIERS) { const p = await v3Pool(a, WETH_ADDR, fee); if (p) pools.push({ fee, pool: p }); }
+    out.push({ symbol, address: a, decimals: Number.isFinite(decimals) ? decimals : 18, pools, tradeable: pools.length > 0 });
+  }
+  if (out.length) { _stocks = out; _stocksAt = Date.now(); }
+  return _stocks;
+}
+// Accept a symbol where an address is expected. WETH is included because it is the other side of
+// every one of these pairs.
+async function resolveToken(v) {
+  const s = String(v || '').trim();
+  if (/^0x[0-9a-fA-F]{40}$/.test(s)) return s.toLowerCase();
+  const up = s.toUpperCase();
+  if (up === 'WETH' || up === 'ETH') return WETH_ADDR;
+  const list = await stockTokens();
+  const hit = (list || []).find(t => (t.symbol || '').toUpperCase() === up);
+  return hit ? hit.address : null;
+}
 async function v3Pool(tokenA, tokenB, fee) {
   const r = await ethCall(V3_FACTORY, SEL_GET_POOL + wAddr(tokenA) + wAddr(tokenB) + w256(fee));
   if (!r) return null;
@@ -2052,6 +2090,17 @@ async function mcpCall(name, args) {
       });
     }
 
+    case 'get_stock_tokens': {
+      const list = await stockTokens();
+      if (!list) return { error: 'could not read the stock-token set from the StockBooster (RPC throttled) — retry shortly' };
+      return {
+        stocks: list,
+        quoteToken: { symbol: 'WETH', address: WETH_ADDR },
+        note: 'Pool tiers differ per stock and are read live from the V3 factory — do not assume a default. tradeable:false means no direct WETH pool exists at any standard tier, so prepare_broker_trade cannot build a single-hop swap for it.',
+        usage: 'Pass `symbol` (e.g. "NVDA") or `address` to prepare_broker_trade as tokenIn/tokenOut, and one of this stock\'s own `pools[].fee` values.',
+      };
+    }
+
     /* The broker's OWN wallet trades. Everything else here swaps from the caller's EOA; this routes
        exactInputSingle through the 6551 executeCall so both the spend and the proceeds belong to the
        NFT. recipient is the broker wallet on purpose — sending output to the owner would quietly
@@ -2063,9 +2112,14 @@ async function mcpCall(name, args) {
       const hex = v => /^0x[0-9a-fA-F]{40}$/.test(v);
       if (!from) return { error: 'verification-gated: pass `from` (the wallet that owns broker #' + id + '). No calldata without on-chain ownership confirmation.' };
       if (!hex(from)) return { error: 'from must be a 0x-prefixed 40-hex address' };
-      const tokenIn = String(args.tokenIn || '').trim().toLowerCase();
-      const tokenOut = String(args.tokenOut || '').trim().toLowerCase();
-      if (!hex(tokenIn) || !hex(tokenOut)) return { error: 'tokenIn and tokenOut must be 0x-prefixed 40-hex token addresses' };
+      // Symbols accepted ("NVDA", "WETH") — see get_stock_tokens. Addresses still work.
+      const tokenIn = await resolveToken(args.tokenIn);
+      const tokenOut = await resolveToken(args.tokenOut);
+      if (!tokenIn || !tokenOut) {
+        const list = await stockTokens();
+        const known = (list || []).map(t => t.symbol).filter(Boolean).concat('WETH').join(', ');
+        return { error: 'could not resolve ' + (!tokenIn ? 'tokenIn' : 'tokenOut') + ' — pass a 0x address, or one of: ' + known + ' (see get_stock_tokens)' };
+      }
       if (tokenIn === tokenOut) return { error: 'tokenIn and tokenOut are the same token' };
       const amountIn = Number(args.amountIn);
       if (!(amountIn > 0)) return { error: 'amountIn must be > 0 (whole tokens, not wei)' };
