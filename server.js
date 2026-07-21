@@ -495,6 +495,12 @@ const POOL_MINT_TOPIC = '0x7a53080ba414158be7ec69b987b5fb7d07dee101fe85488f0853a
 const POOL_BURN_TOPIC = '0x0c396cd989a39f4459b5fa1aed6a9a8dcdbc45908acfd67e028cd568da98982c';
 const POOL_COLLECT_TOPIC = '0x70935338e69775456a85ddef226c395fb668b63fa0115f5f20610b388e6ca9c0';
 let behavior = null, behaviorAt = 0, behaviorBusy = false;
+// Per-wallet FLOOR flow {addr:{bought,sold,reinvested}} for humans — a free by-product of the behavior
+// scan (same logs), powering the free-agent scouting board. Rebuilt each behavior refresh; persisted so
+// the scouting endpoint isn't empty right after a boot.
+const SCOUT_FILE = path.join(DATA_DIR, 'scout.json');
+let scoutFlow = {}, scoutAt = 0;
+try { const p = JSON.parse(fs.readFileSync(SCOUT_FILE, 'utf8')); if (p && p.flow) { scoutFlow = p.flow; scoutAt = p.at || 0; console.log('LOADED scout flow from volume (' + Object.keys(scoutFlow).length + ' wallets)'); } } catch (_) {}
 
 // ---- shared address screening. Fills the persistent `codeCache` declared with the distribution job
 // (addr -> 1 contract | 0 EOA); contract-ness never flips, so each address costs one eth_getCode ever
@@ -605,6 +611,12 @@ async function refreshBehavior() {
     const S = bucket(sells, 'from', lpInTx);
     const B = bucket(buys, 'to', lpOutTx);
     const R = bucket(spends, 'from', NO_LP);
+    // per-wallet flow (humans only) — reuses the exact same logs, no extra RPC
+    const scout = {};
+    const addFlow = (arr, side, key, lpTx) => { for (const l of arr) { if (lpTx && lpTx.has(l.transactionHash)) continue; const w = addrOf(side === 'from' ? l.topics[1] : l.topics[2]); if (!w || !players.has(w)) continue; (scout[w] = scout[w] || { bought: 0, sold: 0, reinvested: 0 })[key] += amt(l.data); } };
+    addFlow(sells, 'from', 'sold', lpInTx);
+    addFlow(buys, 'to', 'bought', lpOutTx);
+    addFlow(spends, 'from', 'reinvested', NO_LP);
     const attributable = S.player + S.trader;          // real swap sells we can tie to a wallet
     const sellVol = attributable + S.routed;
     // How much sell volume we simply couldn't classify this run. Publishing while this is high would
@@ -627,7 +639,9 @@ async function refreshBehavior() {
     const healthy = fresh.player.reinvested >= Math.max(1, priorReinv * 0.5) && sellVol > 0;
     if (healthy && unscreenedShare <= 0.02) {                                        // healthy — commit
       behavior = fresh; behaviorAt = Date.now();
+      scoutFlow = scout; scoutAt = Date.now();
       try { fs.writeFile(BEHAVIOR_FILE, JSON.stringify({ behavior, at: behaviorAt }), () => {}); } catch (_) {}
+      try { fs.writeFile(SCOUT_FILE, JSON.stringify({ flow: scoutFlow, at: scoutAt }), () => {}); } catch (_) {}
       console.log('BEHAVIOR ok players=' + players.size + ' reinvest=' + fresh.player.reinvested + ' playerSellShare=' + fresh.playerSellShare.toFixed(1) + '% attributable=' + fresh.attributableShare.toFixed(1) + '%');
     } else if (!healthy) {
       console.log('BEHAVIOR skip (partial): reinvest=' + fresh.player.reinvested + ' sellVol=' + Math.round(sellVol) + ' — retry 5m');
@@ -2394,6 +2408,7 @@ const API_INDEX = {
     { path: '/api/holders', desc: 'Top FLOOR holders.' },
     { path: '/api/firms', desc: 'Firms, members, and free agents.' },
     { path: '/api/firm-competition', desc: 'Weekly firm PnL competition mirrored from thefloor.sh: standings ranked by PnL, prize pool, and projected 65/25/10 payouts. PnL is indexed off-chain, not on-chain-verifiable.' },
+    { path: '/api/scouting', desc: 'Free agents (desk owners not in a firm) with recruiting signals: alpha, FLOOR accumulation, reinvest rate. A free on-chain firepower proxy, not the competition PnL.' },
     { path: '/api/live-actions', desc: 'Recent on-chain game actions (collect/claim/seat/recruit/upgrade/newdesk/referral/firmburn).' },
     { path: '/api/history', desc: 'Daily snapshots for trends. Rows before tracking began are reconstructed and marked seeded:true.' },
     { path: '/api/brokers', desc: 'StonkBrokers (same chain, different game): mint/holders, activation tiers, dividend rounds, $STONKBROKER burns + price.' },
@@ -2780,6 +2795,31 @@ write tools return unsigned calldata for your own signer. Never send a private k
     if (!firms) refreshFirms();
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=300' });
     res.end(JSON.stringify({ ok: !!firms, firms: firms || null, ageMs: firmsAt ? Date.now() - firmsAt : null }));
+    return;
+  }
+
+  // ---- free-agent scouting: desk owners NOT in a firm, with recruiting signals (free proxy, not the
+  // competition's PnL). Live join of leaderboard (alpha) + firmByAddr (membership) + scoutFlow + handles. ----
+  if (p === '/api/scouting' && req.method === 'GET') {
+    const lb = leaderboard && leaderboard.byAlpha;
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'public, max-age=120' });
+    if (!lb) { res.end(JSON.stringify({ ok: false, warming: true })); return; }
+    const fba = (firms && firms.firmByAddr) || {};
+    const inFirm = a => !!(fba[a] || fba[(a || '').toLowerCase()]);
+    const limit = Math.min(80, Math.max(10, parseInt(u.searchParams.get('limit'), 10) || 60));
+    const agents = lb.filter(r => r.a && !inFirm(r.a)).map(r => {
+      const f = scoutFlow[r.a] || {}; const bought = f.bought || 0, sold = f.sold || 0, reinv = f.reinvested || 0;
+      const h = handles[r.a];
+      return { addr: r.a, alpha: r.alpha, op: r.op || null, alphaRank: r.rank,
+        bought: Math.round(bought), sold: Math.round(sold), reinvested: Math.round(reinv),
+        netFloor: Math.round(bought - sold), reinvestPct: (reinv + sold) > 0 ? Math.round(reinv / (reinv + sold) * 100) : null,
+        active: (bought + sold + reinv) > 0,
+        handle: h ? { handle: h.handle, name: h.name, avatar: h.avatar } : null };
+    });
+    agents.forEach((a, i) => { a.rank = i + 1; });   // ranked by alpha (leaderboard order)
+    res.end(JSON.stringify({ ok: true, ageMs: scoutAt ? Date.now() - scoutAt : null,
+      totalFreeAgents: agents.length, agents: agents.slice(0, limit),
+      note: 'Recruiting signals for desk owners not yet in a firm — earning power (alpha), FLOOR accumulation, and reinvestment. This is a free on-chain proxy for firepower, NOT the competition\'s trading PnL (which is off-chain and per-firm only).' }));
     return;
   }
 

@@ -508,6 +508,27 @@ a.rst-nm:hover{color:var(--brass-light);text-decoration:underline}
 #competition .comp-state{background:var(--navy-900);border:1px solid #37301f;box-shadow:3px 4px 0 rgba(0,0,0,.45);padding:22px 20px;text-align:center;color:var(--muted-cream);font-size:13px;line-height:1.65}
 #competition .comp-state b{color:var(--paper)}
 #competition .comp-loading{color:var(--muted-cream);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;padding:20px 4px}
+/* ---- Free-agent scouting ---- */
+#scouting .scout-note{background:var(--navy-950);border:1px solid #2a2318;border-left:2px solid var(--brass-dark);border-radius:5px;padding:11px 14px;margin-bottom:14px;font-size:12px;line-height:1.65;color:var(--muted-cream)}
+#scouting .scout-note b{color:var(--brass-light)}
+#scouting .tbl-wrap{overflow-x:auto;border:1px solid #37301f;box-shadow:3px 4px 0 rgba(0,0,0,.45);background:var(--navy-950);max-height:560px;overflow-y:auto}
+#scouting table{border-collapse:collapse;width:100%;font-size:12.5px}
+#scouting th,#scouting td{padding:9px 11px;text-align:right;border-bottom:1px solid #241d12;white-space:nowrap;vertical-align:middle}
+#scouting th{background:linear-gradient(180deg,#241c10,#191308);color:var(--brass-light);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;font-size:10px;position:sticky;top:0;z-index:1}
+#scouting tbody tr{cursor:pointer}
+#scouting tbody tr:hover{background:#191308}
+#scouting .num{font-variant-numeric:tabular-nums}
+#scouting .pos{color:var(--green)} #scouting .neg{color:var(--red)} #scouting .dim{color:var(--muted)}
+#scouting th.s-rank,#scouting td.s-rank{text-align:center;width:40px;color:var(--muted)}
+#scouting th.s-who,#scouting td.s-who{text-align:left}
+#scouting .who{display:flex;align-items:center;gap:9px;min-width:0}
+#scouting .who-av{width:26px;height:26px;flex:none;border-radius:50%;background:#0f0b16 center/cover no-repeat;border:1px solid var(--brass-dark)}
+#scouting .who-av.sprite{border-radius:6px;background-size:80%;image-rendering:pixelated}
+#scouting .who-nm{font-family:var(--font-mono);color:var(--paper);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+#scouting a.who-nm:hover{color:var(--brass-light);text-decoration:underline}
+#scouting .who-op{font-size:10px;color:var(--muted)}
+#scouting .scout-state{background:var(--navy-900);border:1px solid #37301f;padding:20px;text-align:center;color:var(--muted-cream);font-size:13px}
+@media(max-width:560px){#scouting td.s-reinv,#scouting th.s-reinv{display:none}#scouting .who-nm{max-width:38vw}}
 @media(max-width:560px){
   #competition .comp-banner{padding:16px 16px}
   #competition .cb-main{gap:14px}
@@ -994,6 +1015,66 @@ try{ if(localStorage.getItem('floor.motion')!=='still') document.documentElement
     function boot(){ loadCompetition(); setInterval(loadCompetition,60000); setInterval(paintCountdown,1000); }
     if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
     window.loadCompetition=loadCompetition;
+  })();
+  </script>
+
+  <!-- FREE-AGENT SCOUTING -->
+  <section id="scouting" data-tab="firms">
+    <div class="section-head">
+      <img src="assets/icon-seats.svg" alt="" />
+      <h2>Free-Agent Scouting</h2>
+      <span class="sub label">desk owners not yet in a firm</span>
+    </div>
+    <div class="scout-note">
+      <b>Recruiting signals</b> for players not in a firm — earning power (alpha), FLOOR accumulation, and reinvestment, read from the chain. This is a free <b>firepower</b> proxy, not the competition's trading PnL (that's off-chain and only reported per firm). A firm can sign a free agent right up to Friday's close.
+    </div>
+    <div id="scoutBody"><div class="scout-state">scouting the floor…</div></div>
+  </section>
+  <script>
+  /* Free-Agent Scouting — IIFE, self-contained. */
+  (function(){
+    'use strict';
+    const $=(s)=>document.querySelector(s);
+    const escH=(v)=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const fmt=(n)=>{ n=Number(n); if(!isFinite(n)) n=0; return n.toLocaleString('en-US',{maximumFractionDigits:0}); };
+    const M=(n)=>{ if(n==null)return'—'; const a=Math.abs(n); const s=a>=1e6?(a/1e6).toFixed(1)+'M':a>=1e3?Math.round(a/1e3)+'K':Math.round(a); return (n<0?'-':'')+s; };
+    const shrt=(a)=>a?a.slice(0,6)+'…'+a.slice(-4):'?';
+    const OFF=(op)=>'/opart/'+String(op||'Retail Analyst').toLowerCase().replace(/[^a-z0-9]+/g,'-')+'.svg';
+    function row(a){
+      const h=a.handle, tag=(h&&h.handle)?String(h.handle).replace(/[^A-Za-z0-9_]/g,''):'';
+      const av=(h&&h.avatar)?`<span class="who-av" style="background-image:url('${escH(h.avatar)}')"></span>`
+                            :`<span class="who-av sprite" style="background-image:url('${OFF(a.op)}')"></span>`;
+      const who=tag?`<a class="who-nm" href="https://x.com/${tag}" target="_blank" rel="noopener" onclick="event.stopPropagation()">@${tag}</a>`
+                   :`<span class="who-nm">${shrt(a.addr)}</span>`;
+      const net=a.netFloor, netCls=net>0?'pos':net<0?'neg':'dim', netTxt=(net>0?'+':'')+M(net);
+      const reinv=a.reinvestPct==null?'<span class="dim">—</span>':a.reinvestPct+'%';
+      const opLine=a.op?`<div class="who-op">${escH(a.op)}</div>`:'';
+      return `<tr data-a="${escH(a.addr)}"><td class="s-rank">${a.rank}</td>`+
+        `<td class="s-who"><div class="who">${av}<div style="min-width:0">${who}${opLine}</div></div></td>`+
+        `<td class="num">${fmt(a.alpha)}</td>`+
+        `<td class="num ${netCls}">${netTxt}</td>`+
+        `<td class="num s-reinv">${reinv}</td></tr>`;
+    }
+    function render(d){
+      const body=$('#scoutBody'); if(!body) return;
+      const ag=Array.isArray(d.agents)?d.agents:[];
+      if(!ag.length){ body.innerHTML='<div class="scout-state">building the scouting board… flow data warms with the behavior scan (first pass ~1 min)</div>'; return; }
+      body.innerHTML='<div class="tbl-wrap"><table><thead><tr>'+
+        '<th class="s-rank">#</th><th class="s-who">Free agent</th><th>Alpha</th>'+
+        '<th title="net FLOOR bought minus sold — accumulating vs dumping">Net FLOOR</th>'+
+        '<th class="s-reinv" title="share of earnings put back into the game vs sold">Reinvest</th>'+
+        '</tr></thead><tbody>'+ag.map(row).join('')+'</tbody></table></div>'+
+        `<p class="note" style="margin-top:8px">${escH(d.note||'')} ${d.totalFreeAgents!=null?'· '+fmt(d.totalFreeAgents)+' free agents, top '+ag.length+' by alpha':''} · click a row for their card.</p>`;
+      body.querySelectorAll('tbody tr').forEach(tr=>tr.onclick=()=>{ if(typeof inspectWallet==='function') inspectWallet(tr.dataset.a); });
+    }
+    async function loadScouting(){
+      try{ const r=await fetch('/api/scouting',{cache:'no-store'}); const d=await r.json();
+        if(!d||d.ok===false||d.warming){ return; } render(d);
+      }catch(e){}
+    }
+    function boot(){ loadScouting(); setInterval(loadScouting,180000); }
+    if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+    window.loadScouting=loadScouting;
   })();
   </script>
 
