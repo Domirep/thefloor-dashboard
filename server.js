@@ -732,6 +732,14 @@ async function refreshFirms() {
     const gl = await ethGetLogs({ address: G });
     const players = []; const seen = new Set();
     (gl || []).forEach(l => { const a = addrOf(l.topics && l.topics[1]); if (a && a !== '0x0000000000000000000000000000000000000000' && !seen.has(a)) { seen.add(a); players.push(a); } });
+    /* This full-chain enumeration is the most expensive read here and the first thing to throttle,
+       and losing it used to take the whole membership map with it. The leaderboard already holds
+       every desk owner — and since firmByAddr only ever maps wallets with alpha > 0, that list is
+       a closer match to what we need than the raw log sweep. Prefer it to failing. */
+    if (!players.length && leaderboard && Array.isArray(leaderboard.byAlpha)) {
+      leaderboard.byAlpha.forEach(r => { const a = (r && r.a || '').toLowerCase(); if (a && !seen.has(a)) { seen.add(a); players.push(a); } });
+      if (players.length) console.log('FIRMS enumeration empty — falling back to ' + players.length + ' leaderboard wallets');
+    }
     const agents = [];
     const firmByAddr = {};   // addr -> firmId, for every seated member (powers the office pods)
     let resolved = 0;        // wallets whose firmOf/alpha actually came back — NOT the same as classified
