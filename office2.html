@@ -969,6 +969,21 @@ function updatePlates(){
    on-chain state (desk level, alpha rank, whether they've linked an X) plus their
    operator's personality. Shouts fire at the maw and at the terminal. */
 const pickOne=a=>a[RI(0,a.length-1)];
+/* Keep it fresh: never repeat a line while it's still recent. Remembers the last 26
+   things anyone said (chatter and shouts share the memory) and re-rolls around them. */
+const saidRecently=[];
+function freshPick(pool){
+  if(!pool || !pool.length) return '';
+  let c=null;
+  for(let tries=0;tries<14;tries++){
+    const cand=pool[RI(0,pool.length-1)];
+    if(saidRecently.indexOf(cand)<0){ c=cand; break; }
+  }
+  if(c===null) c=pool[RI(0,pool.length-1)];        // pool smaller than the memory — allow a repeat
+  saidRecently.push(c);
+  if(saidRecently.length>26) saidRecently.shift();
+  return c;
+}
 const OPLINE={
   'the closer':["always be closing","coffee's for closers","i don't do maybes","second place is the first loser","i close on weekends too","put that on my tab, i'm good for it"],
   'terminal wizard':["i typed one command and made rent","the terminal talks back now","four monitors, one keyboard, no sleep","i wrote a script to do my job","hotkeys are a personality","i haven't used a mouse since march"],
@@ -986,14 +1001,26 @@ const OPLINE={
   'junior broker':["i'll have to ask my boss","still on probation","i just do what the screen says","is this normal? is any of this normal?","i'm learning so much","nobody told me about the bull"],
   'retail analyst':["i actually read the docs","buying the dip. the whole dip.","i'm early, not wrong","i did my own research and it took hours","conviction is free","i'll be right eventually"],
 };
-const GENERAL=["another day on the floor","who moved my chair","the coffee here is a war crime",
-  "don't look at the chart. don't look at the chart.","alpha up, rent paid, life good",
-  "i'm not addicted, i just check it often","the floor never closes","i dreamt about bandwidth again",
-  "somebody's printing and it isn't me","my desk plant is the only one thriving",
-  "the printer's been broken since launch","i've made peace with the noise",
-  "there's a bull in the wall and we all just work here","i said good morning to moloch. he said nothing.",
-  "does anyone else hear chewing","new guy asked what the fire was for","standing meeting, sitting desk",
-  "my seat's still warm from the last guy","i'm one upgrade from being insufferable"];
+/* Grounded in the actual game — alpha, emissions, bandwidth, seats, the burn, the
+   halving. Generic office gags ("who moved my chair") were funny-for-its-own-sake and
+   said nothing about where these people are or what they're doing, so they're gone. */
+const GENERAL=[
+  "alpha's the only number that matters here",
+  "every burn makes what's left worth more",
+  "emissions don't care how you feel about them",
+  "seats full, bandwidth maxed, nothing left to optimise",
+  "reinvest, repeat, try not to think about it",
+  "supply only moves one direction and that's down",
+  "somebody on this floor is compounding harder than me",
+  "does anyone else hear chewing",
+  "the new guy asked what the fire was for",
+  "i don't check the leaderboard, i live on it",
+  "pending PnL is just money you haven't collected yet",
+  "more alpha, bigger slice, same pool",
+  "everything in this building is priced in FLOOR",
+  "there's a bull in the wall and we all just work here",
+  "the floor never closes, it just changes shift",
+];
 function chatFor(p){
   const pool=[], dl=(p.dl==null?5:p.dl), rk=p.rank||999;
   pool.push(...GENERAL);
@@ -1016,9 +1043,16 @@ function chatFor(p){
   /* pertinent to the MARKET */
   if(tk.burned)  pool.push("supply's down again","that's another few thousand gone forever","the burn ledger only goes one way");
   if(tk.price)   pool.push("price is price","i don't check the price. i check it constantly.");
+  /* pertinent to the HALVING — the one deadline everyone here shares */
+  if(tk.halveAt){
+    const days=(tk.halveAt-Date.now())/86400000;
+    if(days<3)       pool.push("halving's days away","earn while the rate's still rich","this is the last of the good emissions");
+    else if(days<10) pool.push("halving's coming up faster than i'd like","clock's ticking on this rate");
+    else             pool.push("emissions are rich right now","plenty of epoch left");
+  }
   const ol=OPLINE[String(p.op||'').toLowerCase()];
   if(ol) pool.push(...ol,...ol,...ol);              // weight the operator's own voice heavily
-  return pickOne(pool);
+  return freshPick(pool);
 }
 const BURN_SHOUT=["EARN AND BURN","FOR THE GOOD OF THE FIRM","TAKE IT, MOLOCH","SUPPLY GOES DOWN","FEED THE BULL","THIS ONE'S FOR THE HOLDERS","DEFLATION, BABY","GONE FOREVER — LOVE THAT","SEE YOU IN THE SUPPLY CHART","MY WIFE CANNOT KNOW ABOUT THIS","BURN IT ALL","IT'S NOT A LOSS, IT'S A RITUAL","ANOTHER DAY, ANOTHER OFFERING","EAT WELL, OLD FRIEND","THE LEDGER REMEMBERS","LESS OF IT, MORE FOR US","I DO THIS FOR THE CHART","TAKE IT BEFORE I CHANGE MY MIND","STRAIGHT INTO THE FIRE","NO REFUNDS","SCARCITY IS A CHOICE","HE'S HUNGRY TODAY","THIS IS FINE. THIS IS THE PLAN.","BURNED IT SO YOU DON'T HAVE TO","MY THERAPIST KNOWS ABOUT THIS ONE","ONE FEWER IN CIRCULATION","FOR THE BULL"];
 const COLLECT_SHOUT=["PAID","THAT'S THE GOOD STUFF","RENT COVERED","COMPOUNDING, BABY","STRAIGHT BACK IN","SEE? PASSIVE INCOME","I'LL TAKE IT","MOMMA NEEDS A NEW DESK","THE MACHINE WORKS","EVERY TEN MINUTES, FOREVER","THIS IS WHY I SIT HERE","DON'T SPEND IT ALL AT ONCE","ALPHA DOES ALPHA THINGS","IT ADDS UP, I PROMISE","BANKED","MORE WHERE THAT CAME FROM"];
@@ -1240,21 +1274,34 @@ function frame(dt){
   const jaw=mawHeat;
   const m=MOL.maw;
   const open=Math.round(jaw*7);
-  r(g,m.x,m.y,m.w,m.h+open,'#1c0a03');
-  for(let L=0;L<3;L++){
-    const spd=.0045+L*.0032, base=['#4a1403','#8a2c06','#c24a0a'][L];
-    g.fillStyle=base;
-    for(let cx=0;cx<m.w;cx+=3){
-      const hgt=(m.h-8)*(.35+.5*Math.abs(Math.sin(cx*.14+T*spd)))*(0.7+heat*.5);
-      g.globalAlpha=.5+L*.2;
-      g.fillRect(m.x+cx, m.y+m.h+open-hgt, 3, hgt);
-    }
+  const fh=m.h+open;
+  r(g,m.x,m.y,m.w,fh,'#1c0a03');
+  for(let cx=0;cx<m.w;cx+=2){                            // ember bed at the base
+    const eh=3+Math.abs(Math.sin(cx*.5+T*.0018))*3;
+    r(g,m.x+cx,m.y+fh-eh,2,eh,'#c24a0a');
   }
-  g.globalAlpha=1;
-  for(let cx=0;cx<m.w;cx+=4){
-    const lick=Math.max(0,Math.sin(cx*.3+T*.012))*(6+mawHeat*14);
-    g.fillStyle=heat>.7?'#ffe6a8':'#ffab3a'; g.globalAlpha=.4+mawHeat*.5;
-    g.fillRect(m.x+cx, m.y+m.h+open-lick-8, 3, lick);
+  /* Flame TONGUES that lick upward. Each column's lateral offset is a sine in
+     (height − time), so the wave travels UP the flame while the tongue narrows and
+     brightens toward its tip. The previous version was fixed-x columns of varying
+     height, which read as a bar chart rather than fire. */
+  const AMP=[3.0,1.9];
+  for(let li=0;li<2;li++){
+    const amp=AMP[li];
+    for(let i=0;i<12;i++){
+      const bx0=m.x+3+i*((m.w-6)/11), ph=i*1.9+li*0.9;
+      const tall=(fh-4)*(.44+.38*Math.abs(Math.sin(ph+T*.0013)))*(0.68+heat*.55)*(1-li*0.18);
+      for(let yy=0;yy<tall;yy++){
+        const t=yy/tall;
+        const wob=Math.sin(yy*.20 - T*.0055 + ph)*(amp*(0.35+t*1.5));
+        const wdt=Math.max(1,Math.round((4-li)*(1-t*0.8)));
+        let px=Math.round(bx0+wob-wdt/2);
+        if(px<m.x) px=m.x;
+        if(px+wdt>m.x+m.w) px=m.x+m.w-wdt;
+        const c = t<.30?'#c24a0a' : t<.58?'#ff6a1a' : t<.82?'#ffab3a' : '#ffe6a8';
+        g.globalAlpha=(li?0.9:0.6)*(t>.86?(1-t)/0.14:1);
+        r(g,px,m.y+fh-1-yy,wdt,1,c);
+      }
+    }
   }
   g.globalAlpha=1;
   // fangs: upper fixed, lower drop away as the jaw gapes (tapered, not wispy)
@@ -1300,9 +1347,10 @@ function frame(dt){
   for(let i=0;i<5;i++) r(g,TERM.x+5,TERM.y+5+i*4,RI(6,TERM.w-10),1,P.crt);
   r(g,TERM.x+3,TERM.y+TERM.h-7,TERM.w-6,4,P.brassD);
 
+  drawElevatorCar(g);                                      // car interior BEHIND the riders
   // y-sorted actors
   workers.slice().sort((a,b)=>a.y-b.y).forEach(w=>w.draw(g));
-  drawElevator(g);                                         // doors OVER the actors, so riders are hidden inside
+  drawElevatorDoors(g);                                    // door panels in FRONT, so a rider is hidden once shut
   updatePlates();                                          // DOM identity plates, capped + collision-skipped
   updateBubbles();                                         // speech follows whoever is talking
   drawFlies(g);                                            // the thrown offering / paid-out coins
@@ -1454,7 +1502,7 @@ function offering(amount,quiet){
   w.goto(standX,1,()=>{
     w.act=m.x+m.w/2; w.dir=1;                        // turn and face the maw
     w.state='work'; w.t=2.2;
-    setTimeout(()=>{ w.wind=1; say(w,pickOne(BURN_SHOUT),2500,'shout'); },380);   // wind up + shout...
+    setTimeout(()=>{ w.wind=1; say(w,freshPick(BURN_SHOUT),2500,'shout'); },380);   // wind up + shout...
     setTimeout(()=>{                                  // ...and let it go
       w.wind=0; w.carry=null;
       fly(w.x+10, w.y-w.size-4, m.x+m.w/2, m.y+m.h*0.55, 'bag', ()=>{
@@ -1484,7 +1532,7 @@ function toTerminal(amount,quiet){
     },170*i);
     setTimeout(()=>{
       if(amount) popText(w.x, w.y-w.size-14, '+'+fmt(amount)+' FLOOR', '#7fe0a0');
-      say(w,pickOne(COLLECT_SHOUT),2300,'shout');
+      say(w,freshPick(COLLECT_SHOUT),2300,'shout');
       pushFeed('<b>'+(amount?'+'+fmt(amount)+' $FLOOR':'PnL')+'</b> collected at the terminal',(quiet?'q':''));
     },950);
     setTimeout(()=>{ w.act=null; w.goto(rnd(70,290),RI(0,1),()=>{w.busy=false;}); },1800);
@@ -1499,27 +1547,32 @@ function toTerminal(amount,quiet){
    --------------------------------------------------------------------------- */
 const CAST_MIN=7, CAST_MAX=12;
 const elevMid=ELEV.x+ELEV.w/2;
-function drawElevator(ctx){
+/* ⚠ The car is drawn in TWO passes around the actors. Drawing the whole lift after
+   them meant the car's own interior painted OVER whoever was standing in it, so a
+   rider vanished into the back wall. Interior goes BEHIND the actors, door panels
+   in FRONT (so a rider is still concealed once the doors shut). */
+function drawElevatorCar(ctx){
+  if(elevOpen<=.04) return;
   const E=ELEV, eo=Math.round(elevOpen*(E.w/2-2));
-  if(elevOpen>.04){                                    // a furnished car, not a flat glow panel
-    const ix=E.x+E.w/2-eo, iw=eo*2;
-    if(iw>3){
-      r(ctx,ix,E.y,iw,E.h,'#3a2a14');                              // back wall
-      for(let px=ix+2; px<ix+iw-2; px+=6){                         // brass panelling
-        r(ctx,px,E.y+4,1,E.h-10,'#4c3a1c'); r(ctx,px+1,E.y+4,1,E.h-10,'#2d2010');
-      }
-      r(ctx,ix,E.y,iw,2,'#6a5228');                                // ceiling
-      r(ctx,ix+Math.max(1,(iw>>1)-3),E.y+2,6,2,'#ffe6a8');         // ceiling light
-      r(ctx,ix,E.y+E.h-4,iw,4,'#241a0c');                          // car floor
-      r(ctx,ix,E.y+E.h-4,iw,1,'#4a3620');
-      const hr=E.y+Math.round(E.h*.56);
-      r(ctx,ix+1,hr,iw-2,1,'#8a6d2e');                             // handrail
-      r(ctx,ix+2,hr+1,1,2,'#5a4520'); r(ctx,ix+iw-3,hr+1,1,2,'#5a4520');
-      ctx.fillStyle='rgba(255,206,124,'+(.14+elevOpen*.26).toFixed(2)+')';
-      ctx.fillRect(ix,E.y,iw,E.h);                                 // warm spill over it
-    }
+  const ix=E.x+E.w/2-eo, iw=eo*2;
+  if(iw<=3) return;
+  r(ctx,ix,E.y,iw,E.h,'#3a2a14');                              // back wall
+  for(let px=ix+2; px<ix+iw-2; px+=6){                         // brass panelling
+    r(ctx,px,E.y+4,1,E.h-10,'#4c3a1c'); r(ctx,px+1,E.y+4,1,E.h-10,'#2d2010');
   }
-  r(ctx,E.x,E.y,E.w/2-eo,E.h,'#2a1d10');               // door panels
+  r(ctx,ix,E.y,iw,2,'#6a5228');                                // ceiling
+  r(ctx,ix+Math.max(1,(iw>>1)-3),E.y+2,6,2,'#ffe6a8');         // ceiling light
+  r(ctx,ix,E.y+E.h-4,iw,4,'#241a0c');                          // car floor
+  r(ctx,ix,E.y+E.h-4,iw,1,'#4a3620');
+  const hr=E.y+Math.round(E.h*.56);
+  r(ctx,ix+1,hr,iw-2,1,'#8a6d2e');                             // handrail
+  r(ctx,ix+2,hr+1,1,2,'#5a4520'); r(ctx,ix+iw-3,hr+1,1,2,'#5a4520');
+  ctx.fillStyle='rgba(255,206,124,'+(.14+elevOpen*.26).toFixed(2)+')';
+  ctx.fillRect(ix,E.y,iw,E.h);                                 // warm spill
+}
+function drawElevatorDoors(ctx){
+  const E=ELEV, eo=Math.round(elevOpen*(E.w/2-2));
+  r(ctx,E.x,E.y,E.w/2-eo,E.h,'#2a1d10');
   r(ctx,E.x+E.w/2+eo,E.y,E.w/2-eo,E.h,'#2a1d10');
   r(ctx,E.x,E.y,E.w/2-eo,1,'#4a3620');
   r(ctx,E.x+E.w/2+eo,E.y,E.w/2-eo,1,'#4a3620');
@@ -1669,6 +1722,7 @@ async function stats(){
     if(j&&j.ok!==false){
       tk.price=Number(j.price)||tk.price; tk.burned=Number(j.burned)||tk.burned; tk.supply=Number(j.supply)||tk.supply;
       tk.perAlphaDay=Number(j.perAlphaDay)||tk.perAlphaDay;   // drives FLOOR/day on the player card
+      tk.halveAt=Number(j.halveAt)||tk.halveAt;               // drives the halving-aware chatter
       document.getElementById('sBurn').textContent=fmt(j.burned||0);
       document.getElementById('sSupply').textContent=fmt(j.supply||0);
       if(j.halveAt){ const d=Math.max(0,j.halveAt-Date.now()); const dd=Math.floor(d/86400000), hh=Math.floor(d/3600000)%24;
