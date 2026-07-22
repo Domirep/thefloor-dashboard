@@ -2514,6 +2514,46 @@ async function refreshBrokers() {
 // Boot is when the RPC throttles hardest and the Floor refreshers already fire — join the queue late.
 setTimeout(refreshBrokers, 45000);
 setInterval(refreshBrokers, 300000);
+/* EVERY token a wallet holds, not a hardcoded shortlist.
+   A broker's 6551 account is a general on-chain wallet — it can hold anything, and it does: broker
+   #1 holds SLV, USO, SPCX, GOOGL and META alongside the three dividend stocks, and an active
+   trader wallet on this chain holds 140 tokens. Checking a fixed list of stocks under-reported
+   contents for essentially every broker and skewed the contents leaderboard with it.
+   Blockscout indexes balances and carries an exchange_rate, so one call replaces N balanceOf reads
+   AND prices assets we have no pool math for. Falls back to null so callers can degrade rather
+   than trust a partial wallet. */
+const walletTokCache = new Map();
+async function walletTokens(addr) {
+  const key = addr.toLowerCase();
+  const hit = walletTokCache.get(key);
+  if (hit && Date.now() - hit.at < 120000) return hit.list;
+  try {
+    const j = await sfetch(EXPLORER + '/api/v2/addresses/' + key + '/token-balances', 2);
+    if (!Array.isArray(j)) throw new Error('unexpected shape');
+    const list = j.map(t => {
+      const tok = t.token || {};
+      const dec = Number(tok.decimals);
+      const decimals = Number.isFinite(dec) ? dec : 18;
+      const amount = Number(t.value || 0) / Math.pow(10, decimals);
+      const rate = Number(tok.exchange_rate);
+      return {
+        // address_hash, NOT address — and checksummed, so lowercase it or nothing downstream
+        // matches: the $STONKBROKER exclusion and our own pool prices are both keyed by address
+        token: (tok.address_hash || '').toLowerCase() || null,
+        symbol: tok.symbol || null,
+        decimals, amount,
+        usd: (Number.isFinite(rate) && rate > 0 && amount > 0) ? +(amount * rate).toFixed(2) : null,
+        type: tok.type || null,
+      };
+    }).filter(t => t.amount > 0 && t.type !== 'ERC-721' && t.type !== 'ERC-1155');
+    list.sort((a, b) => (b.usd || 0) - (a.usd || 0));
+    walletTokCache.set(key, { at: Date.now(), list });
+    return list;
+  } catch (_) {
+    return hit ? hit.list : null;             // last-good, else null = unknown (never a partial wallet)
+  }
+}
+
 // ---- per-broker lookup (id -> owner, 6551 wallet, holdings, dividends, on-chain art) ----
 const sbBrokerCache = new Map();
 const SB_BROKER_TTL = 600000;
@@ -2619,12 +2659,25 @@ async function fetchBrokerInner(id) {
   calls.push({ jsonrpc: '2.0', id: 91, method: 'eth_getBalance', params: [wallet, 'latest'] });
   calls.push(C(92, GAME_CONTRACT, SEL_HAS_DESK + sbPad(wallet).slice(2)));   // cross-game: does this broker play The Floor?
   const b = await rpcBatch(calls, 4);
-  const holdings = [];
+  let holdings = [];
   let sbBal = null, ethBal = null, floorDesk = null;
   if (b) {
     stockList.forEach((t, i) => { const v = sbNum(b[i + 1]) / 1e18; if (v > 0) holdings.push({ token: t, symbol: sbSymbols[t] || null, amount: v }); });
     sbBal = sbNum(b[90]) / 1e18; ethBal = sbNum(b[91]) / 1e18;
     floorDesk = /[1-9a-f]/.test(String(b[92] || '0x0').slice(2));
+  }
+  /* Widen to everything the wallet actually holds. The on-chain reads above stay authoritative for
+     the dividend stocks (they are what the dividend maths is built on); the indexer fills in every
+     other asset. $STONKBROKER is reported separately below, so drop it here to avoid double count. */
+  let holdingsComplete = false;
+  const all = await walletTokens(wallet);
+  if (all) {
+    holdingsComplete = true;
+    const onchain = new Map(holdings.map(h => [h.token, h]));
+    holdings = all.filter(t => t.token !== SB_TOKEN).map(t => {
+      const o = t.token && onchain.get(t.token);
+      return o ? { token: t.token, symbol: o.symbol || t.symbol, amount: o.amount, usd: t.usd } : t;
+    });
   }
   // USD via the shared hourly price caches (stock pools on GeckoTerminal, STONKBROKER, WETH).
   // A missing price shows as unpriced — never silently valued at zero.
@@ -2634,7 +2687,13 @@ async function fetchBrokerInner(id) {
   let contentsUsd = 0; const unpriced = [];
   let sbBalUsd = null, ethBalUsd = null;
   if (b) {
-    holdings.forEach(h => { const p = h.token && sbStockPrices[h.token]; if (p) { h.usd = +(h.amount * p.usd).toFixed(2); contentsUsd += h.usd; } else unpriced.push(h.symbol || h.token); });
+    // our own pool price wins where we have one (verifiable from this chain); the indexer's
+    // exchange_rate covers everything else; anything still unpriced is named, never counted as 0
+    holdings.forEach(h => {
+      const p = h.token && sbStockPrices[h.token];
+      if (p) h.usd = +(h.amount * p.usd).toFixed(2);
+      if (h.usd != null) contentsUsd += h.usd; else unpriced.push(h.symbol || h.token);
+    });
     if (sbBal > 0) { if (stonkUsdNow != null) { sbBalUsd = +(sbBal * stonkUsdNow).toFixed(2); contentsUsd += sbBalUsd; } else unpriced.push('STONKBROKER'); }
     if (ethBal > 0) { if (ethUsdNow != null) { ethBalUsd = +(ethBal * ethUsdNow).toFixed(2); contentsUsd += ethBalUsd; } else unpriced.push('ETH'); }
   }
@@ -2662,7 +2721,11 @@ async function fetchBrokerInner(id) {
     id, owner, wallet, art,
     activation: { active: isActive, tier: isActive ? tier0 + 1 : null, weightBps: isActive && SB_TIERS[tier0] ? SB_TIERS[tier0].weightBps : null },
     seed: { token: seedToken, symbol: (seedToken && sbSymbols[seedToken]) || null, amount: seedAmount },
-    holdings, stonkbrokerBalance: sbBal, stonkbrokerBalanceUsd: sbBalUsd, ethBalance: ethBal, ethBalanceUsd: ethBalUsd,
+    holdings, holdingsComplete,
+    holdingsNote: holdingsComplete
+      ? 'Every ERC-20 the 6551 wallet holds, indexer-enumerated and sorted by USD. A broker wallet is a general account — it is not limited to the dividend stocks.'
+      : 'PARTIAL: the balance indexer was unreachable, so this lists only the dividend/seed stocks read on-chain. Other tokens the wallet holds are NOT shown and contentsUsd understates.',
+    stonkbrokerBalance: sbBal, stonkbrokerBalanceUsd: sbBalUsd, ethBalance: ethBal, ethBalanceUsd: ethBalUsd,
     contentsUsd: b ? +contentsUsd.toFixed(2) : null, unpricedAssets: unpriced.length ? unpriced : undefined,
     dividends: { byStock,
       totalRewardsUsd: (isActive && rewardsComplete) ? +rewardsUsd.toFixed(2) : null,
