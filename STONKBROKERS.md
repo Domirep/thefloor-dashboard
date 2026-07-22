@@ -43,14 +43,20 @@ returning calldata. An agent can act on its own broker, never someone else's.
 
 ## Trade stock tokens
 
-**Start with `get_stock_tokens()`.** It reads the tradeable set from the chain and, per stock, the
-Uniswap V3 pools that really exist. The tiers differ per stock and are not guessable:
+**Start with `get_stock_tokens()`.** It reads the tradeable set from the chain and, per stock, every
+Uniswap V3 pool that has real liquidity — with its fee tier **and quote asset**. Neither is
+guessable, and these are RWA tokens: they do not all quote against WETH.
 
-| stock | tradeable at |
-|---|---|
-| AAPL | 0.01%, 0.05% |
-| NVDA | 0.3%, 1% |
-| AMZN | **no pool — not currently swappable** (verified against every known token, at every tier) |
+| stock | live pools | USD |
+|---|---|---|
+| AAPL | USDG 0.3%, USDG 1% | ~$324 |
+| AMZN | USDG 0.3%, USDG 1% | ~$247 |
+| NVDA | USDG 0.05%, USDG 0.3%, WETH 0.3% | ~$209 |
+
+**USDG is the stablecoin these actually trade against.** Assume WETH and you will find no market for
+AMZN at all, and route AAPL into empty pools. Empty pools are filtered out, and so are pools against
+copycat tokens (`AMZNAMZN`, `AMZNC`, `AMZNUSDG` all exist with large nominal liquidity) — pricing
+off one of those would be confidently wrong, which is worse than reporting nothing.
 
 **`prepare_broker_trade(id, from, tokenIn, tokenOut, amountIn, ...)`** routes an
 `exactInputSingle` through the wallet's own `executeCall`:

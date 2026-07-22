@@ -1528,7 +1528,7 @@ const MCP_TOOLS = [
   { name: 'prepare_activate_broker', description: 'VERIFICATION-GATED: build the UNSIGNED transaction(s) to activate a StonkBroker\'s dividend drops at a tier (or upgrade an active one — the on-chain quote credits what was already paid). This tool ERRORS and returns no calldata unless every check passes live on-chain: the fee quote and the signer\'s $STONKBROKER allowance (so `from` is required). Fee is paid by the signer (50% burned, 50% treasury); `approveFirst` is included when the allowance is short. IMPORTANT: the NFT\'s transfer hook CLEARS activation on every ownership change — activate AFTER any planned transfer (e.g. moving the broker to an agent wallet), never right before one, or the fee is wasted.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, tier: { type: 'integer', description: 'Target tier 1-5 (5 = 3.33x dividend weight)' }, from: { type: 'string', description: 'REQUIRED: the wallet that will pay — the on-chain allowance check is mandatory.' } }, ['id', 'tier']) },
   { name: 'get_broker_floor_status', description: 'Cross-game: does this StonkBroker\'s ERC-6551 wallet play The Floor? Returns the wallet, whether it owns a desk, and if so its live desk state (alpha, share, pending PnL, FLOOR balance). Binding rule: the desk itself (level/alpha) is permanently bound to the NFT and transfers on sale; liquid contents (FLOOR balance, operator NFTs, tokens) remain removable by the current owner until the sale lands.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' } }, ['id']) },
   { name: 'prepare_broker_floor_desk', description: 'VERIFICATION-GATED cross-game move (nobody on the chain has done it yet): build the UNSIGNED transaction that makes a StonkBroker\'s OWN ERC-6551 wallet open a desk on The Floor. This tool ERRORS and returns no calldata unless every check passes live on-chain: the broker must be ACTIVATED (policy — activation is the commitment step, the desk is the perk; activate first if not), `from` is required and must match ownerOf (executeCall is owner-gated), and the broker wallet must verifiably have no desk. Why do it: the desk and its alpha bind to the NFT and transfer with it on sale — the only way a Floor position can change hands — giving the broker a second income stream alongside its stock dividends (liquid wallet contents remain owner-removable until a sale; never promise a buyer the wallet\'s tokens). The 0.01 ETH rides along with your signature (no prior wallet funding). Referrer: on-chain, permanent, defaults to this dashboard\'s address, overridable — always tell the user who it is before signing.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, referrer: { type: 'string', description: 'Referrer to credit (permanent). Omit for this dashboard\'s default; 0x0…0 for none.' }, from: { type: 'string', description: 'REQUIRED: the broker\'s current owner — verified against ownerOf on-chain before any calldata is returned.' } }, ['id']) },
-  { name: 'get_stock_tokens', description: 'The tokenized stocks a StonkBroker wallet can actually trade, read from the StockBooster on-chain: symbol, address, decimals, and for each one the Uniswap V3 pools that really exist against WETH (tier + pool address). USE THIS BEFORE prepare_broker_trade — the tiers differ per stock and are not guessable: at time of writing AAPL trades at 0.01%/0.05%, NVDA at 0.3%/1%, and AMZN has NO WETH pool at all, so it cannot be swapped directly here. `tradeable:false` means exactly that. Symbols from this list are accepted in place of addresses by prepare_broker_trade.', inputSchema: obj() },
+  { name: 'get_stock_tokens', description: 'The tokenized stocks a StonkBroker wallet can trade, read from the StockBooster on-chain: symbol, address, decimals, live USD price, and every Uniswap V3 pool with real liquidity — each with its fee tier, pool address AND quote asset. USE THIS BEFORE prepare_broker_trade: neither the tier NOR the quote asset is guessable. These are RWA tokens and they do not all quote against WETH — AMZN trades against USDG (the stablecoin), while AAPL and NVDA have WETH pools, and the tiers differ per stock. Pass the pair this returns rather than assuming WETH. Empty pools are excluded, as are pools against copycat tokens we cannot value, so `tradeable:false` means no trustworthy market was found. Symbols from this list work in place of addresses in prepare_broker_trade.', inputSchema: obj() },
   { name: 'prepare_broker_trade', description: 'VERIFICATION-GATED: build the UNSIGNED Uniswap V3 swap that makes a StonkBroker\'s OWN ERC-6551 wallet trade one token for another on Robinhood Chain — the wallet spends, and the OUTPUT LANDS IN THE WALLET, so both sides belong to the NFT and transfer with it on sale. Errors with no calldata unless `from` matches ownerOf on-chain (executeCall is owner-gated) and the broker wallet verifiably holds enough tokenIn. Refuses to build a swap with no price floor: pass `pool` for a live on-chain quote (amountOutMinimum = quote − slippagePct) or `minAmountOut` yourself — a zero minimum is a guaranteed sandwich. The router pulls via transferFrom, so if the WALLET\'S allowance is short an `approveFirst` transaction is returned and both must be signed in order. Nothing here is signed or broadcast; the owner signs both.', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, from: { type: 'string', description: 'REQUIRED: the broker\'s current owner — verified against ownerOf on-chain before any calldata is returned.' }, tokenIn: { type: 'string', description: 'Token the broker wallet spends (0x address).' }, tokenOut: { type: 'string', description: 'Token the broker wallet receives (0x address).' }, amountIn: { type: 'number', description: 'Amount of tokenIn in whole tokens (not wei).' }, decimals: { type: 'integer', description: 'tokenIn decimals (default 18). Wrong decimals means a wrong-sized trade — check it.' }, outDecimals: { type: 'integer', description: 'tokenOut decimals (default 18), used for the minimum-out maths.' }, fee: { type: 'integer', description: 'Uniswap V3 fee tier: 100, 500, 3000 or 10000. Default 10000.' }, pool: { type: 'string', description: 'The V3 pool for this pair+tier. Given, the amountOutMinimum is quoted live from slot0.' }, slippagePct: { type: 'number', description: 'Max slippage when quoting from `pool` (default 2).' }, minAmountOut: { type: 'number', description: 'Explicit floor in whole tokenOut. Use when you priced it elsewhere; skips the pool quote.' } }, ['id', 'from', 'tokenIn', 'tokenOut', 'amountIn']) },
   { name: 'prepare_broker_floor_collect', description: 'VERIFICATION-GATED: build the UNSIGNED transaction that makes a StonkBroker\'s wallet collect its Floor desk\'s pending PnL. Errors with no calldata unless `from` matches ownerOf on-chain and the wallet verifiably has a desk. The collected FLOOR lands IN the broker\'s wallet (it belongs to the NFT, not to you — use the wallet\'s executeCall for anything further).', inputSchema: obj({ id: { type: 'integer', description: 'Broker token id, 1-4444' }, from: { type: 'string', description: 'REQUIRED: the broker\'s current owner — verified against ownerOf on-chain.' } }, ['id']) },
   { name: 'get_broker_leaderboard', description: 'Activated StonkBrokers ranked by the USD value of their wallet CONTENTS right now (the 3 dividend stocks + $STONKBROKER + ETH, priced from their on-chain pools). IMPORTANT framing: contents are a removable snapshot — the current owner can move everything out before a sale; a paid activation is cleared on every transfer (buyers re-activate); a Floor desk lives on the broker\'s wallet and survives sales. Report this as data, never as an appraisal or a promise of value.', inputSchema: obj({ limit: { type: 'integer', description: 'Max ranked rows to return (1-50, default 20)' } }) },
@@ -1602,6 +1602,18 @@ const SEL_SLOT0 = '0x3850c7bd';                      // pool.slot0() -> sqrtPric
 const V3_FACTORY = '0x1f7d7550b1b028f7571e69a784071f0205fd2efa';
 const SEL_GET_POOL = '0x1698ee82';                   // factory.getPool(address,address,uint24)
 const FEE_TIERS = [100, 500, 3000, 10000];
+/* Quote assets we will price against, best first. USDG is the stablecoin the RWA stocks actually
+   trade against — AMZN has NO WETH pool at all, so a WETH-only search reported it untradeable and
+   an agent could not trade one of the three stocks a broker holds. */
+const USDG_ADDR = '0x5fc5360d0400a0fd4f2af552add042d716f1d168';
+const QUOTES = [
+  { addr: USDG_ADDR, symbol: 'USDG', decimals: 6, usdPerUnit: 1 },
+  { addr: WETH_ADDR, symbol: 'WETH', decimals: 18, usdPerUnit: null },   // priced via ethUsd()
+];
+const SEL_POOL_LIQUIDITY = '0x1a686502';             // pool.liquidity()
+const SEL_DECIMALS = '0x313ce567';
+// factory PoolCreated(address indexed token0, address indexed token1, uint24 indexed fee, int24, address)
+const TOPIC_POOL_CREATED = '0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118';
 /* The tradeable stock set, straight from the StockBooster. Cached 30 min: the set is fixed-size
    (address[3]) and effectively static, while the pool lookups behind it are four calls per stock.
    Symbols matter more than they look — an agent passing a 42-char address it half-remembered is a
@@ -1621,13 +1633,55 @@ async function stockTokens() {
       try { const L = parseInt(symRaw.slice(66, 130), 16); symbol = Buffer.from(symRaw.slice(130, 130 + L * 2), 'hex').toString('utf8').replace(/\0/g, '') || null; } catch (_) {}
     }
     const decimals = decRaw ? parseInt(decRaw, 16) : 18;
+    /* Probe the KNOWN quote assets rather than WETH alone. Deliberately not "every pool from
+       PoolCreated": AMZN sits in nine pools, several against copycat tokens (AMZNAMZN, AMZNC,
+       AMZNUSDG) carrying huge nominal liquidity. Pricing off one of those would be confidently
+       wrong, which is worse than reporting nothing — so we only trust assets we can value. */
     const pools = [];
-    for (const fee of FEE_TIERS) { const p = await v3Pool(a, WETH_ADDR, fee); if (p) pools.push({ fee, pool: p }); }
-    out.push({ symbol, address: a, decimals: Number.isFinite(decimals) ? decimals : 18, pools, tradeable: pools.length > 0 });
+    for (const q of QUOTES) {
+      for (const fee of FEE_TIERS) {
+        const p = await v3Pool(a, q.addr, fee);
+        if (!p) continue;
+        const liqRaw = await ethCall(p, SEL_POOL_LIQUIDITY);
+        const liquidity = liqRaw ? BigInt(liqRaw) : 0n;
+        if (liquidity === 0n) continue;                       // empty pool: a quote from it is meaningless
+        pools.push({ fee, pool: p, quote: q.symbol, quoteAddress: q.addr, liquidity: liquidity.toString() });
+      }
+    }
+    const priced = await stockUsd(a, decimals, pools);
+    out.push({ symbol, address: a, decimals: Number.isFinite(decimals) ? decimals : 18,
+      pools, tradeable: pools.length > 0, usd: priced.usd, pricedFrom: priced.from });
   }
   if (out.length) { _stocks = out; _stocksAt = Date.now(); }
   return _stocks;
 }
+/* USD price for a stock token from its deepest trusted pool. Decimals matter: USDG is 6dp against
+   the stocks' 18, so skipping the adjustment misprices by 1e12. Verified against two independent
+   AMZN/USDG pools ($246.57 and $245.47) and the dashboard's own $248.09. */
+async function stockUsd(token, tokenDecimals, pools) {
+  if (!pools || !pools.length) return { usd: null, from: null };
+  const best = pools.slice().sort((a, b) => {
+    const qa = a.quote === 'USDG' ? 1 : 0, qb = b.quote === 'USDG' ? 1 : 0;   // stable quote wins
+    if (qa !== qb) return qb - qa;
+    return (BigInt(b.liquidity) > BigInt(a.liquidity)) ? 1 : -1;
+  })[0];
+  const s0 = await ethCall(best.pool, SEL_SLOT0);
+  if (!s0) return { usd: null, from: null };
+  const q = QUOTES.find(x => x.symbol === best.quote);
+  const [t0raw] = [await ethCall(best.pool, '0x0dfe1681')];                    // token0()
+  if (!t0raw) return { usd: null, from: null };
+  const token0 = ('0x' + String(t0raw).slice(26)).toLowerCase();
+  const sqrt = BigInt('0x' + s0.slice(2, 66));
+  let p10 = Number(sqrt * sqrt) / 2 ** 192;                                    // token1 per token0, raw
+  const [d0, d1] = token0 === token.toLowerCase() ? [tokenDecimals, q.decimals] : [q.decimals, tokenDecimals];
+  p10 = p10 * Math.pow(10, d0 - d1);                                           // decimal-adjust
+  const quotePerToken = token0 === token.toLowerCase() ? p10 : (p10 ? 1 / p10 : 0);
+  if (!(quotePerToken > 0)) return { usd: null, from: null };
+  const unitUsd = q.usdPerUnit != null ? q.usdPerUnit : await ethUsd();
+  if (!unitUsd) return { usd: null, from: null };
+  return { usd: Math.round(quotePerToken * unitUsd * 100) / 100, from: best.quote + ' ' + (best.fee / 10000) + '% pool' };
+}
+
 // Accept a symbol where an address is expected. WETH is included because it is the other side of
 // every one of these pairs.
 async function resolveToken(v) {
@@ -2164,9 +2218,18 @@ async function mcpCall(name, args) {
           if (!pool) {
             const found = [];
             for (const t of FEE_TIERS) { if (t === fee) continue; const p = await v3Pool(tokenIn, tokenOut, t); if (p) found.push(t); }
-            return { error: 'no Uniswap V3 pool for that pair at the ' + fee + ' tier' +
-              (found.length ? '. Pools DO exist at: ' + found.join(', ') + ' — pass `fee` as one of those.'
-                            : '. No pool at any standard tier either — this pair may not be tradeable here, or it routes multi-hop, which this tool does not build.') };
+            if (found.length) return { error: 'no Uniswap V3 pool for that pair at the ' + fee + ' tier. Pools DO exist at: ' + found.join(', ') + ' — pass `fee` as one of those.' };
+            /* No pool for THIS pair says nothing about the token: these are RWAs and they do not all
+               quote against the same asset. Name the pairs that do exist instead of implying the
+               token is untradeable — that mistake is why AMZN was reported unswappable for a day. */
+            const alts = [];
+            for (const q of QUOTES) {
+              if (q.addr === tokenOut || q.addr === tokenIn) continue;
+              for (const t of FEE_TIERS) { const p = await v3Pool(tokenIn, q.addr, t); if (p) { alts.push(q.symbol + ' @ ' + t); break; } }
+            }
+            return { error: 'no Uniswap V3 pool for that exact pair at any tier.' +
+              (alts.length ? ' tokenIn DOES have a market against: ' + alts.join(', ') + ' — trade against one of those (see get_stock_tokens), or route it yourself; this tool builds single-hop swaps only.'
+                           : ' No market found for tokenIn against any known quote asset either.') };
           }
         }
         const s0 = await ethCall(pool, SEL_SLOT0);

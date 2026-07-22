@@ -82,16 +82,18 @@ account's `executeCall`, so **the wallet spends and the wallet receives**.
 The recipient is the broker wallet, never the owner's EOA. Sending output to the owner would look
 like a working trade while draining the NFT of the only thing that makes it worth buying.
 
-**Start with `get_stock_tokens`.** Pool tiers differ per stock and are not guessable:
+**Start with `get_stock_tokens`.** Fee tier *and quote asset* differ per stock, and neither is
+guessable — these are RWA tokens and they mostly quote against **USDG**, the stablecoin, not WETH:
 
-| stock | tradeable at |
-|---|---|
-| AAPL | 0.01%, 0.05% |
-| NVDA | 0.3%, 1% |
-| AMZN | **no WETH pool — cannot be swapped directly** |
+| stock | live pools | USD |
+|---|---|---|
+| AAPL | USDG 0.3%, USDG 1% | ~$324 |
+| AMZN | USDG 0.3%, USDG 1% | ~$247 |
+| NVDA | USDG 0.05%, USDG 0.3%, WETH 0.3% | ~$209 |
 
-A fixed default fee tier fails on two of the three. Symbols (`"NVDA"`, `"WETH"`) are accepted
-anywhere an address is.
+Assuming WETH finds no market for AMZN and routes AAPL into empty pools. Pools with zero liquidity
+are excluded, and so are pools against copycat tokens, so `tradeable:false` means no trustworthy
+market was found. Symbols (`"NVDA"`, `"WETH"`) work anywhere an address does.
 
 ### What it refuses to build
 
