@@ -121,9 +121,27 @@ ceiling · `--allow` token allowlist · first watcher pass caps historical backl
 - **`null` means unknown, never zero.** A throttled read returns `null` and flags `partial` —
   treat it as missing, not as 0.
 - **The broker wallet's balance is not the owner's.** Trades spend the wallet's tokens.
-- **Fee tiers differ per stock**, and one stock has no pool at all. Call `get_stock_tokens` first.
+- **Fee tier AND quote asset differ per stock.** Call `get_stock_tokens` first.
 - **Wallet contents are a snapshot, not an appraisal** — liquid contents remain removable by the
   current owner until a sale settles.
+- **A broker wallet holds far more than the three dividend stocks.** Broker #1 also holds SLV, USO,
+  SPCX, GOOGL and META; others hold INTC, ORCL. `get_broker` returns an address and a USD value per
+  token — feed those addresses straight to `prepare_broker_trade`. There is deliberately no
+  price-lookup tool: you can already price a token yourself, and we would only be reimplementing it.
+
+### If you price tokens yourself
+
+You almost certainly can. These four traps are what cost *us* time — take them free:
+
+| trap | consequence |
+|---|---|
+| Quote asset is **USDG**, not WETH | AMZN looks untradeable; AAPL routes into empty pools |
+| `getPool` returning an address ≠ a market | AAPL's WETH pools at 0.01%/0.05% are **empty** — check `pool.liquidity()` |
+| Copycat tokens (`AMZNAMZN`, `AMZNC`, `AMZNUSDG`) | large nominal liquidity, confidently wrong price |
+| USDG is 6dp vs the stocks' 18dp | skip the adjustment and you are out by 1e12 |
+
+Sanity check: AMZN/USDG reads ~$246 across two independent fee tiers and agrees with this API's own
+per-holding USD. A number off by orders of magnitude is one of the four above.
 
 ---
 
